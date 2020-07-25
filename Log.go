@@ -50,18 +50,18 @@ func (*logl) New(fileP string) {
 }
 
 func (*logl) T(l ...string){
-	if !isinit {log.Fatalln("not New(file string) yet!");return}
+	if !isinit {log.Println("TRACE:",l);return}
 	tracef.Println(l)
 }
 func (*logl) I(l ...string){
-	if !isinit {log.Fatalln("not New(file string) yet!");return}
+	if !isinit {log.Println("INFO:",l);return}
 	infof.Println(l)
 }
 func (*logl) W(l ...string){
-	if !isinit {log.Fatalln("not New(file string) yet!");return}
+	if !isinit {log.Println("WARNING:",l);return}
 	warningf.Println(l)
 }
 func (*logl) E(l ...string){
-	if !isinit {log.Fatalln("not New(file string) yet!");return}
+	if !isinit {log.Println("ERROR:",l);return}
 	errorf.Println(l)
 }

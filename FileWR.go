@@ -59,6 +59,8 @@ func (this *file) write(C Filel) string {
 		Context string=C.Context
 	)
 
+	this.NewPath(File)
+
 	var Kind int 
 	switch Loc {
 		case 0:Kind=os.O_RDWR|os.O_EXCL|os.O_TRUNC
@@ -146,8 +148,6 @@ func (this *file) locfix(Loc int64,File string,fileObj *os.File)int64{
 }
 
 func (this *file) NewPath(filename string) error{
-	this.Lock()
-	defer this.Unlock()
 
 	/*
 		如果filename路径不存在，就新建它

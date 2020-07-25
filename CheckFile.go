@@ -18,84 +18,23 @@ func Checkfile() *checkfile{
 }
 
 func (this *checkfile) Build(checkFile,checkDir,SplitString string) {
-	v,_:=this.GetAllFile(checkDir)
-
+	
+	v,_,_:=this.GetAllFile(checkDir)
 	_checkFile := Filel {
 		File:checkFile,
 		Write:true,
 		Loc:0,
 	}
 
-	fmt.Println("===checkFile Build===")
+	Logf().I("checkFile Build:begin")
 
 	for _,value := range v {
-		_checkFile.Context += string(value) + SplitString
-		fmt.Print(value,"\r")
+		_checkFile.Context += value + SplitString
 	}
 	
 	File().FileWR(_checkFile)
-	fmt.Println("===checkFile Build===")
+	Logf().I("checkFile Build:ok")
 
-}
-
-func (this *checkfile) Check(checkFile,checkDir,SplitString string) bool {
-	
-	if checkFile == "" || SplitString == "" {
-		fmt.Println("[err]checkFile or SplitString has null.")
-		return false
-	}
-	fmt.Println("===checkFile Check===")
-
-	var checkFileString string
-	var checkFileList []string 
-	if strings.Contains(checkFile,"https://") {
-		fmt.Println("[wait]checkFile: Getting checkfile...")
-
-		b,_,e := Reqf(ReqfVal {
-			Url:checkFile,
-			Timeout:6,
-            Retry:2,
-		})
-
-		if e != nil {
-			fmt.Println("[err]checkFile:",checkFile,e)
-			return false
-		}else{
-			fmt.Println("[ok]checkFile: Get checkfile.")
-			checkFileString = string(b)
-		}
-	}else{
-
-		checkFileString = File().FileWR(Filel {
-			File:checkFile,
-			Write:false,
-			Loc:0,
-		})
-
-	}
-
-	checkFileList = strings.Split(checkFileString,SplitString);
-
-	var returnVal bool = true
-	for _,value := range checkFileList {
-		if value != "" && !this.IsExist(checkDir+value) {
-			fmt.Println("[err]checkFile:", checkDir+value, "not exist!")
-			returnVal = false
-		}else{
-			if runtime.GOOS != "windows" && strings.Contains(value, ".run") {
-				var want os.FileMode = 0700
-				if ! this.CheckFilePerm(value,want) {
-					fmt.Println("[err]checkFile:", checkDir+value, "no permission!")
-					returnVal = false
-				}
-			}
-			// fmt.Println("[ok]checkFile:",checkDir+value)
-		}
-	}
-	if returnVal {fmt.Println("[ok]checkFile: all file pass!")}
-	fmt.Println("===checkFile Check===")
-
-	return returnVal
 }
 
 func (this *checkfile) IsExist(f string) bool {
@@ -112,7 +51,7 @@ func (this *checkfile) IsOpen(f string) bool {
 
 func (this *checkfile) Checkfile(src string)(string,error){
 
-    str,err:=this.GetAllFile(src)
+    _,str,err:=this.GetAllFile(src)
 
     if err !=nil {return "",errors.New("获取文件列表错误！")}
 
@@ -120,21 +59,26 @@ func (this *checkfile) Checkfile(src string)(string,error){
 
 }
 
-func (this *checkfile) GetAllFile(pathname string) (string,error) {
+func (this *checkfile) GetAllFile(pathname string) ([]string,string,error) {
 
-    var returnVal string = ""
+    var (
+		returnVal string = ""
+		list []string
+	)
 
     rd, err := ioutil.ReadDir(pathname)
 
     for _, fi := range rd {
         if fi.IsDir() {
-            _returnVal,_:=this.GetAllFile(pathname + fi.Name() + "/")
-            returnVal+=_returnVal
+            _list, _returnVal, _:=this.GetAllFile(pathname + fi.Name() + "/")
+			returnVal+=_returnVal
+			list = append(list, _list...)
         } else {
-            returnVal+=pathname + fi.Name()
+			returnVal+=pathname + fi.Name() + "\n"
+			list = append(list, pathname + fi.Name())
         }
     }
-    return returnVal,err
+    return list,returnVal,err
 }
 
 func (this *checkfile) GetFileSize(path string) int64 {
