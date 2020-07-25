@@ -1,7 +1,6 @@
 package part 
 
 import (
-    "sync"
     "fmt"
 	"time"
 	"runtime"
@@ -9,12 +8,10 @@ import (
 	"syscall"
     "errors"
     "os"
-	"io/ioutil"	
-	
-    "github.com/qydysky/part/linuxwin"
+	"io/ioutil"
 )
 
-type checkfile struct {sync.Mutex}
+type checkfile struct {}
 
 func Checkfile() *checkfile{
     return &checkfile{}
@@ -102,10 +99,8 @@ func (this *checkfile) Check(checkFile,checkDir,SplitString string) bool {
 }
 
 func (this *checkfile) IsExist(f string) bool {
-    this.Lock()
-	defer this.Unlock()
-
-    return Ppart.PIsExist(f)
+	_, err := os.Stat(f)
+	return err == nil || os.IsExist(err)
 }
 
 func (this *checkfile) IsOpen(f string) bool {
@@ -116,8 +111,6 @@ func (this *checkfile) IsOpen(f string) bool {
 }
 
 func (this *checkfile) Checkfile(src string)(string,error){
-    this.Lock()
-	defer this.Unlock()
 
     str,err:=this.GetAllFile(src)
 
@@ -128,8 +121,6 @@ func (this *checkfile) Checkfile(src string)(string,error){
 }
 
 func (this *checkfile) GetAllFile(pathname string) (string,error) {
-	this.Lock()
-	defer this.Unlock()
 
     var returnVal string = ""
 
@@ -147,8 +138,6 @@ func (this *checkfile) GetAllFile(pathname string) (string,error) {
 }
 
 func (this *checkfile) GetFileSize(path string) int64 {
-    this.Lock()
-	defer this.Unlock()
 
     if !this.IsExist(path) {
         return 0
@@ -222,8 +211,6 @@ func (this *checkfile) CheckList(checkFile,checkDir,SplitString string)bool{
 }
 
 func (this *checkfile) GetFileModTime(path string) (error,int64) {
-    this.Lock()
-	defer this.Unlock()
 
 	f, err := os.Open(path)
 	if err != nil {

@@ -94,7 +94,3 @@ func Cdir()string{
     exPath := filepath.Dir(dir)
     return exPath
 }
-func PIsExist(f string) bool{
-    _, err := os.Stat(f)
-    return err == nil || os.IsExist(err)
-}

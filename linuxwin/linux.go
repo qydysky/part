@@ -58,8 +58,3 @@ func PProxy(s, pacUrl string){
         PRun(true,"kwriteconfig5","--file","kioslaverc","--group","'Proxy Settings'","--key","Proxy Config Script","\""+pacUrl+"\"");
     }
 }
-
-func PIsExist(f string) bool{
-    _, err := os.Stat(f)
-    return err == nil || os.IsExist(err)
-}
