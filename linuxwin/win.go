@@ -76,19 +76,21 @@ func PStartf(pro []*exec.Cmd){
     }
 }
 
-func PRun(hide bool,prog string,cmd ...string){
+func PRun(hide bool,prog string,cmd ...string) error {
     p:=exec.Command(prog,cmd...)
     if hide {p.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}}
-    p.Run()
+    return p.Run()
 }
 
-func PProxy(s, pacUrl string){
+func PProxy(s, pacUrl string) error {
     if s=="off"{
-        PRun(true,Cdir()+"/ref/sysproxy64.exe","off")
+        return PRun(true,Cdir()+"/ref/sysproxy64.exe","off")
     }else{
-        PRun(true,Cdir()+"/ref/sysproxy64.exe","pac",pacUrl)
+        return PRun(true,Cdir()+"/ref/sysproxy64.exe","pac",pacUrl)
     }
+    return nil
 }
+
 func Cdir()string{
     dir, _ := os.Executable()
     exPath := filepath.Dir(dir)

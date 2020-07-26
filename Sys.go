@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"time"
+	"net"
 	"strconv"
 )
 
@@ -41,4 +42,43 @@ func (this *sys) GetSys(sys string)bool{
 func (this *sys) GetTime() string {
 	now := strconv.FormatInt(time.Now().Unix(),10)
 	return now[len(now)-4:]
+}
+
+func (this *sys) GetFreeProt() int {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+func (this *sys) GetIntranetIp() string {
+    netInterfaces, err := net.Interfaces()
+    if err != nil {
+        Logf().E("net.Interfaces failed, err:", err.Error())
+        Logf().E("[part]no loacl ip")
+    	return "127.0.0.1"
+	}
+ 
+    for i := 0; i < len(netInterfaces); i++ {
+        if (netInterfaces[i].Flags & net.FlagUp) != 0 {
+            addrs, _ := netInterfaces[i].Addrs()
+ 
+            for _, address := range addrs {
+                if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+                    if ipnet.IP.To4() != nil {
+                        return ipnet.IP.String()
+                    }
+                }
+            }
+        }
+    }
+    Logf().E("[part]no loacl ip")
+    return "127.0.0.1"
 }

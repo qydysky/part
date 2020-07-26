@@ -35,10 +35,11 @@ func PStartf(pro []*exec.Cmd){
     }
 }
 
-func PRun(hide bool,prog string,cmd ...string){
+func PRun(hide bool,prog string,cmd ...string) error {
     p:=exec.Command(prog,cmd...)
     if hide {}
-    p.Run()
+    e:=p.Run()
+    return e
 }
 
 func Cdir()string{
@@ -47,14 +48,15 @@ func Cdir()string{
     return exPath
 }
 
-func PProxy(s, pacUrl string){
+func PProxy(s, pacUrl string) error {
     if s=="off" {
-        PRun(true,"gsettings","set","org.gnome.system.proxy","mode","none");
-        PRun(true,"kwriteconfig5","--file","kioslaverc","--group","'Proxy Settings'","--key","ProxyType","\"0\"");
+        if e:=PRun(true,"gsettings","set","org.gnome.system.proxy","mode","none");e!=nil{return e}
+        if e:=PRun(true,"kwriteconfig5","--file","kioslaverc","--group","Proxy Settings","--key","ProxyType","0");e!=nil{return e}
     }else{
-        PRun(true,"gsettings","set","org.gnome.system.proxy","autoconfig-url",pacUrl);
-        PRun(true,"gsettings","set","org.gnome.system.proxy","mode","auto");
-        PRun(true,"kwriteconfig5","--file","kioslaverc","--group","'Proxy Settings'","--key","ProxyType","\"2\"");
-        PRun(true,"kwriteconfig5","--file","kioslaverc","--group","'Proxy Settings'","--key","Proxy Config Script","\""+pacUrl+"\"");
+        if e:=PRun(true,"gsettings","set","org.gnome.system.proxy","autoconfig-url",pacUrl);e!=nil{return e}
+        if e:=PRun(true,"gsettings","set","org.gnome.system.proxy","mode","auto");e!=nil{return e}
+        if e:=PRun(true,"kwriteconfig5","--file","kioslaverc","--group","Proxy Settings","--key","ProxyType","2");e!=nil{return e}
+        if e:=PRun(true,"kwriteconfig5","--file","kioslaverc","--group","Proxy Settings","--key","Proxy Config Script",pacUrl);e!=nil{return e}
     }
+    return nil
 }
