@@ -74,7 +74,7 @@ func (this *checkfile) GetAllFile(pathname string) ([]string,string,error) {
 			returnVal+=_returnVal
 			list = append(list, _list...)
         } else {
-			returnVal+=pathname + fi.Name() + "\n"
+			returnVal+=pathname + "/" + fi.Name() + "\n"
 			list = append(list, pathname + fi.Name())
         }
     }
@@ -93,7 +93,7 @@ func (this *checkfile) GetFileSize(path string) int64 {
     return fileInfo.Size()
 }
 
-func (this *checkfile) CheckList(checkFile,checkDir,SplitString string)bool{
+func (this *checkfile) CheckList(checkFile,SplitString string)bool{
 	
 	if checkFile == "" || SplitString == "" {
 		Logf().E("[err]checkFile or SplitString has null.")
@@ -134,14 +134,14 @@ func (this *checkfile) CheckList(checkFile,checkDir,SplitString string)bool{
 
 	var returnVal bool = true
 	for _,value := range checkFileList {
-		if value!=""&&!this.IsExist(checkDir+value) {
-			Logf().E("[err]checkFile:",checkDir+value,"not exist!")
+		if value!=""&&!this.IsExist(value) {
+			Logf().E("[err]checkFile:",value,"not exist!")
 			returnVal=false
 		}else{
 			if runtime.GOOS!="windows" && strings.Contains(value,".run") {
 				var want os.FileMode = 0700
 				if !this.CheckFilePerm(value,want) {
-					Logf().E("[err]checkFile:",checkDir+value,"no permission!")
+					Logf().E("[err]checkFile:",value,"no permission!")
 					returnVal=false
 				}
 			}
