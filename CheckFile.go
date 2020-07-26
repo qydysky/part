@@ -17,7 +17,7 @@ func Checkfile() *checkfile{
     return &checkfile{}
 }
 
-func (this *checkfile) Build(checkFile,checkDir,SplitString string) {
+func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 bool) {
 	
 	v,_,_:=this.GetAllFile(checkDir)
 	_checkFile := Filel {
@@ -28,8 +28,18 @@ func (this *checkfile) Build(checkFile,checkDir,SplitString string) {
 
 	Logf().I("checkFile Build:begin")
 
+	if usemd5 {_checkFile.Context += "UseMd5"} 
+
+	_checkFile.Context += SplitString
+
 	for _,value := range v {
-		_checkFile.Context += value + SplitString
+		if usemd5 { 
+			md5, e := Md5().Md5File(value)
+			if e != nil {md5 = "00000000000000000000000000000000"}
+			_checkFile.Context += md5 
+		}
+		_checkFile.Context += value[len(root):]
+		_checkFile.Context += SplitString
 	}
 	
 	File().FileWR(_checkFile)
@@ -93,7 +103,7 @@ func (this *checkfile) GetFileSize(path string) int64 {
     return fileInfo.Size()
 }
 
-func (this *checkfile) CheckList(checkFile,SplitString string)bool{
+func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 	
 	if checkFile == "" || SplitString == "" {
 		Logf().E("[err]checkFile or SplitString has null.")
@@ -132,21 +142,38 @@ func (this *checkfile) CheckList(checkFile,SplitString string)bool{
 
 	checkFileList=strings.Split(checkFileString,SplitString);
 
-	var returnVal bool = true
-	for _,value := range checkFileList {
-		if value!=""&&!this.IsExist(value) {
-			Logf().E("[err]checkFile:",value,"not exist!")
-			returnVal=false
+	var (
+		returnVal bool = true
+		UseMd5 bool = strings.Contains(checkFileList[0], "UseMd5")
+		_value string
+	)
+
+	for _,value := range checkFileList[1:] {
+		if value == "" {continue}
+
+		if UseMd5 {_value = root + value[32:]}else{_value = root + value}
+		
+		if !this.IsExist(_value) {
+			Logf().E("[err]checkFile:", _value, "not exist!")
+			returnVal = false
 		}else{
-			if runtime.GOOS!="windows" && strings.Contains(value,".run") {
+			if UseMd5 {
+				if md5,_ := Md5().Md5File(_value); value[:32] != md5 {
+					Logf().E("[err]checkFile:", _value, "no match!")
+					returnVal = false
+				}
+			}
+			
+			if runtime.GOOS != "windows" && strings.Contains(_value, ".run") {
 				var want os.FileMode = 0700
-				if !this.CheckFilePerm(value,want) {
-					Logf().E("[err]checkFile:",value,"no permission!")
-					returnVal=false
+				if !this.CheckFilePerm(_value, want) {
+					Logf().E("[err]checkFile:", _value, "no permission!")
+					returnVal = false
 				}
 			}
 			// fmt.Println("[ok]checkFile:",checkDir+value)
 		}
+
 	}
 	if returnVal {Logf().I("[ok]checkFile: all file pass!")}
 	Logf().I("===checkFile Check===")

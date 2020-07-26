@@ -32,19 +32,19 @@ func (*logl) New(fileP string) {
 
     tracef = log.New(io.MultiWriter(file, os.Stdout),
         "TRACE: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 
     infof = log.New(io.MultiWriter(file, os.Stdout),
         "INFO: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 
     warningf = log.New(io.MultiWriter(file, os.Stdout),
         "WARNING: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+        log.Ldate|log.Ltime)
 
     errorf = log.New(io.MultiWriter(file, os.Stderr),
         "ERROR: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+		log.Ldate|log.Ltime)
 		
 	isinit = true
 }
