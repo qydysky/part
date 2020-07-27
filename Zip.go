@@ -139,6 +139,7 @@ func (this *lzip) UnZip(zipFile string, destDir string) error {
 type rZip struct {
     poit *zip.ReadCloser
     buf map[string]*zip.File
+    sync.Mutex
 }
 
 func RZip() *rZip {return &rZip{}}
