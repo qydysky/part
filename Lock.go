@@ -26,7 +26,10 @@ func (l *lock) Start(filePath string) int {
 	if Checkfile().IsOpen(lock_md5Key) {return 2}
 	if !Checkfile().IsExist(filePath) {return 3}
 
-	lock_md5Key = ".lock."+filePath
+	fi, err := os.Stat(filePath)
+	if err != nil {return 4}
+	
+	lock_md5Key = ".lock." + fi.Name()
 	lock_file, _ = os.Create(lock_md5Key)
 	return 0
 }
