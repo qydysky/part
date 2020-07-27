@@ -6,7 +6,9 @@ import (
     "github.com/klauspost/compress/zip"
 	"io"
     "path/filepath"
-	"strings"
+    "strings"
+    "bytes"
+    "time"
 )
 
 type lzip struct {sync.Mutex}
@@ -132,4 +134,50 @@ func (this *lzip) UnZip(zipFile string, destDir string) error {
     }
 
     return nil
+}
+
+type rZip struct {
+    poit *zip.ReadCloser
+    buf map[string]*zip.File
+}
+
+func RZip() *rZip {return &rZip{}}
+
+func (t *rZip) New(zipFile string) (error) {
+    t.buf  = make(map[string]*zip.File)
+
+    var err error
+    t.poit, err = zip.OpenReader(zipFile)
+    if err != nil {return err}
+
+    for _, _f := range t.poit.File {
+        if _f.FileInfo().IsDir() {continue}
+        t.buf[_f.Name] = _f
+    }
+    
+    return nil
+}
+
+func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
+    var timeLayoutStr = "2006-01-02 15:04:05"
+    var err error
+
+    if f,ok := t.buf[path];ok {
+        if rc, err := f.Open();err == nil {
+            defer rc.Close();
+
+            buf := new(bytes.Buffer)
+            buf.ReadFrom(rc)
+            return buf,f.FileHeader.Modified.Format(timeLayoutStr),nil
+        }
+        return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),err
+    }
+    return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),nil
+}
+
+func (t *rZip) Close() {
+    t.poit.Close()
+    for k := range t.buf {
+        delete(t.buf, k)
+    }
 }
