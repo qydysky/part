@@ -144,6 +144,9 @@ type rZip struct {
 func RZip() *rZip {return &rZip{}}
 
 func (t *rZip) New(zipFile string) (error) {
+    t.Lock()
+	defer t.Unlock()
+
     t.buf  = make(map[string]*zip.File)
 
     var err error
@@ -159,6 +162,9 @@ func (t *rZip) New(zipFile string) (error) {
 }
 
 func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
+    t.Lock()
+    defer t.Unlock()
+    
     var timeLayoutStr = "2006-01-02 15:04:05"
     var err error
 
