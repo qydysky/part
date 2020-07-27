@@ -53,6 +53,8 @@ func (this *checkfile) IsExist(f string) bool {
 }
 
 func (this *checkfile) IsOpen(f string) bool {
+	if !this.IsExist(f) {return false}
+	
 	fi,e:=os.OpenFile(f, syscall.O_RDONLY|syscall.O_EXCL, 0)
 	if e!=nil {return true}
 	fi.Close()
