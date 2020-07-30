@@ -62,21 +62,21 @@ func (this *sys) GetFreePort() int {
 	return p
 }
 
-func (t *sys) GetTmpDir() string {
+func (t *sys) GetTmpDir(pdir string) string {
 	defer t.Unlock()
 	t.Lock()
 
-	dir, err := ioutil.TempDir("", "")
+	dir, err := ioutil.TempDir(pdir, "")
 	if err != nil {Logf().E(err.Error());return ""}
 
 	return dir
 }
 
-func (t *sys) GetTmpFile(dir string) string {
+func (t *sys) GetTmpFile(pdir string) string {
 	defer t.Unlock()
 	t.Lock()
 
-	tmpfile, err := ioutil.TempFile(dir, "*.tmp")
+	tmpfile, err := ioutil.TempFile(pdir, "*.tmp")
 	if err != nil {Logf().E(err.Error());return ""}
 	name := tmpfile.Name()
 	tmpfile.Close()
