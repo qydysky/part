@@ -6,21 +6,19 @@ import (
 	"log"
 )
 
-type logl struct {}
+type logl struct {
+    file string
+    tracef   *log.Logger // 记录所有日志
+    infof    *log.Logger // 重要的信息
+    warningf *log.Logger // 需要注意的信息
+    errorf   *log.Logger // 非常严重的问题
+}
 
 func Logf() (*logl) {
 	return &logl{}
 }
 
-var (
-	isinit bool
-    tracef   *log.Logger // 记录所有日志
-    infof    *log.Logger // 重要的信息
-    warningf *log.Logger // 需要注意的信息
-    errorf   *log.Logger // 非常严重的问题
-)
-
-func (*logl) New(fileP string) {
+func (l *logl) New(fileP string) {
 
     File().NewPath(fileP)
     
@@ -30,38 +28,38 @@ func (*logl) New(fileP string) {
         log.Fatalln("Failed to open error log file:", err)
     }
 
-    tracef = log.New(io.MultiWriter(file, os.Stdout),
-        "TRACE: ",
+    l.tracef = log.New(io.MultiWriter(file, os.Stdout),
+        "TRACE: "+fileP+" ",
         log.Ldate|log.Ltime)
 
-    infof = log.New(io.MultiWriter(file, os.Stdout),
-        "INFO: ",
+    l.infof = log.New(io.MultiWriter(file, os.Stdout),
+        "INFO: "+fileP+" ",
         log.Ldate|log.Ltime)
 
-    warningf = log.New(io.MultiWriter(file, os.Stdout),
-        "WARNING: ",
+    l.warningf = log.New(io.MultiWriter(file, os.Stdout),
+        "WARNING: "+fileP+" ",
         log.Ldate|log.Ltime)
 
-    errorf = log.New(io.MultiWriter(file, os.Stderr),
-        "ERROR: ",
+    l.errorf = log.New(io.MultiWriter(file, os.Stderr),
+        "ERROR: "+fileP+" ",
 		log.Ldate|log.Ltime)
 		
-	isinit = true
+    l.file = fileP
 }
 
-func (*logl) T(l ...interface{}){
-	if !isinit {log.Println("TRACE:",l);return}
-	tracef.Println(l...)
+func (l *logl) T(i ...interface{}){
+	if l.file == "" {log.Println("TRACE:",i);return}
+	l.tracef.Println(i...)
 }
-func (*logl) I(l ...interface{}){
-	if !isinit {log.Println("INFO:",l);return}
-	infof.Println(l...)
+func (l *logl) I(i ...interface{}){
+	if l.file == "" {log.Println("INFO:",i);return}
+	l.infof.Println(i...)
 }
-func (*logl) W(l ...interface{}){
-	if !isinit {log.Println("WARNING:",l);return}
-	warningf.Println(l...)
+func (l *logl) W(i ...interface{}){
+	if l.file == "" {log.Println("WARNING:",i);return}
+	l.warningf.Println(i...)
 }
-func (*logl) E(l ...interface{}){
-	if !isinit {log.Println("ERROR:",l);return}
-	errorf.Println(l...)
+func (l *logl) E(i ...interface{}){
+	if l.file == "" {log.Println("ERROR:",i);return}
+	l.errorf.Println(i...)
 }
