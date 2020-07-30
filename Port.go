@@ -1,5 +1,9 @@
 package part
 
+import (
+	"net"
+)
+
 type port struct {}
 
 var (
@@ -20,13 +24,21 @@ func (*port) Del(key string) {
 	delete(port_map,key)
 }
 
+func (*port) Set(key string,l net.Listener) {
+	port_buf<-true
+	defer func(){
+		<-port_buf
+	}()
+	port_map[key] = l.Addr().(*net.TCPAddr).Port
+}
+
 func (*port) New(key string) int {
 	port_buf<-true
 	defer func(){
 		<-port_buf
 	}()
 
-	if p := Sys().GetFreeProt();p != 0{
+	if p := Sys().GetFreePort();p != 0{
 		port_map[key] = p
 		return p
 	}

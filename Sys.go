@@ -8,6 +8,9 @@ import (
 	"time"
 	"net"
 	"strconv"
+	"io/ioutil"
+
+	Ppart "github.com/qydysky/part/linuxwin"
 )
 
 type sys struct {sync.Mutex}
@@ -44,7 +47,7 @@ func (this *sys) GetTime() string {
 	return now[len(now)-4:]
 }
 
-func (this *sys) GetFreeProt() int {
+func (this *sys) GetFreePort() int {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0
@@ -54,8 +57,30 @@ func (this *sys) GetFreeProt() int {
 	if err != nil {
 		return 0
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	p := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return p
+}
+
+func (t *sys) GetTmpDir() string {
+	defer t.Unlock()
+	t.Lock()
+
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {Logf().E(err.Error());return ""}
+
+	return dir
+}
+
+func (t *sys) GetTmpFile(dir string) string {
+	defer t.Unlock()
+	t.Lock()
+
+	tmpfile, err := ioutil.TempFile(dir, "*.tmp")
+	if err != nil {Logf().E(err.Error());return ""}
+	name := tmpfile.Name()
+	tmpfile.Close()
+	return name
 }
 
 func (this *sys) GetIntranetIp() string {
@@ -81,4 +106,12 @@ func (this *sys) GetIntranetIp() string {
     }
     Logf().E("[part]no loacl ip")
     return "127.0.0.1"
+}
+
+func (this *sys) CheckProgram(pros ...string) []int {
+    return Ppart.PCheck(pros);
+}
+
+func (this *sys) SetProxy(s,pac string) error {
+    return Ppart.PProxy(s,pac);
 }

@@ -51,17 +51,17 @@ func (*logl) New(fileP string) {
 
 func (*logl) T(l ...interface{}){
 	if !isinit {log.Println("TRACE:",l);return}
-	tracef.Println(l)
+	tracef.Println(l...)
 }
 func (*logl) I(l ...interface{}){
 	if !isinit {log.Println("INFO:",l);return}
-	infof.Println(l)
+	infof.Println(l...)
 }
 func (*logl) W(l ...interface{}){
 	if !isinit {log.Println("WARNING:",l);return}
-	warningf.Println(l)
+	warningf.Println(l...)
 }
 func (*logl) E(l ...interface{}){
 	if !isinit {log.Println("ERROR:",l);return}
-	errorf.Println(l)
+	errorf.Println(l...)
 }

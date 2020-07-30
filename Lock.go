@@ -1,52 +1,52 @@
 package part
 
-import (
-	"os"
-    "sync"
-)
+// import (
+// 	"os"
+//     "sync"
+// )
 
-type lock struct {
-	sync.Mutex
-}
+// type lock struct {
+// 	sync.Mutex
+// }
 
-var (
-	lock_file *os.File
-	lock_md5Key string
-)
+// var (
+// 	lock_file *os.File
+// 	lock_md5Key string
+// )
 
-func Lock() *lock {
-	return &lock{}
-}
+// func Lock() *lock {
+// 	return &lock{}
+// }
 
-func (l *lock) Start(filePath string) int {
-	l.Lock()
-	defer l.Unlock()
+// func (l *lock) Start(filePath string) int {
+// 	l.Lock()
+// 	defer l.Unlock()
 
-	if l.State() {return 1}
-	if Checkfile().IsOpen(lock_md5Key) {return 2}
-	if !Checkfile().IsExist(filePath) {return 3}
+// 	if l.State() {return 1}
+// 	if !Checkfile().IsExist(filePath) {return 3}
 
-	fi, err := os.Stat(filePath)
-	if err != nil {return 4}
-	
-	lock_md5Key = ".lock." + fi.Name()
-	lock_file, _ = os.Create(lock_md5Key)
-	return 0
-}
+// 	fi, err := os.Stat(filePath)
+// 	if err != nil {return 4}
+// 	if Sys().Check(fi.Name())[0] != 0 {return 2}
 
-func (l *lock) Stop() int {
-	l.Lock()
-	defer l.Unlock()
+// 	// lock_md5Key = ".lock." + fi.Name()
+// 	// lock_file, _ = os.Create(lock_md5Key)
+// 	return 0
+// }
 
-	if !l.State() {return 1}
-	if !Checkfile().IsExist(lock_md5Key) {return 2}
+// func (l *lock) Stop() int {
+// 	l.Lock()
+// 	defer l.Unlock()
 
-	lock_file.Close()
-	os.Remove(lock_md5Key)
-	lock_md5Key = ""
-	return 0
-}
+// 	if !l.State() {return 1}
+// 	if !Checkfile().IsExist(lock_md5Key) {return 2}
 
-func (*lock) State() bool {
-	return lock_md5Key != ""
-}
+// 	lock_file.Close()
+// 	os.Remove(lock_md5Key)
+// 	lock_md5Key = ""
+// 	return 0
+// }
+
+// func (*lock) State() bool {
+// 	return lock_md5Key != ""
+// }
