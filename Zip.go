@@ -163,11 +163,10 @@ func (t *rZip) New(zipFile string) (error) {
     return nil
 }
 
-func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
+func (t *rZip) Read(path string) (*bytes.Buffer,time.Time,error) {
     t.Lock()
     defer t.Unlock()
     
-    var timeLayoutStr = "2006-01-02 15:04:05"
     var err error
 
     if f,ok := t.buf[path];ok {
@@ -176,11 +175,11 @@ func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
 
             buf := new(bytes.Buffer)
             buf.ReadFrom(rc)
-            return buf,f.FileHeader.Modified.Format(timeLayoutStr),nil
+            return buf,f.FileHeader.Modified,nil
         }
-        return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),err
+        return &bytes.Buffer{},time.Now().UTC(),err
     }
-    return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),errors.New("not found")
+    return &bytes.Buffer{},time.Now().UTC(),errors.New("not found")
 }
 
 func (t *rZip) List() []string {
