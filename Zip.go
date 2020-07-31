@@ -183,6 +183,14 @@ func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
     return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),errors.New("not found")
 }
 
+func (t *rZip) List() []string {
+    var list []string
+    for k := range t.buf {
+        list=append(list,k)
+    }
+    return list
+}
+
 func (t *rZip) Close() {
     t.poit.Close()
     for k := range t.buf {
