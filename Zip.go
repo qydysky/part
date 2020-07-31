@@ -9,6 +9,7 @@ import (
     "strings"
     "bytes"
     "time"
+    "errors"
 )
 
 type lzip struct {sync.Mutex}
@@ -179,7 +180,7 @@ func (t *rZip) Read(path string) (*bytes.Buffer,string,error) {
         }
         return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),err
     }
-    return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),nil
+    return &bytes.Buffer{},time.Now().UTC().Format(timeLayoutStr),errors.New("not found")
 }
 
 func (t *rZip) Close() {
