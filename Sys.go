@@ -9,7 +9,10 @@ import (
 	"net"
 	"strconv"
 	"io/ioutil"
+	"errors"
 
+	gopsutilLoad "github.com/shirou/gopsutil/load"
+	gopsutilCpu "github.com/shirou/gopsutil/cpu"
 	Ppart "github.com/qydysky/part/linuxwin"
 )
 
@@ -114,4 +117,13 @@ func (this *sys) CheckProgram(pros ...string) []int {
 
 func (this *sys) SetProxy(s,pac string) error {
     return Ppart.PProxy(s,pac);
+}
+
+func GetCpuPercent() (float64,error) {
+	if a,e := gopsutilLoad.Avg();e == nil{
+		if i,e:=gopsutilCpu.Counts(true);e == nil{
+			return (*a).Load1/float64(i),nil
+		}else{Logf().E(e.Error())}
+	}else{Logf().E(e.Error())}
+	return 0.0,errors.New("cant get CpuPercent")
 }
