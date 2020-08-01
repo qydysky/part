@@ -29,7 +29,7 @@ func Limit(Max,Second,TimeOut int) (*Limitl) {
 			for i:=1;i<=Max;i++{
 				returnVal.Channl <- true
 			}
-			time.Sleep(time.Duration(Second)*time.Second)
+			time.Sleep(time.Duration(Second)*time.Millisecond)
 		}
 	}(&returnVal)
 
@@ -40,7 +40,7 @@ func (l *Limitl) TO() bool {
 	if l.Stop {return false}
 	select {
 		case <-l.Channl :;
-		case <-time.After(time.Duration(l.TimeOut)*time.Second):return true;
+		case <-time.After(time.Duration(l.TimeOut)*time.Millisecond):return true;
 	}
 	return false
 }

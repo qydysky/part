@@ -119,7 +119,7 @@ func (this *sys) SetProxy(s,pac string) error {
     return Ppart.PProxy(s,pac);
 }
 
-func GetCpuPercent() (float64,error) {
+func (this *sys) GetCpuPercent() (float64,error) {
 	if a,e := gopsutilLoad.Avg();e == nil{
 		if i,e:=gopsutilCpu.Counts(true);e == nil{
 			return (*a).Load1/float64(i),nil
