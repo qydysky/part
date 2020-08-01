@@ -185,6 +185,8 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 
 func (this *checkfile) GetFileModTime(path string) (error,int64) {
 
+	if !this.IsExist(path) {return errors.New("not exist"),time.Now().Unix()}
+
 	f, err := os.Open(path)
 	if err != nil {
 		fmt.Println("open file error")
