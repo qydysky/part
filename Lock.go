@@ -1,52 +1,58 @@
 package part
 
-// import (
-// 	"os"
-//     "sync"
-// )
+import (
+	"os"
+	"sync"
+	"time"
+	"errors"
+)
 
-// type lock struct {
-// 	sync.Mutex
-// }
+type lock struct {
+	sync.Mutex
+}
 
-// var (
-// 	lock_file *os.File
-// 	lock_md5Key string
-// )
+var (
+	lock_file string
+	lock_timeout int64 = 10
+)
 
-// func Lock() *lock {
-// 	return &lock{}
-// }
+func Lock() *lock {
+	return &lock{}
+}
 
-// func (l *lock) Start(filePath string) int {
-// 	l.Lock()
-// 	defer l.Unlock()
+func (l *lock) Start(filePath string,timeout int64) error {
+	l.Lock()
+	defer l.Unlock()
 
-// 	if l.State() {return 1}
-// 	if !Checkfile().IsExist(filePath) {return 3}
+	if e,t := Checkfile().GetFileModTime(filePath); e != nil || time.Now().Unix() - t <= lock_timeout {
+		Logf().E(e.Error(),"or still alive")
+		return errors.New("still alive")
+	}
 
-// 	fi, err := os.Stat(filePath)
-// 	if err != nil {return 4}
-// 	if Sys().Check(fi.Name())[0] != 0 {return 2}
+	lock_file = filePath
+	lock_timeout = timeout
+	
+	go func(){
+		for lock_file != "" {
+			File().FileWR(Filel{
+				File:filePath,
+				Write:true,
+				Loc:0,
+				Context:"still alive",
+			})
+			Sys().Timeoutf(int(lock_timeout))
+		}
+	}()
 
-// 	// lock_md5Key = ".lock." + fi.Name()
-// 	// lock_file, _ = os.Create(lock_md5Key)
-// 	return 0
-// }
+	return nil
+}
 
-// func (l *lock) Stop() int {
-// 	l.Lock()
-// 	defer l.Unlock()
+func (l *lock) Stop() {
+	l.Lock()
+	defer l.Unlock()
 
-// 	if !l.State() {return 1}
-// 	if !Checkfile().IsExist(lock_md5Key) {return 2}
+	lock_file = ""
 
-// 	lock_file.Close()
-// 	os.Remove(lock_md5Key)
-// 	lock_md5Key = ""
-// 	return 0
-// }
-
-// func (*lock) State() bool {
-// 	return lock_md5Key != ""
-// }
+	os.RemoveAll(lock_file)
+	
+}
