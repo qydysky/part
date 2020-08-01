@@ -54,8 +54,8 @@ func (l *lock) Stop() {
 	l.Lock()
 	defer l.Unlock()
 
-	lock_file = ""
-
 	os.RemoveAll(lock_file)
+
+	lock_file = ""
 	
 }
