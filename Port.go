@@ -38,7 +38,7 @@ func (*port) New(key string) int {
 	defer func(){
 		<-port_buf
 	}()
-
+	Logf().I("New port with key:",key)
 	if p := Sys().GetFreePort();p != 0{
 		port_map[key] = p
 		return p
