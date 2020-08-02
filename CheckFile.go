@@ -48,8 +48,12 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 }
 
 func (this *checkfile) IsExist(f string) bool {
-	_, err := os.Stat(f)
-	return err == nil || os.IsExist(err)
+	var returnVal bool
+	go func(){
+		_, err := os.Stat(f)
+		returnVal <- (err == nil || os.IsExist(err))
+	}()
+	return <- returnVal
 }
 
 func (this *checkfile) IsOpen(f string) bool {
