@@ -48,7 +48,7 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 }
 
 func (this *checkfile) IsExist(f string) bool {
-	var returnVal chan bool
+	var returnVal chan bool = make(chan bool)
 	go func(){
 		_, err := os.Stat(f)
 		returnVal <- (err == nil || os.IsExist(err))
