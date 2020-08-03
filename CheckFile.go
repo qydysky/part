@@ -122,13 +122,13 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 	if strings.Contains(checkFile,"https://") {
 		Logf().I("[wait]checkFile: Getting checkfile...")
 
-		var r = ReqfVal {
+		var r = Rval {
 			Url:checkFile,
 			Timeout:6,
             Retry:2,
 		}
 		
-		b,_,e:=Reqf(r)
+		b,_,e:=Req().Reqf(r)
 		if e != nil {
 			Logf().E("[err]checkFile:",checkFile,e.Error())
 			return false

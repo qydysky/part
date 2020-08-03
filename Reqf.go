@@ -1,6 +1,7 @@
 package part
 
 import (
+    "sync"
     "io"
     "os"
     "time"
@@ -11,7 +12,7 @@ import (
     "encoding/binary"
 )
 
-type ReqfVal struct {
+type Rval struct {
     Url string
     Timeout int
     Referer string
@@ -25,6 +26,14 @@ type ReqfVal struct {
     SaveToPath string
 }
 
+type req struct {
+    sync.Mutex
+}
+
+func Req() *req{
+    return &req{}
+}
+
 // func main(){
 //     var _ReqfVal = ReqfVal{
 //         Url:url,
@@ -35,25 +44,29 @@ type ReqfVal struct {
 //     Reqf(_ReqfVal)
 // }
 
-func Reqf(val ReqfVal) ([]byte,time.Duration,error) {
+func (this *req) Reqf(val Rval) ([]byte,time.Duration,error) {
+    this.Lock()
+	defer this.Unlock()
+
 	var (
         returnVal []byte
         returnTime time.Duration
         returnErr error
 	)
 
-	var _val ReqfVal = val;
+	_val := val;
 
     if _val.Timeout==0{_val.Timeout=3}
 
 	for ;_val.Retry>=0;_val.Retry-- {
-		returnVal,returnTime,returnErr=Reqf_1(_val)
+		returnVal,returnTime,returnErr=this.Reqf_1(_val)
         if returnErr==nil {break}
 	}
 	return returnVal,returnTime,returnErr
 }
 
-func Reqf_1(val ReqfVal) ([]byte,time.Duration,error){
+func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
+
 	var (
         Url string = val.Url
         Referer string = val.Referer
