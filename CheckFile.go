@@ -11,7 +11,9 @@ import (
 	"io/ioutil"
 )
 
-type checkfile struct {}
+type checkfile struct {
+	RV []interface{}
+}
 
 func Checkfile() *checkfile{
     return &checkfile{}
@@ -47,16 +49,19 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 
 }
 
-func (this *checkfile) IsExist(f string) bool {
+func (t *checkfile) IsExist(f string) bool {
 	_, err := os.Stat(f)
 	if err != nil {
 		if os.IsNotExist(err) {
+			t.RV = append(t.RV,false,nil)
 			return false
 		}else{
 			Logf().E(err)
+			t.RV = append(t.RV,false,err)
 			return false
 		}
 	}
+	t.RV = append(t.RV,true,nil)
 	return true
 }
 
