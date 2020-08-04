@@ -1,7 +1,7 @@
 package part
 
 import (
-	"net"
+	// "net"
 )
 
 type port struct {}
@@ -24,13 +24,13 @@ func (*port) Del(key string) {
 	delete(port_map,key)
 }
 
-func (*port) Set(key string,l net.Listener) int {
+func (*port) Set(key string,l int) int {
 	port_buf<-true
 	defer func(){
 		<-port_buf
 	}()
-	port_map[key] = l.Addr().(*net.TCPAddr).Port
-	return l.Addr().(*net.TCPAddr).Port
+	port_map[key] = l
+	return l
 }
 
 func (*port) New(key string) int {
