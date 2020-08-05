@@ -9,7 +9,7 @@ import (
     "errors"
     "io/ioutil"
     "net/url"
-    "encoding/binary"
+    // "encoding/binary"
 )
 
 type Rval struct {
@@ -27,6 +27,9 @@ type Rval struct {
 }
 
 type req struct {
+    ResponseCode int
+    Respon []byte
+    UsedTime time.Duration
     sync.Mutex
 }
 
@@ -44,28 +47,25 @@ func Req() *req{
 //     Reqf(_ReqfVal)
 // }
 
-func (this *req) Reqf(val Rval) ([]byte,time.Duration,error) {
+func (this *req) Reqf(val Rval) (error) {
     this.Lock()
 	defer this.Unlock()
 
-	var (
-        returnVal []byte
-        returnTime time.Duration
-        returnErr error
-	)
+	var returnErr error
 
 	_val := val;
 
     if _val.Timeout==0{_val.Timeout=3}
 
 	for ;_val.Retry>=0;_val.Retry-- {
-		returnVal,returnTime,returnErr=this.Reqf_1(_val)
+		returnErr=this.Reqf_1(_val)
         if returnErr==nil {break}
-	}
-	return returnVal,returnTime,returnErr
+    }
+
+	return returnErr
 }
 
-func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
+func (this *req) Reqf_1(val Rval) (error) {
 
 	var (
         Url string = val.Url
@@ -80,10 +80,7 @@ func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
         SaveToPath string =val.SaveToPath
     )
 
-    var (
-        usedTime time.Duration = 0
-        beginTime time.Time = time.Now()
-    )
+    var beginTime time.Time = time.Now()
 
     var _Timeout time.Duration = time.Duration(Timeout)*time.Second
 
@@ -98,7 +95,7 @@ func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
         client = http.Client{Timeout: _Timeout}
     }
     
-    if Url==""{return nil,0,errors.New("Url is \"\"")}
+    if Url==""{return errors.New("Url is \"\"")}
     req,_ := http.NewRequest("GET", Url, nil)
 
     if Cookie!=""{req.Header.Add("Cookie",Cookie)}
@@ -111,7 +108,7 @@ func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
     resp, err := client.Do(req)
 
     if err != nil {
-        return nil,0,err
+        return err
     }
     
     var saveToFile func(io.Reader,string)error = func (Body io.Reader,filepath string) error {
@@ -128,22 +125,19 @@ func (this *req) Reqf_1(val Rval) ([]byte,time.Duration,error){
         if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
         return nil
     }
-    var b []byte
+    this.ResponseCode = resp.StatusCode
     if !JustResponseCode {
         defer resp.Body.Close()
         if SaveToPath != "" {
             if err := saveToFile(resp.Body, SaveToPath); err != nil {
-                return b,0,err
+                return err
             }
         }else{
-            b, _ = ioutil.ReadAll(resp.Body)
+            this.Respon,_ = ioutil.ReadAll(resp.Body)
         }
-    }else{
-        b = make([]byte, 4)
-        binary.LittleEndian.PutUint32(b, uint32(resp.StatusCode))
     }
     
-    usedTime=time.Since(beginTime)
+    this.UsedTime=time.Since(beginTime)
     
-    return b,usedTime,nil
+    return nil
 }

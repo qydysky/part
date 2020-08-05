@@ -136,14 +136,13 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 			Timeout:6,
             Retry:2,
 		}
-		
-		b,_,e:=Req().Reqf(r)
-		if e != nil {
+		req := Req()
+		if e:=req.Reqf(r);e != nil {
 			Logf().E("[err]checkFile:",checkFile,e.Error())
 			return false
 		}else{
 			Logf().I("[ok]checkFile: Get checkfile.")
-			checkFileString=string(b)
+			checkFileString=string(req.Respon)
 		}
 	}else{
 		var _checkFile = Filel {
