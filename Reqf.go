@@ -22,6 +22,7 @@ type Rval struct {
     AcceptLanguage string
     Connection string
     Retry int
+    SleepTime int
     JustResponseCode bool
     SaveToPath string
 }
@@ -60,6 +61,7 @@ func (this *req) Reqf(val Rval) (error) {
 	for ;_val.Retry>=0;_val.Retry-- {
 		returnErr=this.Reqf_1(_val)
         if returnErr==nil {break}
+        time.Sleep(time.Duration(_val.SleepTime)*time.Millisecond)
     }
 
 	return returnErr
