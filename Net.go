@@ -3,15 +3,46 @@ package part
 import (
     "net"
     "sync"
-    // "errors"
+    "errors"
+	"bytes"
+	"os/exec"
+    "runtime"
+	"github.com/miekg/dns"
 )
 
 type netl struct{
     RV []interface{}
+    Dns dnsl
 }
 
 func Net() *netl{
 	return &netl{}
+}
+
+type dnsl struct{
+    Server string
+}
+
+func (this *netl) Nslookup(target string) error {
+	c := dns.Client{}
+    m := dns.Msg{}
+    
+    m.SetQuestion(target+".", dns.TypeA)
+    
+    if this.Dns.Server == "" {
+        if e := this.GetLocalDns(); e != nil {return e}
+    }
+
+	r, _, err := c.Exchange(&m, this.Dns.Server+":53")
+	if err != nil {
+		return err
+    }
+    if len(r.Answer) == 0 {
+		return errors.New("no answer")
+    }
+    
+    this.RV = append(this.RV, dns.Field(r.Answer[0],1))
+    return nil
 }
 
 func (*netl) TestDial(network,address string) bool {
@@ -121,4 +152,48 @@ func (t *netl) Forward(targetaddr,targetnetwork *string, Need_Accept bool) {
         go tcpBridge2(proxyconn,targetconn)
     }
 
+}
+
+func (this *netl) GetLocalDns() error {
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("nslookup","127.0.0.1")
+		output, _ := cmd.CombinedOutput()
+		var ip []byte 
+		loc_ip := bytes.Index(output,[]byte("Address:"))+8
+
+		for brk:=1;brk>=0; {
+			tmp := bytes.IndexAny(output[loc_ip:],"1234567890.")
+			if tmp == 0 {
+				ip=append(ip,output[loc_ip])
+				loc_ip=loc_ip+1
+			}else{
+				brk=brk-1
+				loc_ip=loc_ip+tmp
+			}
+		}
+		
+		this.Dns.Server = string(ip)
+        return nil
+    }else if Checkfile().IsExist("/etc/resolv.conf") {
+		cmd := exec.Command("cat","/etc/resolv.conf")
+		output, _ := cmd.CombinedOutput()
+		var ip []byte 
+		loc_ip := bytes.Index(output,[]byte("nameserver"))+10
+		for brk:=1;brk>=0; {
+			tmp := bytes.IndexAny(output[loc_ip:],"1234567890.")
+			if tmp == 0 {
+				ip=append(ip,output[loc_ip])
+				loc_ip=loc_ip+1
+			}else{
+				brk=brk-1
+				loc_ip=loc_ip+tmp
+			}
+		}
+        this.Dns.Server = string(ip)
+        return nil
+	}
+	Logf().E("[err]Dns: system: ",runtime.GOOS)
+	Logf().E("[err]Dns: none")
+
+	return errors.New("1")
 }

@@ -8,23 +8,33 @@ type json struct {}
 
 func Json() (*json) {return &json{}}
 
-func (*json) GetValFrom(file,key string)interface {}{
+func (*json) GetValFrom(Source interface{},key string)interface {}{
 	var jq *gojsonq.JSONQ
-	if Checkfile().IsExist(file) {
-		jq = gojsonq.New().File(file)
-	}else{
-		jq = gojsonq.New().FromString(file)
-	}
+	switch Source.(type) {
+    case string:
+		if Checkfile().IsExist(Source.(string)) {
+			jq = gojsonq.New().File(Source.(string))
+		}else{
+			jq = gojsonq.New().FromString(Source.(string))
+		}
+	default:
+        jq = gojsonq.New().FromInterface(Source)
+    }
 	return jq.Find(key)
 }
 
-func (this *json) GetMultiValFrom(file string,key []string) []interface{}{
+func (this *json) GetMultiValFrom(Source interface{},key []string) []interface{}{
 	var jq *gojsonq.JSONQ
-	if Checkfile().IsExist(file) {
-		jq = gojsonq.New().File(file)
-	}else{
-		jq = gojsonq.New().FromString(file)
-	}
+	switch Source.(type) {
+    case string:
+		if Checkfile().IsExist(Source.(string)) {
+			jq = gojsonq.New().File(Source.(string))
+		}else{
+			jq = gojsonq.New().FromString(Source.(string))
+		}
+	default:
+        jq = gojsonq.New().FromInterface(Source)
+    }
 
 	var returnVal []interface{}
 	for _,i := range key {
