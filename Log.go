@@ -128,21 +128,25 @@ func (l *logl) WClose(){
 }
 
 func (l *logl) T(i ...interface{}){
+    if l.fileName == "" {log.Println("TRACE:", i);return}
     l.channelN <- 0
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) I(i ...interface{}){
+    if l.fileName == "" {log.Println("INFO:", i);return}
     l.channelN <- 1
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) W(i ...interface{}){
+    if l.fileName == "" {log.Println("WARNING:", i);return}
     l.channelN <- 2
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) E(i ...interface{}){
+    if l.fileName == "" {log.Println("ERROR:", i);return}
     l.channelN <- 3
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
