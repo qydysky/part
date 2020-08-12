@@ -12,7 +12,6 @@ type logl struct {
     channelN chan int
     channel chan interface{}
     wantLog chan bool
-    waitclose chan bool
     tracef   *log.Logger // 记录所有日志
     infof    *log.Logger // 重要的信息
     warningf *log.Logger // 需要注意的信息
@@ -25,7 +24,6 @@ func Logf() (*logl) {
 
 func (l *logl) New(fileP string) {
     l.wantLog = make(chan bool,2)
-    l.waitclose = make(chan bool)
     l.channelN = make(chan int,200)
     l.channel = make(chan interface{},200)
 
@@ -52,6 +50,7 @@ func (l *logl) New(fileP string) {
                         log.Println("ERROR:",<- l.channel)
                     }
                 }
+                for len(l.wantLog) != 0 {<- l.wantLog}
                 continue
             }
 
@@ -60,6 +59,7 @@ func (l *logl) New(fileP string) {
                 os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
             if err != nil {
                 l.E("Failed to open log file:", err)
+                for len(l.wantLog) != 0 {<- l.wantLog}
                 continue
             }
 
@@ -67,6 +67,7 @@ func (l *logl) New(fileP string) {
             if err != nil {
                 l.E("cannot flock", fileName, err)
                 file.Close()
+                for len(l.wantLog) != 0 {<- l.wantLog}
                 continue
             }
             
@@ -90,8 +91,7 @@ func (l *logl) New(fileP string) {
                 i := <- l.channelN
                 switch i {
                 case -1:
-                    l.fileName = ""
-                    l.waitclose <- true
+                    l.Close()
                 case 0:
                     l.tracef.Println(<- l.channel)
                 case 1:
@@ -110,7 +110,7 @@ func (l *logl) New(fileP string) {
 
             file.Close()
 
-            <- l.wantLog
+            for len(l.wantLog) != 0 {<- l.wantLog}
         }
     }()
 }
@@ -120,9 +120,9 @@ func (l *logl) Close(){
 }
 
 func (l *logl) WClose(){
+    if l.fileName == "" {return}
     l.channelN <- -1
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
-    <- l.waitclose
+    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true;}
 }
 
 func (l *logl) T(i ...interface{}){

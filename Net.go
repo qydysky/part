@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"os/exec"
     "runtime"
+    "time"
 	"github.com/miekg/dns"
 )
 
@@ -142,14 +143,20 @@ func (t *netl) Forward(targetaddr,targetnetwork *string, Need_Accept bool) {
             break
         }
 
-		targetconn, err := net.Dial(*targetnetwork, *targetaddr)
-        if err != nil {
-            Logf().E("[part/Forward]Unable to connect:", *targetaddr, err.Error())
-            proxyconn.Close()
-            continue
+        retry := 0
+        for {
+            targetconn, err := net.Dial(*targetnetwork, *targetaddr)
+            if err != nil {
+                Logf().E("[part/Forward]Unable to connect:", *targetaddr, err.Error())
+                retry += 1
+                if retry >= 2 {proxyconn.Close();break}
+                time.Sleep(time.Duration(1)*time.Millisecond)
+                continue
+            }    
+
+            go tcpBridge2(proxyconn,targetconn)
+            break
         }
-        
-        go tcpBridge2(proxyconn,targetconn)
     }
 
 }
