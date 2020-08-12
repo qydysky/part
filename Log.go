@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
     "log"
-    "syscall"
+    "sync"
 )
 
 type logl struct {
@@ -12,6 +12,7 @@ type logl struct {
     channelN chan int
     channel chan interface{}
     wantLog chan bool
+    sync.Mutex
     tracef   *log.Logger // 记录所有日志
     infof    *log.Logger // 重要的信息
     warningf *log.Logger // 需要注意的信息
@@ -54,19 +55,13 @@ func (l *logl) New(fileP string) {
                 continue
             }
 
+            l.Lock()
             File().NewPath(fileName)
             file, err := os.OpenFile(fileName,
                 os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
             if err != nil {
+                l.Unlock()
                 l.E("Failed to open log file:", err)
-                for len(l.wantLog) != 0 {<- l.wantLog}
-                continue
-            }
-
-            err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
-            if err != nil {
-                l.E("cannot flock", fileName, err)
-                file.Close()
                 for len(l.wantLog) != 0 {<- l.wantLog}
                 continue
             }
@@ -103,12 +98,8 @@ func (l *logl) New(fileP string) {
                 }
             }
 
-            err = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-            if err != nil {
-                log.Fatalln("cannot Unflock", fileName, err)
-            }
-
             file.Close()
+            l.Unlock()
 
             for len(l.wantLog) != 0 {<- l.wantLog}
         }
