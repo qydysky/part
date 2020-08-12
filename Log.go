@@ -86,8 +86,6 @@ func (l *logl) New(fileP string) {
                 "ERROR: "+fileName+" ",
                 log.Ldate|log.Ltime)
         
-            l.tracef.Println("Log chan",len(l.channel))
-        
             for len(l.channelN) != 0 {
                 i := <- l.channelN
                 switch i {
