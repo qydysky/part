@@ -1,7 +1,7 @@
 package part
 
 import (
-	"github.com/thedevsaddam/gojsonq"
+	"github.com/thedevsaddam/gojsonq/v2"
 )
 
 type json struct {}
