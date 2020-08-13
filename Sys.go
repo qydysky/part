@@ -8,6 +8,7 @@ import (
 	"time"
 	"net"
 	"strconv"
+	"strings"
 	"io/ioutil"
 	"errors"
 
@@ -29,6 +30,14 @@ func (this *sys) Cdir()string{
     dir, _ := os.Executable()
     exPath := filepath.Dir(dir)
     return exPath
+}
+
+func (t *sys) Pdir(cdir string) string{
+	if t.GetSys("windwos") {
+		return cdir[:strings.LastIndex(cdir, "\\")]
+	}else{
+		return cdir[:strings.LastIndex(cdir, "/")]
+	}
 }
 
 func (this *sys) Timeoutf(Timeout int) {
