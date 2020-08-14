@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
-	github.com/klauspost/compress v1.10.10
+	github.com/klauspost/compress v1.10.11
 	github.com/miekg/dns v1.1.31
 	github.com/shirou/gopsutil v2.20.7+incompatible
 	github.com/thedevsaddam/gojsonq v2.3.0+incompatible
