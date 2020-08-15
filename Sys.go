@@ -17,7 +17,10 @@ import (
 	Ppart "github.com/qydysky/part/linuxwin"
 )
 
-type sys struct {sync.Mutex}
+type sys struct {
+	RV []interface{}
+	sync.Mutex
+}
 
 func Sys () *sys {
 	return &sys{}
@@ -34,7 +37,7 @@ func (this *sys) Cdir()string{
 
 func (t *sys) Pdir(cdir string) string{
 	var s string = "/"
-	if t.GetSys("windwos") {
+	if t.GetSys("windows") {
 		s = "\\"
 	}
 	if p := strings.LastIndex(cdir, s);p == -1 {
@@ -45,6 +48,12 @@ func (t *sys) Pdir(cdir string) string{
 	return cdir
 }
 
+func GetRV(i *[]interface{},num int) []interface{} {
+	p := (*i)[:num]
+	(*i) = append((*i)[num:])
+	return p
+}
+
 func (this *sys) Timeoutf(Timeout int) {
 	this.Lock()
 	defer this.Unlock()
@@ -53,9 +62,7 @@ func (this *sys) Timeoutf(Timeout int) {
 }
 
 func (this *sys) GetSys(sys string)bool{
-	this.Lock()
-	defer this.Unlock()
-
+	this.RV = append(this.RV, runtime.GOOS)
     return runtime.GOOS==sys
 }
 
