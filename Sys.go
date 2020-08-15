@@ -33,11 +33,16 @@ func (this *sys) Cdir()string{
 }
 
 func (t *sys) Pdir(cdir string) string{
+	var s string = "/"
 	if t.GetSys("windwos") {
-		return cdir[:strings.LastIndex(cdir, "\\")]
-	}else{
-		return cdir[:strings.LastIndex(cdir, "/")]
+		s = "\\"
 	}
+	if p := strings.LastIndex(cdir, s);p == -1 {
+		Logf().E(cdir,"LastIndex",s,"-1")
+	}else{
+		return cdir[:p]
+	}
+	return cdir
 }
 
 func (this *sys) Timeoutf(Timeout int) {
