@@ -46,8 +46,8 @@ func (this *netl) Nslookup(target string) error {
     return nil
 }
 
-func (*netl) TestDial(network,address string) bool {
-    conn, err := net.Dial(network,address)
+func (*netl) TestDial(network,address string, Timeout int) bool {
+    conn, err := net.DialTimeout(network, address, time.Duration(Timeout)*time.Second)
     if err != nil {
 		Logf().E(err.Error())
         return false
