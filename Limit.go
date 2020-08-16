@@ -14,14 +14,27 @@ type Limitl struct {
 
 func Limit(Max,Second,TimeOut int) (*Limitl) {
 
-	returnVal := Limitl{}
-	if Max < 1 || Second < 1 || TimeOut < Second{return &returnVal}
+	// Logf().NoShow(false)
+
+	if Max < 1 {
+		Logf().E("Limit:Max < 1 is true.Set to 1")
+		Max = 1
+	}
+
+	returnVal := Limitl{
+		Max:Max,
+		Channl:make(chan bool,Max),
+	}
+
+	if Second < 1 || TimeOut < Second{
+		Logf().E("Limit:Second < 1 || TimeOut < Second is true.Set Stop to true")
+		returnVal.Stop = true
+		return &returnVal
+	}
 
 	returnVal = Limitl{
-		Max:Max,
 		Second:Second,
 		TimeOut:TimeOut,
-		Channl:make(chan bool,Max),
 	}
 
 	go func(returnVal *Limitl){

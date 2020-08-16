@@ -9,6 +9,7 @@ import (
 
 type logl struct {
     fileName string
+    noShow bool
     channelN chan int
     channel chan interface{}
     wantLog chan bool
@@ -84,6 +85,7 @@ func (l *logl) New(fileP string) {
         
             for len(l.channelN) != 0 {
                 i := <- l.channelN
+                if l.noShow {continue}
                 switch i {
                 case -1:
                     l.Close()
@@ -106,6 +108,10 @@ func (l *logl) New(fileP string) {
     }()
 }
 
+func (l *logl) NoShow(NoShow bool){
+    l.noShow = NoShow
+}
+
 func (l *logl) Close(){
     l.fileName = ""
 }
@@ -117,24 +123,28 @@ func (l *logl) WClose(){
 }
 
 func (l *logl) T(i ...interface{}){
+    if l.noShow {return}
     if l.fileName == "" {log.Println("TRACE:", i);return}
     l.channelN <- 0
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) I(i ...interface{}){
+    if l.noShow {return}
     if l.fileName == "" {log.Println("INFO:", i);return}
     l.channelN <- 1
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) W(i ...interface{}){
+    if l.noShow {return}
     if l.fileName == "" {log.Println("WARNING:", i);return}
     l.channelN <- 2
     l.channel <- i
     if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
 }
 func (l *logl) E(i ...interface{}){
+    if l.noShow {return}
     if l.fileName == "" {log.Println("ERROR:", i);return}
     l.channelN <- 3
     l.channel <- i
