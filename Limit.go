@@ -32,14 +32,12 @@ func Limit(Max,Second,TimeOut int) (*Limitl) {
 		return &returnVal
 	}
 
-	returnVal = Limitl{
-		Second:Second,
-		TimeOut:TimeOut,
-	}
+	returnVal.Second=Second
+	returnVal.TimeOut=TimeOut
 
 	go func(returnVal *Limitl){
 		for !returnVal.Stop {
-			for i:=1;i<=Max;i++{
+			for i:=1;i<=returnVal.Max;i++{
 				returnVal.Channl <- true
 			}
 			time.Sleep(time.Duration(Second)*time.Millisecond)

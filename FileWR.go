@@ -5,11 +5,15 @@ import (
 	"strings"
 	"fmt"
 	"os"
+	"io"
 	"io/ioutil"
 	"syscall"
 )
 
-type file struct {sync.Mutex}
+type file struct {
+	sync.Mutex
+	F Filel
+}
 
 const (
 	o_RDONLY int = syscall.O_RDONLY // 只读打开文件和os.Open()同义
@@ -27,7 +31,7 @@ type Filel struct {
 	Write bool //false:read
 	Loc int64 //WriteOrRead loc ;0:rewrite Or read all;-1 write on end
 	ReadNum int64
-	Context string //Write string
+	Context []interface{} //Write string
 }
 
 func File() *file{
@@ -43,7 +47,18 @@ func (this *file) FileWR(C Filel) string {
 	if C.File == "" {returnVal="";return returnVal}
 	
 	if C.Write {
-		returnVal=this.write(C)
+		if len(C.Context) == 0 {return ""}
+
+		switch C.Context[0].(type) {
+		case io.Reader:
+			if len(C.Context) != 1 {
+				fmt.Println("Err:copy only allow one context")
+				return ""
+			}
+			returnVal=this.copy(C)
+		default:
+			returnVal=this.write(C)
+		}
 	}else{
 		returnVal=this.read(C)
 	}
@@ -51,12 +66,32 @@ func (this *file) FileWR(C Filel) string {
 	return returnVal
 }
 
+func (this *file) copy(C Filel) string {
+	var (
+		File string=C.File
+	)
+
+	this.NewPath(File)
+
+	fileObj,err := os.OpenFile(File,os.O_RDWR|os.O_EXCL|os.O_TRUNC,0644)
+	if err != nil {
+		fmt.Println("Err:cant open file:",File,err);
+		return ""
+	}
+	defer fileObj.Close()
+
+	if _, err := io.Copy(fileObj, C.Context[0].(io.Reader)); err != nil {
+		fmt.Println("Err:cant copy file:",File,err);
+		return ""
+	}
+	return "ok"
+}
+
 func (this *file) write(C Filel) string {
 
 	var (
 		File string=C.File
 		Loc int64=C.Loc
-		Context string=C.Context
 	)
 
 	this.NewPath(File)
@@ -76,12 +111,30 @@ func (this *file) write(C Filel) string {
 
 	Loc=this.locfix(Loc,File,fileObj)
 
-	_, err = fileObj.WriteAt([]byte(Context), Loc)
-	if err != nil {
-		fmt.Println("Err:cant write file:",File,err);
-		return ""
+	for _,v := range C.Context{
+		switch v.(type) {
+		case []uint8:
+			tmp := v.([]byte)
+			_, err = fileObj.WriteAt(tmp, Loc)
+			if err != nil {
+				fmt.Println("Err:cant write file:",File,err);
+				return ""
+			}
+			Loc += int64(len(tmp))
+		case string:
+			tmp := []byte(v.(string))
+			_, err = fileObj.WriteAt(tmp, Loc)
+			if err != nil {
+				fmt.Println("Err:cant write file:",File,err);
+				return ""
+			}
+			Loc += int64(len(tmp))
+		default:
+			fmt.Println("Err:need context type string or []byte");
+			return ""
+		}
 	}
-	
+
 	return "ok"
 }
 

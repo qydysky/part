@@ -30,18 +30,18 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 
 	Logf().I("checkFile Build:begin")
 
-	if usemd5 {_checkFile.Context += "UseMd5"} 
+	if usemd5 {_checkFile.Context = append(_checkFile.Context, "UseMd5")} 
 
-	_checkFile.Context += SplitString
+	_checkFile.Context = append(_checkFile.Context, SplitString)
 
 	for _,value := range v {
 		if usemd5 { 
 			md5, e := Md5().Md5File(value)
 			if e != nil {md5 = "00000000000000000000000000000000"}
-			_checkFile.Context += md5 
+			_checkFile.Context = append(_checkFile.Context, md5)
 		}
-		_checkFile.Context += value[len(root):]
-		_checkFile.Context += SplitString
+		_checkFile.Context = append(_checkFile.Context, value[len(root):])
+		_checkFile.Context = append(_checkFile.Context, SplitString)
 	}
 	
 	File().FileWR(_checkFile)

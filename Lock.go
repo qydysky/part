@@ -41,7 +41,7 @@ func (l *lock) Start(filePath string,timeout int64) error {
 				File:filePath,
 				Write:true,
 				Loc:0,
-				Context:"still alive",
+				Context:[]interface{}{"still alive"},
 			})
 			Sys().Timeoutf(int(lock_timeout))
 		}
