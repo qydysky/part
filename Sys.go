@@ -61,6 +61,13 @@ func (this *sys) Timeoutf(Timeout int) {
     time.Sleep(time.Duration(Timeout)*time.Second)
 }
 
+func (this *sys) MTimeoutf(Millisecond int) {
+	this.Lock()
+	defer this.Unlock()
+	
+    time.Sleep(time.Duration(Millisecond)*time.Millisecond)
+}
+
 func (this *sys) GetSys(sys string)bool{
 	this.RV = append(this.RV, runtime.GOOS)
     return runtime.GOOS==sys
