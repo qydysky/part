@@ -93,6 +93,8 @@ func (this *checkfile) GetAllFile(pathname string) ([]string,string,error) {
 
     rd, err := ioutil.ReadDir(pathname)
 
+	if err != nil {return list,returnVal,err}
+
     for _, fi := range rd {
         if fi.IsDir() {
             _list, _returnVal, _:=this.GetAllFile(pathname + fi.Name() + "/")
