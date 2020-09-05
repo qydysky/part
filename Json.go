@@ -1,12 +1,48 @@
 package part
 
 import (
+	"io"
+	"os"
+	"errors"
+	"strings"
+	goej "encoding/json"
 	"github.com/thedevsaddam/gojsonq/v2"
 )
 
 type json struct {}
 
 func Json() (*json) {return &json{}}
+
+func (*json) Check(Source interface{}) error {
+	var jq *goej.Decoder
+	switch Source.(type) {
+    case string:
+		if Checkfile().IsExist(Source.(string)) {
+			fileObj,err := os.OpenFile(Source.(string),os.O_RDONLY,0644)
+			if err != nil {
+				return err
+			}
+			defer fileObj.Close()
+			jq = goej.NewDecoder(fileObj)
+		}else{
+			jq = goej.NewDecoder(strings.NewReader(Source.(string)))
+		}
+	default:
+        return errors.New("json type != string")
+	}
+	
+	for {
+		_, err := jq.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (*json) GetValFrom(Source interface{},key string)interface {}{
 	var jq *gojsonq.JSONQ
