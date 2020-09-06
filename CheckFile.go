@@ -58,7 +58,7 @@ func (t *checkfile) IsExist(f string) bool {
 			t.RV = append(t.RV,false,nil)
 			return false
 		}else{
-			if err != syscall.ENAMETOOLONG {
+			if err.Error() != "file name too long" {
 				Logf().E(err)
 			}
 			t.RV = append(t.RV,false,err)
