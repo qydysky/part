@@ -50,6 +50,8 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 }
 
 func (t *checkfile) IsExist(f string) bool {
+	if len(f) > 4096 {return false}
+
 	_, err := os.Stat(f)
 	if err != nil {
 		if os.IsNotExist(err) {
