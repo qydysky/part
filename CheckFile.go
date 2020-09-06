@@ -58,7 +58,9 @@ func (t *checkfile) IsExist(f string) bool {
 			t.RV = append(t.RV,false,nil)
 			return false
 		}else{
-			Logf().E(err)
+			if err != syscall.ENAMETOOLONG {
+				Logf().E(err)
+			}
 			t.RV = append(t.RV,false,err)
 			return false
 		}
