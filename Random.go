@@ -29,8 +29,9 @@ func (*random) FakeRandom(max int64) int64 {
 	return r.Int63n(max)
 }
 
-func (t *random) MixRandom(max int64) int64 {
-	r := t.TrueRandom(max)
-	if r != -1 {return r}
-	return t.FakeRandom(max)
+func (t *random) MixRandom(min, max int64) int64 {
+	lenght := max - min
+	r := t.TrueRandom(lenght)
+	if r != -1 {return min + r}
+	return min + t.FakeRandom(lenght)
 }
