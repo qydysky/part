@@ -23,6 +23,11 @@ type logl struct {
     sleep sync.Mutex
 }
 
+const (
+    blockErr = -3
+    waitErr = -2
+    nofileErr = -1
+)
 
 func Logf() (*logl) {
 	return new(logl)
@@ -68,9 +73,9 @@ func (I *logl) New() (O *logl) {
             if fileName != "" {file.Close();O.Unlock()}
             
             switch tmpsign {
-            case -1:O.Close()
-            case -2:O.CloseBlock()
-            case -3:O.CloseWait()
+            case nofileErr:O.Close()
+            case blockErr:O.CloseBlock()
+            case waitErr:O.CloseWait()
             default:;
             }
 
@@ -86,9 +91,9 @@ func (O *logl) logf(file *os.File) (int) {
         channel := <- O.channel
         if channelN >= 0 && channelN < O.level {continue}
         switch channelN {
-        case -2:
+        case blockErr:
             tmp = channelN
-        case -1, -3:
+        case nofileErr, waitErr:
             return channelN
         case 0:
             log.New(io.MultiWriter(os.Stdout, file),
@@ -153,7 +158,7 @@ func (I *logl) NoFile() (O *logl) {
     O=I
     O.sleep.Lock()
     O.checkDrop()
-    O.channelN <- -1
+    O.channelN <- nofileErr
     O.channel <- []interface{}{}
     O.sleep.Unlock()
     if !O.logging {O.wantLog <- true}
@@ -166,10 +171,10 @@ func (I *logl) Wait() (O *logl) {
     for ;len(O.blog) != 0;<-O.blog {}
     O.sleep.Lock()
     O.checkDrop()
-    O.channelN <- -3
+    O.channelN <- waitErr
     O.channel <- []interface{}{}
     O.sleep.Unlock()
-    for <-O.blog != -3 {}
+    for <-O.blog != waitErr {}
     return
 }
 
@@ -187,11 +192,11 @@ func (I *logl) Block() (O *logl) {
     for ;len(O.blog) != 0;<-O.blog {}
     O.sleep.Lock()
     O.checkDrop()
-    O.channelN <- -2
+    O.channelN <- blockErr
     O.channel <- []interface{}{}
     O.sleep.Unlock()
     if !O.logging {O.wantLog <- true}
-    for <-O.blog != -2 {}
+    for <-O.blog != blockErr {}
     return
 }
 
@@ -254,6 +259,7 @@ func (I *logl) NC() (O *logl) {
 //日志等级
 func (I *logl) T(i ...interface{}) (O *logl) {
     O=I
+    if !O.started {log.New(io.MultiWriter(os.Stdout),"TRACE: ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 0
@@ -264,6 +270,7 @@ func (I *logl) T(i ...interface{}) (O *logl) {
 }
 func (I *logl) I(i ...interface{}) (O *logl) {
     O=I
+    if !O.started {log.New(io.MultiWriter(os.Stdout),"INFO: ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 1
@@ -274,6 +281,7 @@ func (I *logl) I(i ...interface{}) (O *logl) {
 }
 func (I *logl) W(i ...interface{}) (O *logl) {
     O=I
+    if !O.started {log.New(io.MultiWriter(os.Stdout),"WARNING: ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 2
@@ -284,6 +292,7 @@ func (I *logl) W(i ...interface{}) (O *logl) {
 }
 func (I *logl) E(i ...interface{}) (O *logl) {
     O=I
+    if !O.started {log.New(io.MultiWriter(os.Stdout),"ERROR: ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 3
