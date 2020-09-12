@@ -9,144 +9,286 @@ import (
 
 type logl struct {
     fileName string
-    noShow bool
+    channelMax int
+    level int
     channelN chan int
     channel chan interface{}
     wantLog chan bool
+    blog chan int
     sync.Mutex
-    tracef   *log.Logger // 记录所有日志
-    infof    *log.Logger // 重要的信息
-    warningf *log.Logger // 需要注意的信息
-    errorf   *log.Logger // 非常严重的问题
+    started bool
+    logging bool
+    pause bool
+
+    sleep sync.Mutex
 }
+
 
 func Logf() (*logl) {
-	return &logl{}
+	return new(logl)
 }
 
-func (l *logl) New(fileP string) {
-    l.wantLog = make(chan bool,2)
-    l.channelN = make(chan int,200)
-    l.channel = make(chan interface{},200)
+//New 初始化
+func (I *logl) New() (O *logl) {
+    O=I
+    if O.channelMax == 0 {
+        O.channelMax = 1e4
+    }
+    O.channelN = make(chan int,O.channelMax)
+    O.channel = make(chan interface{},O.channelMax)
+    O.wantLog = make(chan bool,10)
+    O.blog = make(chan int,1)
+    O.started = true
 
-    l.fileName = fileP
-        
     go func(){
         for {
-            <- l.wantLog
-
-            if len(l.channel) == 0 {continue}
-
-            fileName := l.fileName
-            if fileName == "" {
-                for len(l.channel) != 0 {
-                    i := <- l.channelN
-                    switch i {
-                    case 0:
-                        log.Println("TRACE:",<- l.channel)
-                    case 1:
-                        log.Println("INFO:",<- l.channel)
-                    case 2:
-                        log.Println("WARNING:",<- l.channel)
-                    case 3:
-                        log.Println("ERROR:",<- l.channel)
-                    }
-                }
-                for len(l.wantLog) != 0 {<- l.wantLog}
-                continue
-            }
-
-            l.Lock()
-            File().NewPath(fileName)
-            file, err := os.OpenFile(fileName,
-                os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-            if err != nil {
-                l.Unlock()
-                l.E("Failed to open log file:", err)
-                for len(l.wantLog) != 0 {<- l.wantLog}
-                continue
-            }
             
-            l.tracef = log.New(io.MultiWriter(file, os.Stdout),
-            "TRACE: "+fileName+" ",
-            log.Ldate|log.Ltime)
-        
-            l.infof = log.New(io.MultiWriter(file, os.Stdout),
-                "INFO: "+fileName+" ",
-                log.Ldate|log.Ltime)
-        
-            l.warningf = log.New(io.MultiWriter(file, os.Stdout),
-                "WARNING: "+fileName+" ",
-                log.Ldate|log.Ltime)
-        
-            l.errorf = log.New(io.MultiWriter(file, os.Stderr),
-                "ERROR: "+fileName+" ",
-                log.Ldate|log.Ltime)
-        
-            for len(l.channelN) != 0 {
-                i := <- l.channelN
-                if l.noShow {continue}
-                switch i {
-                case -1:
-                    l.Close()
-                case 0:
-                    l.tracef.Println(<- l.channel)
-                case 1:
-	                l.infof.Println(<- l.channel)
-                case 2:
-                    l.warningf.Println(<- l.channel)
-                case 3:
-                    l.errorf.Println(<- l.channel)
+            O.logging = false
+            for ;len(O.channelN) == 0;<- O.wantLog {}
+            O.logging = true
+
+            var (
+                file *os.File
+                err error
+            )
+
+            fileName := O.fileName
+            if fileName != "" {
+                O.Lock()
+                File().NewPath(fileName)
+                file, err = os.OpenFile(fileName,
+                    os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+                if err != nil {
+                    O.E("Failed to open log file:", err)
                 }
             }
 
-            file.Close()
-            l.Unlock()
+            tmpsign := O.logf(file)
 
-            for len(l.wantLog) != 0 {<- l.wantLog}
+            if fileName != "" {file.Close();O.Unlock()}
+            
+            switch tmpsign {
+            case -1:O.Close()
+            case -2:O.CloseBlock()
+            case -3:O.CloseWait()
+            default:;
+            }
+
         }
     }()
+    return
 }
 
-func (l *logl) NoShow(NoShow bool){
-    l.noShow = NoShow
+func (O *logl) logf(file *os.File) (int) {
+    var tmp int
+    for len(O.channelN) != 0 {
+        channelN := <- O.channelN
+        channel := <- O.channel
+        if channelN >= 0 && channelN < O.level {continue}
+        switch channelN {
+        case -2:
+            tmp = channelN
+        case -1, -3:
+            return channelN
+        case 0:
+            log.New(io.MultiWriter(os.Stdout, file),
+            "TRACE: "+O.fileName+" ",
+            log.Ldate|log.Ltime).Println(channel)
+        case 1:
+            log.New(io.MultiWriter(os.Stdout, file),
+            "INFO: "+O.fileName+" ",
+            log.Ldate|log.Ltime).Println(channel)
+        case 2:
+            log.New(io.MultiWriter(os.Stdout, file),
+            "WARNING: "+O.fileName+" ",
+            log.Ldate|log.Ltime).Println(channel)
+        case 3:
+            log.New(io.MultiWriter(os.Stdout, file),
+            "ERROR: "+O.fileName+" ",
+            log.Ldate|log.Ltime).Println(channel)
+        default:;
+        }
+    }
+    return tmp
 }
 
-func (l *logl) Close(){
-    l.fileName = ""
+//Level 设置之后日志等级
+func (I *logl) Level(l int) (O *logl) {
+    O=I
+    if l < 0 {l = 0}
+    if l > 3 {l = 4}
+    O.Block().level = l
+    return
 }
 
-func (l *logl) WClose(){
-    if l.fileName == "" {return}
-    l.channelN <- -1
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true;}
+//BufSize 设置日志缓冲数量
+func (I *logl) BufSize(s int) (O *logl) {
+    O=I
+    if O.started {O.E("BufSize() must be called before New()");return}
+    if s < 1 {s = 1}
+    O.channelMax = s
+    return
+}
+//Len 获取日志缓冲数量
+func (O *logl) Len() (int) {
+    return len(O.channelN)
 }
 
-func (l *logl) T(i ...interface{}){
-    if l.noShow {return}
-    if l.fileName == "" {log.Println("TRACE:", i);return}
-    l.channelN <- 0
-    l.channel <- i
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
+//Open 立即将日志输出至文件
+func (I *logl) Open(fileP string) (O *logl) {
+    O=I
+    O.fileName = fileP
+    return
 }
-func (l *logl) I(i ...interface{}){
-    if l.noShow {return}
-    if l.fileName == "" {log.Println("INFO:", i);return}
-    l.channelN <- 1
-    l.channel <- i
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
+
+//Close 立即停止文件日志输出
+func (I *logl) Close() (O *logl) {
+    O=I
+    O.Open("")
+    return
 }
-func (l *logl) W(i ...interface{}){
-    if l.noShow {return}
-    if l.fileName == "" {log.Println("WARNING:", i);return}
-    l.channelN <- 2
-    l.channel <- i
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
+
+//NoFile 之后的日志不再输出至文件
+func (I *logl) NoFile() (O *logl) {
+    O=I
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- -1
+    O.channel <- []interface{}{}
+    O.sleep.Unlock()
+    if !O.logging {O.wantLog <- true}
+    return
 }
-func (l *logl) E(i ...interface{}){
-    if l.noShow {return}
-    if l.fileName == "" {log.Println("ERROR:", i);return}
-    l.channelN <- 3
-    l.channel <- i
-    if len(l.wantLog) ==0 {l.wantLog <- true;l.wantLog <- true}
+
+//Wait 阻塞直至(等待)日志到来
+func (I *logl) Wait() (O *logl) {
+    O=I
+    for ;len(O.blog) != 0;<-O.blog {}
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- -3
+    O.channel <- []interface{}{}
+    O.sleep.Unlock()
+    for <-O.blog != -3 {}
+    return
+}
+
+//CloseWait 停止等待
+func (I *logl) CloseWait() (O *logl) {
+    O=I
+    if len(O.blog) != 0 {O.E("Other Close-Function has been called! Cancel!");return}
+    O.blog <- -3
+    return
+}
+
+//Block 阻塞直到本轮日志输出完毕
+func (I *logl) Block() (O *logl) {
+    O=I
+    for ;len(O.blog) != 0;<-O.blog {}
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- -2
+    O.channel <- []interface{}{}
+    O.sleep.Unlock()
+    if !O.logging {O.wantLog <- true}
+    for <-O.blog != -2 {}
+    return
+}
+
+//CloseBlock 停止阻塞
+func (I *logl) CloseBlock() (O *logl) {
+    O=I
+    if len(O.blog) != 0 {O.E("Other Close-Function has been called! Cancel!");return}
+    O.blog <- -2
+    return
+}
+
+//MTimeout 阻塞超时毫秒数
+func (I *logl) MTimeout(t int) (O *logl) {
+    O=I
+    go func(O *logl){
+        Sys().MTimeoutf(t);
+        if len(O.blog) == 0 {
+            O.blog <- -3
+            O.blog <- -2
+        }
+    }(O)
+    return
+}
+
+//Pause 之后暂停输出，仅接受日志
+func (I *logl) Pause(s bool) (O *logl) {
+    O=I
+    O.Block().pause = s
+    if !O.logging && !O.pause {O.wantLog <- true}
+    return
+}
+
+func (I *logl) checkDrop() (O *logl) {
+    O=I
+    if O.pause && len(O.channelN) == O.channelMax {<- O.channelN;<- O.channel}
+    return
+}
+
+func (I *logl) clearup() (O *logl) {
+    O=I
+    for ;len(O.channelN) != 0;<-O.channelN {}
+    for ;len(O.channel) != 0;<-O.channel {}
+    return
+}
+
+//组合使用
+func (I *logl) BC() (O *logl) {
+    O=I
+    O.Block().Close()
+    return
+}
+
+func (I *logl) NC() (O *logl) {
+    O=I
+    O.NoFile().Close()
+    return
+}
+
+
+//日志等级
+func (I *logl) T(i ...interface{}) (O *logl) {
+    O=I
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- 0
+    O.channel <- i
+    O.sleep.Unlock()
+    if !O.logging && !O.pause {O.wantLog <- true}
+    return
+}
+func (I *logl) I(i ...interface{}) (O *logl) {
+    O=I
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- 1
+    O.channel <- i
+    O.sleep.Unlock()
+    if !O.logging && !O.pause {O.wantLog <- true}
+    return
+}
+func (I *logl) W(i ...interface{}) (O *logl) {
+    O=I
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- 2
+    O.channel <- i
+    O.sleep.Unlock()
+    if !O.logging && !O.pause {O.wantLog <- true}
+    return
+}
+func (I *logl) E(i ...interface{}) (O *logl) {
+    O=I
+    O.sleep.Lock()
+    O.checkDrop()
+    O.channelN <- 3
+    O.channel <- i
+    O.sleep.Unlock()
+    if !O.logging && !O.pause {O.wantLog <- true}
+    return
 }
