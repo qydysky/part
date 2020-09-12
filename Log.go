@@ -11,17 +11,29 @@ type logl struct {
     fileName string
     channelMax int
     level int
+    levelName []string
+
     channelN chan int
     channel chan interface{}
     wantLog chan bool
     blog chan int
+
     sync.Mutex
+
     started bool
     logging bool
     pause bool
 
     sleep sync.Mutex
 }
+
+const (
+    defaultlevelName0 = "DEBUG"
+    defaultlevelName1 = "INFO"
+    defaultlevelName2 = "WARNING"
+    defaultlevelName3 = "ERROR"
+    defaultchannelMax = 1e4
+)
 
 const (
     blockErr = -3
@@ -37,8 +49,12 @@ func Logf() (*logl) {
 func (I *logl) New() (O *logl) {
     O=I
     if O.channelMax == 0 {
-        O.channelMax = 1e4
+        O.channelMax = defaultchannelMax
     }
+    if len(O.levelName) == 0 {
+        O.levelName = []string{defaultlevelName0,defaultlevelName1,defaultlevelName2,defaultlevelName3}
+    }
+
     O.channelN = make(chan int,O.channelMax)
     O.channel = make(chan interface{},O.channelMax)
     O.wantLog = make(chan bool,10)
@@ -97,19 +113,19 @@ func (O *logl) logf(file *os.File) (int) {
             return channelN
         case 0:
             log.New(io.MultiWriter(os.Stdout, file),
-            "TRACE: "+O.fileName+" ",
+            O.levelName[0] + ": "+O.fileName+" ",
             log.Ldate|log.Ltime).Println(channel)
         case 1:
             log.New(io.MultiWriter(os.Stdout, file),
-            "INFO: "+O.fileName+" ",
+            O.levelName[1] + ": "+O.fileName+" ",
             log.Ldate|log.Ltime).Println(channel)
         case 2:
             log.New(io.MultiWriter(os.Stdout, file),
-            "WARNING: "+O.fileName+" ",
+            O.levelName[2] + ": "+O.fileName+" ",
             log.Ldate|log.Ltime).Println(channel)
         case 3:
             log.New(io.MultiWriter(os.Stdout, file),
-            "ERROR: "+O.fileName+" ",
+            O.levelName[3] + ": "+O.fileName+" ",
             log.Ldate|log.Ltime).Println(channel)
         default:;
         }
@@ -134,6 +150,16 @@ func (I *logl) BufSize(s int) (O *logl) {
     O.channelMax = s
     return
 }
+
+//LevelName 设置日志等级名
+func (I *logl) LevelName(s []string) (O *logl) {
+    O=I
+    if O.started {O.E("LevelName() must be called before New()");return}
+    if len(s) != 4 {O.E("len(LevelName) != 4");return}
+    O.levelName = s
+    return
+}
+
 //Len 获取日志缓冲数量
 func (O *logl) Len() (int) {
     return len(O.channelN)
@@ -259,7 +285,7 @@ func (I *logl) NC() (O *logl) {
 //日志等级
 func (I *logl) T(i ...interface{}) (O *logl) {
     O=I
-    if !O.started {log.New(io.MultiWriter(os.Stdout),"TRACE: ",log.Ldate|log.Ltime).Println(i...);return}
+    if !O.started {log.New(io.MultiWriter(os.Stdout),defaultlevelName0 + ": ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 0
@@ -270,7 +296,7 @@ func (I *logl) T(i ...interface{}) (O *logl) {
 }
 func (I *logl) I(i ...interface{}) (O *logl) {
     O=I
-    if !O.started {log.New(io.MultiWriter(os.Stdout),"INFO: ",log.Ldate|log.Ltime).Println(i...);return}
+    if !O.started {log.New(io.MultiWriter(os.Stdout),defaultlevelName1 + ": ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 1
@@ -281,7 +307,7 @@ func (I *logl) I(i ...interface{}) (O *logl) {
 }
 func (I *logl) W(i ...interface{}) (O *logl) {
     O=I
-    if !O.started {log.New(io.MultiWriter(os.Stdout),"WARNING: ",log.Ldate|log.Ltime).Println(i...);return}
+    if !O.started {log.New(io.MultiWriter(os.Stdout),defaultlevelName2 + ": ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 2
@@ -292,7 +318,7 @@ func (I *logl) W(i ...interface{}) (O *logl) {
 }
 func (I *logl) E(i ...interface{}) (O *logl) {
     O=I
-    if !O.started {log.New(io.MultiWriter(os.Stdout),"ERROR: ",log.Ldate|log.Ltime).Println(i...);return}
+    if !O.started {log.New(io.MultiWriter(os.Stdout),defaultlevelName3 + ": ",log.Ldate|log.Ltime).Println(i...);return}
     O.sleep.Lock()
     O.checkDrop()
     O.channelN <- 3
