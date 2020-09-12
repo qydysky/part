@@ -182,7 +182,7 @@ func (I *logl) Wait() (O *logl) {
 func (I *logl) CloseWait() (O *logl) {
     O=I
     if len(O.blog) != 0 {O.E("Other Close-Function has been called! Cancel!");return}
-    O.blog <- -3
+    O.blog <- waitErr
     return
 }
 
@@ -204,7 +204,7 @@ func (I *logl) Block() (O *logl) {
 func (I *logl) CloseBlock() (O *logl) {
     O=I
     if len(O.blog) != 0 {O.E("Other Close-Function has been called! Cancel!");return}
-    O.blog <- -2
+    O.blog <- blockErr
     return
 }
 
@@ -214,8 +214,8 @@ func (I *logl) MTimeout(t int) (O *logl) {
     go func(O *logl){
         Sys().MTimeoutf(t);
         if len(O.blog) == 0 {
-            O.blog <- -3
-            O.blog <- -2
+            O.blog <- blockErr
+            O.blog <- waitErr
         }
     }(O)
     return
