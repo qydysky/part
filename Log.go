@@ -128,19 +128,19 @@ func (O *logl) logf(file *os.File) (int) {
             return channelN
         case 0:
             log.New(io.MultiWriter(showObj...),
-            O.levelName[0] + ": "+O.fileName+" ",
+            O.levelName[0] + ": ",
             log.Ldate|log.Ltime).Println(msg...)
         case 1:
             log.New(io.MultiWriter(showObj...),
-            O.levelName[1] + ": "+O.fileName+" ",
+            O.levelName[1] + ": ",
             log.Ldate|log.Ltime).Println(msg...)
         case 2:
             log.New(io.MultiWriter(showObj...),
-            O.levelName[2] + ": "+O.fileName+" ",
+            O.levelName[2] + ": ",
             log.Ldate|log.Ltime).Println(msg...)
         case 3:
             log.New(io.MultiWriter(showObj...),
-            O.levelName[3] + ": "+O.fileName+" ",
+            O.levelName[3] + ": ",
             log.Ldate|log.Ltime).Println(msg...)
         default:;
         }
