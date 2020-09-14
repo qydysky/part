@@ -59,6 +59,12 @@ func (*json) GetValFrom(Source interface{},key string)interface {}{
 	return jq.Find(key)
 }
 
+func (*json) GetValFromS(Source string,key string)interface {}{
+	var jq *gojsonq.JSONQ
+	jq = gojsonq.New().FromString(Source)
+	return jq.Find(key)
+}
+
 func (this *json) GetMultiValFrom(Source interface{},key []string) []interface{}{
 	var jq *gojsonq.JSONQ
 	switch Source.(type) {
