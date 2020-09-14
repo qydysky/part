@@ -105,6 +105,11 @@ func (I *logl) New() (O *logl) {
 
 func (O *logl) logf(file *os.File) (int) {
     var tmp int
+    var showObj []io.Writer
+
+    if file != nil {showObj = append(showObj, file)}
+    if file == nil || !O.fileonly {showObj = append(showObj, os.Stdout)}
+
     for len(O.channelN) != 0 {
         channelN := <- O.channelN
 
@@ -117,10 +122,6 @@ func (O *logl) logf(file *os.File) (int) {
         
         if channelN >= 0 && channelN < O.level {continue}
 
-        var showObj []io.Writer
-        if file != nil {showObj = append(showObj, file)}
-        if file == nil || !O.fileonly {showObj = append(showObj, os.Stdout)}
-        
         switch channelN {
         case blockErr:
             tmp = channelN
