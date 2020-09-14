@@ -12,6 +12,8 @@ type logl struct {
     channelMax int
     level int
     levelName []string
+    base []interface{}
+    baset int
 
     channelN chan int
     channel chan interface{}
@@ -23,6 +25,7 @@ type logl struct {
     started bool
     logging bool
     pause bool
+    fileonly bool
 
     sleep sync.Mutex
 }
@@ -104,29 +107,41 @@ func (O *logl) logf(file *os.File) (int) {
     var tmp int
     for len(O.channelN) != 0 {
         channelN := <- O.channelN
-        channel := <- O.channel
+
+        var msg []interface{}
+        if O.baset != 0 {
+            if O.baset > 0 {O.baset -= 1}
+            msg = append(msg, O.base)
+        }
+        msg = append(msg, <- O.channel)
+        
         if channelN >= 0 && channelN < O.level {continue}
+
+        var showObj []io.Writer
+        if file != nil {showObj = append(showObj, file)}
+        if file == nil || !O.fileonly {showObj = append(showObj, os.Stdout)}
+        
         switch channelN {
         case blockErr:
             tmp = channelN
         case nofileErr, waitErr:
             return channelN
         case 0:
-            log.New(io.MultiWriter(os.Stdout, file),
+            log.New(io.MultiWriter(showObj...),
             O.levelName[0] + ": "+O.fileName+" ",
-            log.Ldate|log.Ltime).Println(channel)
+            log.Ldate|log.Ltime).Println(msg...)
         case 1:
-            log.New(io.MultiWriter(os.Stdout, file),
+            log.New(io.MultiWriter(showObj...),
             O.levelName[1] + ": "+O.fileName+" ",
-            log.Ldate|log.Ltime).Println(channel)
+            log.Ldate|log.Ltime).Println(msg...)
         case 2:
-            log.New(io.MultiWriter(os.Stdout, file),
+            log.New(io.MultiWriter(showObj...),
             O.levelName[2] + ": "+O.fileName+" ",
-            log.Ldate|log.Ltime).Println(channel)
+            log.Ldate|log.Ltime).Println(msg...)
         case 3:
-            log.New(io.MultiWriter(os.Stdout, file),
+            log.New(io.MultiWriter(showObj...),
             O.levelName[3] + ": "+O.fileName+" ",
-            log.Ldate|log.Ltime).Println(channel)
+            log.Ldate|log.Ltime).Println(msg...)
         default:;
         }
     }
@@ -255,6 +270,14 @@ func (I *logl) Pause(s bool) (O *logl) {
     return
 }
 
+//Fileonly 不输出到屏幕
+func (I *logl) Fileonly(s bool) (O *logl) {
+    O=I
+    if O.fileName == "" {O.E("No set filename yet! ignore!");return}
+    O.Block().fileonly = s
+    return
+}
+
 func (I *logl) checkDrop() (O *logl) {
     O=I
     if O.pause && len(O.channelN) == O.channelMax {<- O.channelN;<- O.channel}
@@ -283,6 +306,13 @@ func (I *logl) NC() (O *logl) {
 
 
 //日志等级
+//Base 追加到后续输出,t可追加次数(负数为不计数,0为取消)
+func (I *logl) Base(t int, i ...interface{}) (O *logl) {
+    O=I
+    O.baset = t
+    O.base = i
+    return
+}
 func (I *logl) T(i ...interface{}) (O *logl) {
     O=I
     if !O.started {log.New(io.MultiWriter(os.Stdout),defaultlevelName0 + ": ",log.Ldate|log.Ltime).Println(i...);return}
