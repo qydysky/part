@@ -5,6 +5,7 @@ import (
     "io"
     "os"
     "time"
+    "strings"
     "net/http"
     "errors"
     "io/ioutil"
@@ -14,10 +15,12 @@ import (
 
 type Rval struct {
     Url string
+    PostStr string
     Timeout int
     Referer string
     Cookie string
     Proxy string
+    ContentType string
     Accept string
     AcceptLanguage string
     Connection string
@@ -71,10 +74,12 @@ func (this *req) Reqf_1(val Rval) (error) {
 
 	var (
         Url string = val.Url
+        PostStr string = val.PostStr
         Referer string = val.Referer
         Cookie string = val.Cookie
         Proxy string = val.Proxy
         Accept string = val.Accept
+        ContentType string = val.ContentType
         Connection string = val.Connection
         AcceptLanguage string = val.AcceptLanguage
         Timeout int = val.Timeout
@@ -98,13 +103,24 @@ func (this *req) Reqf_1(val Rval) (error) {
     }
     
     if Url==""{return errors.New("Url is \"\"")}
-    req,_ := http.NewRequest("GET", Url, nil)
+
+    Method := "GET"
+    var body io.Reader
+    if len(PostStr) > 0 {
+        Method = "POST";
+        body = strings.NewReader(PostStr);
+        if Connection == "" {Connection = "Keep-Alive"}
+        if ContentType == "" {ContentType = "application/x-www-form-urlencoded"}
+    }
+    
+    req,_ := http.NewRequest(Method, Url, body)
 
     if Cookie!=""{req.Header.Add("Cookie",Cookie)}
     if Referer!=""{req.Header.Add("Referer",Referer)}
     if Connection!=""{req.Header.Set("Connection",Connection)}
     if AcceptLanguage!=""{req.Header.Set("Accept-Language",AcceptLanguage)}
-    if Referer!=""{req.Header.Add("Accept",Accept)}
+    if Accept!=""{req.Header.Add("Accept",Accept)}
+    if ContentType!=""{req.Header.Set("Content-Type", ContentType)}  //添加请求头
 
     req.Header.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36")
     resp, err := client.Do(req)

@@ -78,6 +78,13 @@ func (this *sys) GetTime() string {
 	return now[len(now)-4:]
 }
 
+func (this *sys) GetMTime() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
+}
+func (this *sys) GetSTime() int64 {
+	return time.Now().Unix()
+}
+
 func (this *sys) GetFreePort() int {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
