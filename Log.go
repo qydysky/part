@@ -13,7 +13,7 @@ type logl struct {
     level int
     levelName []string
     base []interface{}
-    baset int
+    baset []int
 
     channelN chan int
     channel chan interface{}
@@ -114,9 +114,15 @@ func (O *logl) logf(file *os.File) (int) {
         channelN := <- O.channelN
 
         var msg []interface{}
-        if O.baset != 0 {
-            if O.baset > 0 {O.baset -= 1}
-            msg = append(msg, O.base)
+        if l := len(O.baset);l != 0 {
+            if t := O.baset[l - 1];t != 0 {
+                if t > 0 {O.baset[l - 1] -= 1}
+            } else {
+                O.baset = O.baset[:l - 1]
+                O.base = O.base[:l - 1]
+            }
+                
+            if len(O.baset) != 0 {msg = append(msg, O.base)}
         }
         msg = append(msg, <- O.channel)
         
@@ -307,11 +313,18 @@ func (I *logl) NC() (O *logl) {
 
 
 //日志等级
-//Base 追加到后续输出,t可追加次数(负数为不计数,0为取消)
+//Base 追加到后续输出,t为操作数(正为可追加次数，负数为不计数追加,0为取消一层Base,每层独立)
 func (I *logl) Base(t int, i ...interface{}) (O *logl) {
     O=I
-    O.baset = t
-    O.base = i
+    O.Block()
+    if t == 0 && len(O.baset) != 0 {
+        O.baset[len(O.baset) - 1] = 0
+    }
+    if len(i) == 0 {return}
+
+    O.baset = append(O.baset, t)
+    O.base = append(O.base, i...)
+    
     return
 }
 func (I *logl) T(i ...interface{}) (O *logl) {
