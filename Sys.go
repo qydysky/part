@@ -1,6 +1,7 @@
 package part
 
 import (
+	"fmt"
 	"sync"
     "path/filepath"
 	"os"
@@ -24,6 +25,14 @@ type sys struct {
 
 func Sys () *sys {
 	return &sys{}
+}
+
+func (*sys) Type(s ...interface{}) string {
+	if len(s) == 0{return "nil"}
+	switch t := s[0].(type) {
+	default:return fmt.Sprintf("%T", t)
+	}
+	return ""
 }
 
 func (this *sys) Cdir()string{
