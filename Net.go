@@ -56,8 +56,8 @@ func (*netl) TestDial(network,address string, Timeout int) bool {
     return true
 }
 
-func (t *netl) Forward(targetaddr,targetnetwork *string, Need_Accept bool) {
-    proxylistener, err := net.Listen("tcp", "127.0.0.1:0")
+func (t *netl) Forward(targetaddr,targetnetwork *string, listenaddr string,Need_Accept bool) {
+    proxylistener, err := net.Listen("tcp", listenaddr + ":0")
     if err != nil {
         Logf().E("[part/Forward]Unable to listen, error:", err.Error())
     }
