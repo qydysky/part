@@ -89,17 +89,18 @@ func (this *req) Reqf_1(val Rval) (error) {
 
     var beginTime time.Time = time.Now()
 
-    var _Timeout time.Duration = time.Duration(Timeout)*time.Second
 
     var client http.Client
+
+    if Timeout != -1 {
+        client.Timeout = time.Duration(Timeout)*time.Second
+    }
+
     if Proxy!="" {
         proxy := func(_ *http.Request) (*url.URL, error) {
             return url.Parse(Proxy)
         }
-        transport := &http.Transport{Proxy: proxy}
-        client = http.Client{Timeout: _Timeout,Transport: transport}
-    }else{
-        client = http.Client{Timeout: _Timeout}
+        client.Transport = &http.Transport{Proxy: proxy}
     }
     
     if Url==""{return errors.New("Url is \"\"")}
