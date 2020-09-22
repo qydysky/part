@@ -110,11 +110,12 @@ func (this *req) Reqf_1(val Rval) (error) {
     if len(PostStr) > 0 {
         Method = "POST";
         body = strings.NewReader(PostStr);
-        if Connection == "" {Connection = "Keep-Alive"}
         if ContentType == "" {ContentType = "application/x-www-form-urlencoded"}
     }
     
     req,_ := http.NewRequest(Method, Url, body)
+    if Accept==""{Accept = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
+    if Connection==""{Connection = "keep-alive"}
 
     if Cookie!=""{req.Header.Add("Cookie",Cookie)}
     if Referer!=""{req.Header.Add("Referer",Referer)}
