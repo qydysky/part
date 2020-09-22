@@ -35,7 +35,9 @@ type req struct {
     ResponseCode int
     Respon []byte
     UsedTime time.Duration
-    Cancel chan interface{}
+
+    cancelOpen bool
+    cancel chan interface{}
     sync.Mutex
 }
 
@@ -64,8 +66,13 @@ func (this *req) Reqf(val Rval) (error) {
     if _val.Timeout==0{_val.Timeout=3}
 
 	for ;_val.Retry>=0;_val.Retry-- {
-		returnErr=this.Reqf_1(_val)
-        if returnErr==nil {break}
+        returnErr=this.Reqf_1(_val)
+        select {
+        case <- this.cancel://cancel
+            break
+        default:
+            if returnErr==nil {break}
+        }
         time.Sleep(time.Duration(_val.SleepTime)*time.Millisecond)
     }
 
@@ -122,8 +129,9 @@ func (this *req) Reqf_1(val Rval) (error) {
     req = req.WithContext(cx)
 
     go func(){
-        this.Cancel = make(chan interface{})
-        <- this.Cancel
+        this.cancel = make(chan interface{})
+        this.cancelOpen = true
+        <- this.cancel
         cancel()
     }()
 
@@ -174,4 +182,15 @@ func (this *req) Reqf_1(val Rval) (error) {
     this.UsedTime=time.Since(beginTime)
     
     return nil
+}
+
+func (t *req) Close(){
+    if !t.cancelOpen {return}
+    select {
+    case <- t.cancel://had close
+        return
+    default:
+        close(t.cancel)
+        t.cancelOpen = false
+    }
 }
