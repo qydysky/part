@@ -69,9 +69,9 @@ func (this *req) Reqf(val Rval) (error) {
         returnErr=this.Reqf_1(_val)
         select {
         case <- this.cancel://cancel
-            break
+            return returnErr
         default:
-            if returnErr==nil {break}
+            if returnErr==nil {return nil}
         }
         time.Sleep(time.Duration(_val.SleepTime)*time.Millisecond)
     }
