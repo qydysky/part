@@ -35,7 +35,7 @@ type req struct {
     ResponseCode int
     Respon []byte
     UsedTime time.Duration
-    Cancel chan struct{}
+    Cancel chan interface{}
     sync.Mutex
 }
 
@@ -122,7 +122,7 @@ func (this *req) Reqf_1(val Rval) (error) {
     req = req.WithContext(cx)
 
     go func(){
-        this.Cancel = make(chan struct{})
+        this.Cancel = make(chan interface{})
         <- this.Cancel
         cancel()
     }()
