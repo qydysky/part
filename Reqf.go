@@ -4,6 +4,7 @@ import (
     "sync"
     "io"
     "os"
+    "context"
     "time"
     "strings"
     "net/http"
@@ -34,6 +35,7 @@ type req struct {
     ResponseCode int
     Respon []byte
     UsedTime time.Duration
+    Cancel chan struct{}
     sync.Mutex
 }
 
@@ -101,6 +103,8 @@ func (this *req) Reqf_1(val Rval) (error) {
             return url.Parse(Proxy)
         }
         client.Transport = &http.Transport{Proxy: proxy}
+    } else {
+        client.Transport = &http.Transport{}
     }
     
     if Url==""{return errors.New("Url is \"\"")}
@@ -112,8 +116,17 @@ func (this *req) Reqf_1(val Rval) (error) {
         body = strings.NewReader(PostStr);
         if ContentType == "" {ContentType = "application/x-www-form-urlencoded"}
     }
-    
+
+    cx, cancel := context.WithCancel(context.Background())
     req,_ := http.NewRequest(Method, Url, body)
+    req = req.WithContext(cx)
+
+    go func(){
+        this.Cancel = make(chan struct{})
+        <- this.Cancel
+        cancel()
+    }()
+
     if Accept==""{Accept = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
     if Connection==""{Connection = "keep-alive"}
 
@@ -125,6 +138,7 @@ func (this *req) Reqf_1(val Rval) (error) {
     if ContentType!=""{req.Header.Set("Content-Type", ContentType)}  //添加请求头
 
     req.Header.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36")
+    
     resp, err := client.Do(req)
 
     if err != nil {
