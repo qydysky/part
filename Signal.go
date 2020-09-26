@@ -1,22 +1,24 @@
 package part
 
-type signal struct{
+type Signal struct{
 	v chan struct{}
 }
 
-func Signal() (o *signal) {
-	return &signal{v:make(chan struct{})}
+func (i Signal) Init() (o *Signal) {
+	o = &i
+	o.v = make(chan struct{})
+	return
 }
 
-func (i *signal) Wait() {
+func (i *Signal) Wait() {
 	<-i.v
 }
 
-func (i *signal) Done() {
+func (i *Signal) Done() {
 	if i.Islive() {close(i.v)}
 }
 
-func (i *signal) Islive() (islive bool) {
+func (i *Signal) Islive() (islive bool) {
 	select {
 	case <-i.v:;
 	default:
