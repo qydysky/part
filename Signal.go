@@ -11,7 +11,7 @@ func (i *Signal) Init() (o *Signal) {
 }
 
 func (i *Signal) Wait() {
-	<-i.v
+	if i.Islive() {<-i.v}
 }
 
 func (i *Signal) Done() {
