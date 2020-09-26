@@ -4,7 +4,7 @@ type Signal struct{
 	v chan struct{}
 }
 
-func (i *Signal) Signal_Init() (o *Signal) {
+func (i *Signal) Init() (o *Signal) {
 	o = i
 	o.v = make(chan struct{})
 	return
