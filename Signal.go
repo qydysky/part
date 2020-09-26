@@ -4,10 +4,8 @@ type Signal struct{
 	v chan struct{}
 }
 
-func (i Signal) Init() (o *Signal) {
-	o = &i
-	o.v = make(chan struct{})
-	return
+func Signal_Init() (o *Signal) {
+	return &Signal{v:make(chan struct{})}
 }
 
 func (i *Signal) Wait() {
