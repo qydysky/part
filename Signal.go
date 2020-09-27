@@ -1,28 +1,28 @@
 package part
 
 type Signal struct{
-	v chan struct{}
+	Chan chan struct{}
 }
 
 func (i *Signal) Init() (o *Signal) {
 	o = i
-	o.v = make(chan struct{})
+	o.Chan = make(chan struct{})
 	return
 }
 
 func (i *Signal) Wait() {
-	if i.Islive() {<-i.v}
+	if i.Islive() {<-i.Chan}
 }
 
 func (i *Signal) Done() {
-	if i.Islive() {close(i.v)}
+	if i.Islive() {close(i.Chan)}
 }
 
 func (i *Signal) Islive() (islive bool) {
 	select {
-	case <-i.v:;
+	case <-i.Chan:;
 	default:
-		if i.v == nil {break}
+		if i.Chan == nil {break}
 		islive = true
 	}
 	return
