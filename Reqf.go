@@ -170,7 +170,7 @@ func (this *req) Reqf_1(val Rval) (error) {
     this.ResponseCode = resp.StatusCode
     if !JustResponseCode {
         defer resp.Body.Close()
-        if SaveToPath != "" {
+        if SaveToPath != "" && resp.StatusCode == 200 {
             if err := saveToFile(resp.Body, SaveToPath); err != nil {
                 return err
             }
