@@ -65,6 +65,17 @@ func (*json) GetValFromS(Source string,key string)interface {}{
 	return jq.More().Find(key)
 }
 
+func (*json) GetArrayFrom(Source interface{},key string)[]interface {}{
+	var jq *gojsonq.JSONQ
+	switch Source.(type) {
+    case string:
+		jq = gojsonq.New().FromString(Source.(string))
+	default:
+        jq = gojsonq.New().FromInterface(Source)
+    }
+	return jq.Pluck(key).([]interface{})
+}
+
 func (this *json) GetMultiValFrom(Source interface{},key []string) []interface{}{
 	var jq *gojsonq.JSONQ
 	switch Source.(type) {
