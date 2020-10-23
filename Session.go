@@ -21,7 +21,17 @@ var (
 )
 
 
-func Session() (*session) {return &session{}}
+func Session() (*session) {
+	if session_now == 0 {
+		go func(){
+			for{
+				session_now = time.Now().Unix()
+				time.Sleep(time.Second)
+			}
+		}()
+	}
+	return &session{}
+}
 
 func (s *session) Set(key string) (val string) {
 	
@@ -53,14 +63,4 @@ func (s *session) Check(val string,key string) bool {
 
 func (s *session) Buf() (int64,int) {
 	return session_now,len(session_ks)
-}
-
-
-func init(){
-	go func(){
-		for{
-			session_now = time.Now().Unix()
-			time.Sleep(time.Second)
-		}
-	}()
 }
