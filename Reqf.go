@@ -18,17 +18,13 @@ type Rval struct {
     Url string
     PostStr string
     Timeout int
-    Referer string
-    Cookie string
     Proxy string
-    ContentType string
-    Accept string
-    AcceptLanguage string
-    Connection string
     Retry int
     SleepTime int
     JustResponseCode bool
     SaveToPath string
+
+    Header map[string]string
 }
 
 type req struct {
@@ -84,22 +80,19 @@ func (this *req) Reqf_1(val Rval) (error) {
 	var (
         Url string = val.Url
         PostStr string = val.PostStr
-        Referer string = val.Referer
-        Cookie string = val.Cookie
         Proxy string = val.Proxy
-        Accept string = val.Accept
-        ContentType string = val.ContentType
-        Connection string = val.Connection
-        AcceptLanguage string = val.AcceptLanguage
         Timeout int = val.Timeout
         JustResponseCode bool =val.JustResponseCode
         SaveToPath string =val.SaveToPath
+
+        Header map[string]string = val.Header
     )
 
     var beginTime time.Time = time.Now()
 
-
     var client http.Client
+
+    if Header == nil {Header = make(map[string]string)}
 
     if Timeout != -1 {
         client.Timeout = time.Duration(Timeout)*time.Second
@@ -121,7 +114,7 @@ func (this *req) Reqf_1(val Rval) (error) {
     if len(PostStr) > 0 {
         Method = "POST";
         body = strings.NewReader(PostStr);
-        if ContentType == "" {ContentType = "application/x-www-form-urlencoded"}
+        if _,ok := Header["ContentType"];!ok {Header["ContentType"] = "application/x-www-form-urlencoded"}
     }
 
     cx, cancel := context.WithCancel(context.Background())
@@ -134,19 +127,15 @@ func (this *req) Reqf_1(val Rval) (error) {
         <- this.cancel
         cancel()
     }()
-
-    if Accept==""{Accept = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
-    if Connection==""{Connection = "keep-alive"}
-
-    if Cookie!=""{req.Header.Add("Cookie",Cookie)}
-    if Referer!=""{req.Header.Add("Referer",Referer)}
-    if Connection!=""{req.Header.Set("Connection",Connection)}
-    if AcceptLanguage!=""{req.Header.Set("Accept-Language",AcceptLanguage)}
-    if Accept!=""{req.Header.Add("Accept",Accept)}
-    if ContentType!=""{req.Header.Set("Content-Type", ContentType)}  //添加请求头
-
-    req.Header.Add("User-Agent","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36")
     
+    if _,ok := Header["Accept"];!ok {Header["Accept"] = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
+    if _,ok := Header["Connection"];!ok {Header["Connection"] = "keep-alive"}
+    if _,ok := Header["User-Agent"];!ok {Header["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"}
+
+    for k,v := range Header {
+        req.Header.Set(k, v)
+    }
+
     resp, err := client.Do(req)
 
     if err != nil {
