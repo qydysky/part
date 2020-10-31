@@ -3,6 +3,7 @@ package part
 import (
 	"strings"
 	"errors"
+	p "github.com/qydysky/part"
 )
 
 type get struct {
@@ -12,12 +13,12 @@ type get struct {
 	Err error
 }
 
-func Get(r Rval) (o *get){
+func Get(r p.Rval) (o *get){
 	o = new(get)
 
 	if r.Url == "" {o.Err = errors.New("url == nil");return}
 
-	R := Req()
+	R := p.Req()
 	o.Err = R.Reqf(r)
 	(*o).body = R.Respon
 
