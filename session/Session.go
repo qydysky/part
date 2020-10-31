@@ -10,15 +10,11 @@ type session struct {
 	SumInTimeout int64
 	Timeout int64
 	session_now int64
+	session_rand int64
+	session_ks map[string]string
+	session_kt map[string]int64
+	session_stop chan bool
 }
-
-var (
-	session_ks map[string]string = make(map[string]string)
-	session_kt map[string]int64 = make(map[string]int64)
-	session_rand int64 = 1
-	session_stop chan bool = make(chan bool,1)
-)
-
 
 func Session(SumInTimeout,Timeout int64) (*session,error) {
 	if SumInTimeout == 0 {return &session{},errors.New("SumInTimeout == 0")}
@@ -27,6 +23,10 @@ func Session(SumInTimeout,Timeout int64) (*session,error) {
 	s := new(session)
 
 	if s.session_now == 0 {
+		s.session_rand = 1
+		s.session_ks = make(map[string]string)
+		s.session_kt = make(map[string]int64)
+		s.session_stop = make(chan bool,1)
 		go func(){
 			for{
 				s.session_now = time.Now().Unix()
@@ -40,23 +40,23 @@ func Session(SumInTimeout,Timeout int64) (*session,error) {
 
 func (s *session) Set(key string) (val string) {
 	
-	session_stop <- true
+	s.session_stop <- true
 
-	if session_rand >= s.SumInTimeout {session_rand = 1}else{session_rand += 1}
+	if s.session_rand >= s.SumInTimeout {s.session_rand = 1}else{s.session_rand += 1}
 
-	t := strconv.FormatInt(session_rand, 10)
-	session_ks[t] = key
-	session_kt[t] = s.session_now
+	t := strconv.FormatInt(s.session_rand, 10)
+	s.session_ks[t] = key
+	s.session_kt[t] = s.session_now
 
-	<-session_stop
+	<-s.session_stop
 	return t
 }
 
 func (s *session) Get(val string) (ok bool,key string){
 
-	K, oks := session_ks[val]
+	K, oks := s.session_ks[val]
 	if !oks {return false,""}
-	T, _ := session_kt[val]
+	T, _ := s.session_kt[val]
 	
 	return s.session_now-T <= s.Timeout, K
 }
@@ -67,5 +67,5 @@ func (s *session) Check(val string,key string) bool {
 }
 
 func (s *session) Buf() (int64,int) {
-	return s.session_now,len(session_ks)
+	return s.session_now,len(s.session_ks)
 }
