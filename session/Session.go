@@ -44,7 +44,7 @@ func (s *session) Set(key string) (val string) {
 	
 	s.session_stop <- true
 
-	if s.session_rand >= s.SumInTimeout {s.session_rand = 1}else{s.session_rand += 1}
+	if s.session_rand >= s.SumInSecond {s.session_rand = 1}else{s.session_rand += 1}
 
 	t := strconv.FormatInt(s.session_rand, 10)
 	s.session_ks[t] = key
