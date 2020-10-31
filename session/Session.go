@@ -7,7 +7,7 @@ import (
 )
 
 type session struct {
-	SumInTimeout int64
+	SumInSecond int64
 	Timeout int64
 	session_now int64
 	session_rand int64
@@ -16,8 +16,8 @@ type session struct {
 	session_stop chan bool
 }
 
-func Session(SumInTimeout,Timeout int64) (*session,error) {
-	if SumInTimeout == 0 {return &session{},errors.New("SumInTimeout == 0")}
+func Session(SumInSecond,Timeout int64) (*session,error) {
+	if SumInSecond == 0 {return &session{},errors.New("SumInTimeout == 0")}
 	if Timeout == 0 {return &session{},errors.New("Timeout == 0")}
 
 	s := new(session)
@@ -27,6 +27,8 @@ func Session(SumInTimeout,Timeout int64) (*session,error) {
 		s.session_ks = make(map[string]string)
 		s.session_kt = make(map[string]int64)
 		s.session_stop = make(chan bool,1)
+		s.SumInSecond = SumInSecond
+		s.Timeout = Timeout
 		go func(){
 			for{
 				s.session_now = time.Now().Unix()
