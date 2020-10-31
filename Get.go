@@ -26,10 +26,14 @@ func Get(r Rval) (o *get){
 
 func (i *get) S(stratS,endS string, startI,lenI int) (o *get) {
 	o = i
+	o.RS,o.Err = SS(string(o.body), stratS, endS, startI, lenI)
+	return
+}
 
-	if stratS == "" && startI == 0 {o.Err = errors.New("no symbol to start");return}
-	if endS == "" && lenI == 0 {o.Err = errors.New("no symbol to stop");return}
-	s := string(o.body)
+func SS(source,stratS,endS string, startI,lenI int) (string,error) {
+	if stratS == "" && startI == 0 {return "", errors.New("no symbol to start")}
+	if endS == "" && lenI == 0 {return "", errors.New("no symbol to stop")}
+	s := source
 
 	var ts,te int
 
@@ -39,7 +43,7 @@ func (i *get) S(stratS,endS string, startI,lenI int) (o *get) {
 		if startI < len(s){ts = startI}
 	}
 
-	if ts == 0 {o.Err = errors.New("no start symbol in " + s);return}
+	if ts == 0 {return "", errors.New("no start symbol in " + s)}
 
 	if endS != "" {
 		if tmp := strings.Index(s[ts:], endS);tmp != -1{te = ts + tmp}
@@ -47,9 +51,7 @@ func (i *get) S(stratS,endS string, startI,lenI int) (o *get) {
 		if startI + lenI < len(s){te = startI + lenI}
 	}
 
-	if te == 0 {o.Err = errors.New("no stop symbol in " + s);return}
+	if te == 0 {return "", errors.New("no stop symbol in " + s)}
 
-	o.RS = s[ts:te]
-	o.Err = nil
-	return
+	return s[ts:te], nil
 }
