@@ -44,7 +44,7 @@ func SS(source,stratS,endS string, startI,lenI int) (string,error) {
 		if startI < len(s){ts = startI}
 	}
 
-	if ts == 0 {return "", errors.New("no start symbol in " + s)}
+	if ts == 0 {return "", errors.New("no start symbol "+ stratS +" in " + s)}
 
 	if endS != "" {
 		if tmp := strings.Index(s[ts:], endS);tmp != -1{te = ts + tmp}
@@ -52,7 +52,7 @@ func SS(source,stratS,endS string, startI,lenI int) (string,error) {
 		if startI + lenI < len(s){te = startI + lenI}
 	}
 
-	if te == 0 {return "", errors.New("no stop symbol in " + s)}
+	if te == 0 {return "", errors.New("no stop symbol "+ endS +" in " + s)}
 
 	return s[ts:te], nil
 }

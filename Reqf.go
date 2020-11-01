@@ -164,7 +164,9 @@ func (this *req) Reqf_1(val Rval) (error) {
                 return err
             }
         }else{
-            this.Respon,_ = ioutil.ReadAll(resp.Body)
+            var err error
+            this.Respon,err = ioutil.ReadAll(resp.Body)
+            if err != nil {return err}
         }
     }
     
