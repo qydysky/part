@@ -3,12 +3,14 @@ package part
 import (
 	"strings"
 	"errors"
+	"net/http"
 	p "github.com/qydysky/part"
 )
 
 type get struct {
 	body []byte
 	
+	Response *http.Response
 	RS string
 	Err error
 }
@@ -21,7 +23,8 @@ func Get(r p.Rval) (o *get){
 	R := p.Req()
 	o.Err = R.Reqf(r)
 	(*o).body = R.Respon
-
+	(*o).Response = R.Response
+	
 	return
 }
 
