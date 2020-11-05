@@ -11,6 +11,7 @@ import (
     "errors"
     "io/ioutil"
     "net/url"
+    compress "github.com/qydysky/part/compress"
     // "encoding/binary"
 )
 
@@ -28,8 +29,8 @@ type Rval struct {
 }
 
 type req struct {
-    ResponseCode int
     Respon []byte
+    Response  *http.Response
     UsedTime time.Duration
 
     cancelOpen bool
@@ -156,7 +157,7 @@ func (this *req) Reqf_1(val Rval) (error) {
         if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
         return nil
     }
-    this.ResponseCode = resp.StatusCode
+    this.Response = resp
     if !JustResponseCode {
         defer resp.Body.Close()
         if SaveToPath != "" && resp.StatusCode == 200 {
@@ -167,8 +168,19 @@ func (this *req) Reqf_1(val Rval) (error) {
             var err error
             this.Respon,err = ioutil.ReadAll(resp.Body)
             if err != nil {return err}
+            if compress_type := resp.Header[`Content-Encoding`];compress_type!=nil{
+                switch compress_type[0]{
+                case `br`:
+                    if this.Respon,err = compress.UnBr(this.Respon);e != nil {return err}
+                case `gzip`:
+                    if this.Respon,err = compress.UnGzip(this.Respon);e != nil {return err}
+                case `deflate`:
+                    if this.Respon,err = compress.UnFlate(this.Respon);e != nil {return err}
+                default:
+                }
+            }
         }
-    }
+    } else {resp.Body.Close()}
     
     this.UsedTime=time.Since(beginTime)
     
@@ -184,4 +196,31 @@ func (t *req) Close(){
         close(t.cancel)
         t.cancelOpen = false
     }
+}
+
+func Cookies_String_2_Map(Cookies string) (o map[string]string) {
+    o = make(map[string]string)
+    list := strings.Split(Cookies, `; `)
+    for _,v := range list {
+        s := strings.SplitN(v, "=", 2)
+        o[s[0]] = s[1]
+    }
+    return
+}
+
+func Map_2_Cookies_String(Cookies map[string]string) (o string) {
+    for k,v := range Cookies {
+        o += k +`=`+ v + `; `
+    }
+    t := []rune(o)
+    o = string(t[:len(t)-2])
+    return
+}
+
+func Cookies_List_2_Map(Cookies []*http.Cookie) (o map[string]string) {
+    o = make(map[string]string)
+    for _,v := range Cookies {
+		o[v.Name] = v.Value
+    }
+    return
 }
