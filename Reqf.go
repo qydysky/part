@@ -171,11 +171,11 @@ func (this *req) Reqf_1(val Rval) (error) {
             if compress_type := resp.Header[`Content-Encoding`];compress_type!=nil{
                 switch compress_type[0]{
                 case `br`:
-                    if this.Respon,err = compress.UnBr(this.Respon);e != nil {return err}
+                    if this.Respon,err = compress.UnBr(this.Respon);err != nil {return err}
                 case `gzip`:
-                    if this.Respon,err = compress.UnGzip(this.Respon);e != nil {return err}
+                    if this.Respon,err = compress.UnGzip(this.Respon);err != nil {return err}
                 case `deflate`:
-                    if this.Respon,err = compress.UnFlate(this.Respon);e != nil {return err}
+                    if this.Respon,err = compress.UnFlate(this.Respon);err != nil {return err}
                 default:
                 }
             }
