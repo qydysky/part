@@ -4,4 +4,12 @@
 #### 介绍
 自己编写/收集的一些go组件，增加复用
 
-使用代理 `export GOPROXY="https://goproxy.io"`
+buf map变量的save，load，get，set
+
+get 爬虫
+
+session 会话(超时)验证
+
+msgq 消息队列
+
+...

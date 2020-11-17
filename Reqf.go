@@ -11,6 +11,7 @@ import (
     "errors"
     "io/ioutil"
     "net/url"
+    "log"
     compress "github.com/qydysky/part/compress"
     // "encoding/binary"
 )
@@ -142,6 +143,7 @@ func (this *req) Reqf_1(val Rval) (error) {
     if err != nil {
         return err
     }
+	log.Println(Map_2_Cookies_String(Cookies_List_2_Map(resp.Cookies())))
     
     var saveToFile func(io.Reader,string)error = func (Body io.Reader,filepath string) error {
         out, err := os.Create(filepath + ".dtmp")
