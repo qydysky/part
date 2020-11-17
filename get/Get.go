@@ -1,7 +1,6 @@
 package part
 
 import (
-	// "log"
 	"strings"
 	"errors"
 	"net/http"
@@ -25,7 +24,7 @@ func Get(r p.Rval) (o *get){
 	o.Err = R.Reqf(r)
 	(*o).body = R.Respon
 	(*o).Response = R.Response
-
+	
 	return
 }
 
