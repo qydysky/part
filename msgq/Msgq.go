@@ -5,8 +5,6 @@ type msgq struct {
 	men chan bool
 }
 
-type cancle int
-
 func New() (*msgq) {
 	l := new(msgq)
 	(*l).o = make(chan interface{})
@@ -24,15 +22,7 @@ func (m *msgq) Push(msg interface{}) {
 	}
 }
 
-func (m *msgq) Pull(cancleId int) (o interface{}) {
+func (m *msgq) Pull() (o interface{}) {
 	m.men <- true
-	for {
-		o = <- m.o
-		if v,ok := o.(cancle);!ok || int(v) != cancleId {break}
-	}
-	return
-}
-
-func (m *msgq) Cancle(cancleId int) {
-	m.Push(cancle(cancleId))
+	return <- m.o
 }
