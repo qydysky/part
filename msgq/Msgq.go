@@ -15,6 +15,7 @@ func New() (*msgq) {
 }
 
 func (m *msgq) Push(msg interface{}) {
+	<- m.i
 	m.i = make(chan struct{})
 	m.d = msg
 	close(m.o)
