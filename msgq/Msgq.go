@@ -1,32 +1,29 @@
 package part
 
 type msgq struct {
-	o chan interface{}
-	men chan bool
+	d interface{}
+	i chan struct{}
+	o chan struct{}
 }
 
 func New() (*msgq) {
 	l := new(msgq)
-	(*l).o = make(chan interface{},1e9)
-	(*l).men = make(chan bool,1e9)
+	(*l).i = make(chan struct{})
+	(*l).o = make(chan struct{})
+	close((*l).i)
 	return l
 }
 
 func (m *msgq) Push(msg interface{}) {
-	num := len(m.men)
-	for len(m.men) != 0 {
-		<- m.men
-	}
-	for num > 0 {
-		m.o <- msg
-		num -= 1
-	}
-	for len(m.o) != 0 {
-		<- m.o
-	}
+	m.i = make(chan struct{})
+	m.d = msg
+	close(m.o)
+	m.o = make(chan struct{})
+	close(m.i)
 }
 
 func (m *msgq) Pull() (o interface{}) {
-	m.men <- true
-	return <- m.o
+	<- m.i
+	<- m.o
+	return m.d
 }

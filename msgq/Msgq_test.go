@@ -7,14 +7,22 @@ import (
 
 func Test_msgq(t *testing.T) {
 	mq := New()
-	go func(){
-		for mq.Pull().(string) == `mmm` {;}
-		t.Error(`0`)
-	}()	
-	go func(){
-		for mq.Pull().(string) == `mmm` {;}
-		t.Error(`0`)
-	}()
-	p.Sys().Timeoutf(1)
+	k := 0
+	var e bool
+	for i:=0;i<1e5;i++{
+		go func(){
+			k += 1
+			if o,ok:=mq.Pull().(string);o != `mmm`||!ok {e = true}
+			k += 1
+		}()
+	}
+	p.Sys().Timeoutf(2)
+	t.Log(`>`,k)
+	k = 0
+
 	mq.Push(`mmm`)
+
+	p.Sys().Timeoutf(1)
+	t.Log(`<`,k)
+	if e {t.Error("f")}
 }
