@@ -6,7 +6,7 @@ type Signal struct{
 
 func (i *Signal) Init() (o *Signal) {
 	o = i
-	o.Chan = make(chan struct{})
+	if !i.Islive() {o.Chan = make(chan struct{})}
 	return
 }
 
