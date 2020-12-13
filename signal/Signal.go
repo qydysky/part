@@ -4,10 +4,8 @@ type Signal struct{
 	Chan chan struct{}
 }
 
-func (i *Signal) Init() (o *Signal) {
-	o = i
-	if !i.Islive() {o.Chan = make(chan struct{})}
-	return
+func Init() (*Signal) {
+	return &Signal{Chan:make(chan struct{})}
 }
 
 func (i *Signal) Wait() {
@@ -19,6 +17,7 @@ func (i *Signal) Done() {
 }
 
 func (i *Signal) Islive() (islive bool) {
+	if i == nil {return}
 	select {
 	case <-i.Chan:;
 	default:

@@ -1,14 +1,20 @@
 package part
 
 import (
+	"time"
+	"fmt"
 	"testing"
 	p "github.com/qydysky/part"
 )
 
+type test_item struct {
+	data string
+}
+
 func Test_msgq(t *testing.T) {
 
 
-	mq := New(25)
+	mq := New(5)
 	mun := 1000000
 	mun_c := make(chan bool,mun)
 	mun_s := make(chan bool,mun)
@@ -45,4 +51,45 @@ func Test_msgq(t *testing.T) {
 	t.Log(`<`,len(mun_s))
 
 	if e!=0 {t.Error(e)}
+}
+
+func Test_msgq2(t *testing.T) {
+	mq := New(5)
+
+	mun_c := make(chan bool,100)
+	go func(){
+		var (
+			sig = mq.Sig()
+			data interface{}
+		)
+		for {
+			data,sig = mq.Pull(sig)
+			if data.(test_item).data != `aa1` {t.Error(`1`)}
+			mun_c <- true
+		}
+	}()	
+	go func(){
+		var (
+			sig = mq.Sig()
+			data interface{}
+		)
+		for {
+			data,sig = mq.Pull(sig)
+			if data.(test_item).data != `aa1` {t.Error(`2`)}
+			mun_c <- true
+		}
+	}()
+	var fin_turn = 0
+	t.Log(`start`)
+	time.Sleep(time.Second)
+	for fin_turn < 10000 {
+		mq.Push(test_item{
+			data:`aa1`,
+		})
+		<-mun_c
+		<-mun_c
+		fin_turn += 1
+		fmt.Print("\r",fin_turn)
+	}
+	t.Log(`fin`)
 }
