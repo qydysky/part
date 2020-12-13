@@ -15,7 +15,7 @@ func Test_msgq(t *testing.T) {
 
 
 	mq := New(5)
-	mun := 1000000
+	mun := 100000
 	mun_c := make(chan bool,mun)
 	mun_s := make(chan bool,mun)
 
@@ -79,13 +79,25 @@ func Test_msgq2(t *testing.T) {
 			mun_c <- true
 		}
 	}()
+	go func(){
+		var (
+			sig = mq.Sig()
+			data interface{}
+		)
+		for {
+			data,sig = mq.Pull(sig)
+			if data.(test_item).data != `aa1` {t.Error(`3`)}
+			mun_c <- true
+		}
+	}()	
 	var fin_turn = 0
 	t.Log(`start`)
 	time.Sleep(time.Second)
-	for fin_turn < 10000 {
+	for fin_turn < 1000000 {
 		mq.Push(test_item{
 			data:`aa1`,
 		})
+		<-mun_c
 		<-mun_c
 		<-mun_c
 		fin_turn += 1

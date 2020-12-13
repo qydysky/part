@@ -2,6 +2,7 @@ package part
 
 import (
 	"sync"
+	"time"
 	"container/list"
 )
 
@@ -35,13 +36,22 @@ func (m *msgq) Push(msg interface{}) {
 	})
 	if m.data_list.Len() > m.max_data_mun {m.data_list.Remove(m.data_list.Front())}
 	for len(m.wait_push) == 0 {m.wait_push <- true}
-	<- m.wait_push
+	select {
+	case <- m.wait_push:
+	case <- time.After(time.Millisecond):
+	}
 }
 
 func (m *msgq) Pull(old_sig uint64) (data interface{},sig uint64) {
-	if old_sig == m.Sig() || m.data_list.Len() == 0 {<- m.wait_push}
+	for old_sig == m.Sig() {
+		select {
+		case <- m.wait_push:
+		case <- time.After(time.Millisecond):
+		}
+	}
 	m.RLock()
 	defer m.RUnlock()
+
 	for el := m.data_list.Front();el != nil;el = el.Next() {
 		if old_sig < el.Value.(msgq_item).sig {
 			data = el.Value.(msgq_item).data
@@ -54,7 +64,7 @@ func (m *msgq) Pull(old_sig uint64) (data interface{},sig uint64) {
 
 func (m *msgq) Sig() (sig uint64) {
 	if el := m.data_list.Back();el == nil {
-		sig = m.get_sig()
+		sig = 0
 	} else {
 		sig = el.Value.(msgq_item).sig
 	}
