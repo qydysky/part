@@ -3,6 +3,7 @@ package part
 import (
 	"time"
 	"errors"
+	"net/http"
 	"reflect"
 
 	"github.com/gorilla/websocket"
@@ -16,7 +17,7 @@ type Client struct {
 	RecvChan chan []byte
 
 	TO int
-	Header map[string][]string
+	Header map[string]string
 	
 	Ping Ping
 
@@ -49,8 +50,8 @@ func New_client(config Client) (o *Client) {
 	}
 	tmp.Url = config.Url
 	if v := config.TO;v != 0 {tmp.TO = v}
-	tmp.Header = config.Header
 	tmp.Msg_normal_close = config.Msg_normal_close
+	tmp.Header = config.Header
 	if v := config.Func_normal_close;v != nil {tmp.Func_normal_close = v}
 	if v := config.Func_abort_close;v != nil {tmp.Func_abort_close = v}
 	if config.Ping.Period != 0 {tmp.Ping = config.Ping}
@@ -75,7 +76,11 @@ func (i *Client) Handle() (o *Client) {
 			o.signal.Done()
 		}()
 
-		c, _, err := websocket.DefaultDialer.Dial(o.Url, o.Header)
+		tmp_Header := make(http.Header)
+		for k,v := range o.Header {
+			tmp_Header.Set(k, v)
+		}
+		c, _, err := websocket.DefaultDialer.Dial(o.Url, tmp_Header)
 		if err != nil {return}
 		defer c.Close()
 
