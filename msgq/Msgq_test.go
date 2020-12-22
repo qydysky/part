@@ -105,3 +105,43 @@ func Test_msgq2(t *testing.T) {
 	}
 	t.Log(`fin`)
 }
+
+func Test_msgq3(t *testing.T) {
+	mq := New(5)
+
+	mun_c := make(chan bool,100)
+	mq.Pull_tag(map[string]func(interface{})(bool){
+		`A1`:func(data interface{})(bool){
+			if v,ok := data.(string);!ok || v != `a11`{t.Error(`1`)}
+			mun_c <- true
+			return false
+		},
+	})
+	mq.Pull_tag(map[string]func(interface{})(bool){
+		`A1`:func(data interface{})(bool){
+			if v,ok := data.(string);!ok || v != `a11`{t.Error(`2`)}
+			mun_c <- true
+			return false
+		},
+	})
+	mq.Pull_tag(map[string]func(interface{})(bool){
+		`A1`:func(data interface{})(bool){
+			if v,ok := data.(string);!ok || v != `a11`{t.Error(`3`)}
+			mun_c <- true
+			return false
+		},
+	})
+
+	var fin_turn = 0
+	t.Log(`start`)
+	time.Sleep(time.Second)
+	for fin_turn < 1000000 {
+		mq.Push_tag(`A1`,`a11`)
+		<-mun_c
+		<-mun_c
+		<-mun_c
+		fin_turn += 1
+		fmt.Print("\r",fin_turn)
+	}
+	t.Log(`fin`)
+}

@@ -75,3 +75,34 @@ func (m *msgq) get_sig() (sig uint64) {
 	m.sig += 1
 	return m.sig
 }
+
+type msgq_tag_data struct {
+	Tag string
+	Data interface{}
+}
+
+func (m *msgq) Push_tag(Tag string,Data interface{}) {
+	m.Push(msgq_tag_data{
+		Tag:Tag,
+		Data:Data,
+	})
+}
+
+func (m *msgq) Pull_tag(func_map map[string]func(interface{})(bool)) {
+	go func(){
+		var (
+			sig = m.Sig()
+			data interface{}
+		)
+		for {
+			data,sig = m.Pull(sig)
+			if d,ok := data.(msgq_tag_data);!ok {
+				continue
+			} else {
+				if f,ok := func_map[d.Tag];ok{
+					if f(d.Data) {break}
+				}
+			}
+		}
+	}()
+}
