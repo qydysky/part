@@ -6,6 +6,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andybalholm/brotli v1.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/gorilla/websocket v1.4.2
 	github.com/klauspost/compress v1.10.10
 	github.com/klauspost/pgzip v1.2.5
 	github.com/miekg/dns v1.1.31
