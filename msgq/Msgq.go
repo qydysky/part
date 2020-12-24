@@ -6,7 +6,7 @@ import (
 	"container/list"
 )
 
-type msgq struct {
+type Msgq struct {
 	data_list *list.List
 	wait_push chan bool
 	max_data_mun int
