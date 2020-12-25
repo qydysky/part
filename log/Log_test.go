@@ -1,7 +1,6 @@
 package part
 
 import (
-	"time"
 	"testing"
 )
 
@@ -11,10 +10,12 @@ type test_item struct {
 
 func Test_1(t *testing.T) {
     n := New(Config{
+        File:`1.log`,
         Prefix_string:map[string]struct{}{`T:`:On,`I:`:On,`W:`:On,`E:`:On},
     })
 
-    n.Log_to_file(`1.log`).L(`T:`,`s`).L(`I:`,`s`).L(`W:`,`s`).L(`E:`,`s`)
+    n.L(`T:`,`s`).L(`I:`,`s`)
+    n.Log_to_file(`2.log`).L(`W:`,`s`).L(`E:`,`s`)
 
     {
         n1 := n.Base(`>1`)

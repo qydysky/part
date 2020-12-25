@@ -20,14 +20,13 @@ type Log_interface struct {
 }
 
 type Config struct {
-    File_string string
+    File string
     Prefix_string map[string]struct{}
     Base_string []interface{}
 }
 
 type Msg_item struct {
     Prefix string
-    Show_obj []io.Writer
     Msg_obj []interface{}
 }
 
@@ -35,30 +34,30 @@ type Msg_item struct {
 func New(c Config) (o *Log_interface) {
 
     o = new(Log_interface)
-    o.Prefix_string = make(map[string]struct{})
 
-    //设置log等级字符串
-    for k,_ := range c.Prefix_string {
-        o.Prefix_string[k] = On
-    } 
+    //设置
+    o.Config = c
+    
+    if c.File != `` {p.File().NewPath(c.File)}
 
     o.MQ = m.New(10)
-
     o.MQ.Pull_tag(map[string]func(interface{})(bool){
         `block`:func(data interface{})(bool){
             if v,ok := data.(chan struct{});ok{close(v)}
             return false
         },
         `L`:func(data interface{})(bool){
-            tmp_data := data.(Msg_item)
-            if o.File_string != `` {
-                file, err := os.OpenFile(o.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-                if err == nil {tmp_data.Show_obj = append(tmp_data.Show_obj, file)}
-                defer file.Close()
+            var showObj = []io.Writer{os.Stdout}
+            if o.File != `` {
+                file, err := os.OpenFile(o.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+                if err == nil {
+                    showObj = append(showObj, file)
+                    defer file.Close()
+                }else{log.Println(err)}
             }
-            log.New(io.MultiWriter(tmp_data.Show_obj...),
-            tmp_data.Prefix,
-            log.Ldate|log.Ltime).Println(tmp_data.Msg_obj...)
+            log.New(io.MultiWriter(showObj...),
+            data.(Msg_item).Prefix,
+            log.Ldate|log.Ltime).Println(data.(Msg_item).Msg_obj...)
             return false
         },
     })
@@ -77,8 +76,7 @@ func New(c Config) (o *Log_interface) {
 
 //
 func copy(i *Log_interface)(o *Log_interface){
-    t := *i
-    o = &t
+    o = New((*i).Config)
     return
 }
 
@@ -94,10 +92,9 @@ func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
 
 //Open 日志输出至文件
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
-    O=I
-    O.File_string = fileP
-    if fileP == `` {return}
-    p.File().NewPath(fileP)
+    O=copy(I)
+    O.File = fileP
+    if O.File != `` {p.File().NewPath(O.File)}
     return
 }
 
@@ -128,11 +125,9 @@ func (I *Log_interface) Base_add(i ...interface{}) (O *Log_interface) {
 func (I *Log_interface) L(prefix string, i ...interface{}) (O *Log_interface) {
     O=I
     if _,ok := O.Prefix_string[prefix];!ok{return}
-    var showObj = []io.Writer{os.Stdout}
 
     O.MQ.Push_tag(`L`,Msg_item{
         Prefix:prefix,
-        Show_obj:showObj,
         Msg_obj:append(O.Base_string, i),
     })
     return
