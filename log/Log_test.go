@@ -11,21 +11,21 @@ type test_item struct {
 
 func Test_1(t *testing.T) {
     n := New(Config{
-        Level_string:[4]string{`T`,`I`,`W`,`E`},
+        Prefix_string:map[string]struct{}{`T:`:On,`I:`:On,`W:`:On,`E:`:On},
     })
     time.Sleep(time.Second)
 
-    n.Log_to_file(`1.log`).T(`s`).I("11").W(`12`).E(`a`)
+    n.Log_to_file(`1.log`).L(`T:`,`s`).L(`I:`,`s`).L(`W:`,`s`).L(`E:`,`s`)
 
     {
         n1 := n.Base(`>1`)
-        n1.T(`s`).I("11")
+        n1.L(`T:`,`s`).L(`I:`,`s`)
         {
             n2 := n1.Base_add(`>2`)
-            n2.W(`12`).E(`a`)
+            n2.L(`T:`,`s`).L(`I:`,`s`)
         }
     }
 
-    n.Level(2).T(`s`).I("11").W(`12`).E(`a`)
+    n.Level(map[string]struct{}{`W:`:On}).L(`T:`,`s`).L(`I:`,`s`).L(`W:`,`s`).L(`E:`,`s`)
     n.Block(1000)
 }

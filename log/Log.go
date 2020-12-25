@@ -10,6 +10,10 @@ import (
     m "github.com/qydysky/part/msgq"
 )
 
+var (
+    On = struct{}{}
+)
+
 type Log_interface struct {
     MQ *m.Msgq
     Config
@@ -17,11 +21,12 @@ type Log_interface struct {
 
 type Config struct {
     File_string string
-    Level_string [4]string
+    Prefix_string map[string]struct{}
     Base_string []interface{}
 }
 
-type msg_item struct {
+type Msg_item struct {
+    Prefix string
     Show_obj []io.Writer
     Msg_obj []interface{}
 }
@@ -30,11 +35,11 @@ type msg_item struct {
 func New(c Config) (o *Log_interface) {
 
     o = new(Log_interface)
-    
+    o.Prefix_string = make(map[string]struct{})
+
     //设置log等级字符串
-    for k,v := range c.Level_string {
-        if v == `` {continue}
-        o.Level_string[k] = v
+    for k,_ := range c.Prefix_string {
+        o.Prefix_string[k] = On
     } 
 
     o.MQ = m.New(10)
@@ -44,28 +49,10 @@ func New(c Config) (o *Log_interface) {
             if v,ok := data.(chan struct{});ok{close(v)}
             return false
         },
-        `T`:func(data interface{})(bool){
-            log.New(io.MultiWriter(data.(msg_item).Show_obj...),
-            o.Level_string[0] + ": ",
-            log.Ldate|log.Ltime).Println(data.(msg_item).Msg_obj...)
-            return false
-        },
-        `I`:func(data interface{})(bool){
-            log.New(io.MultiWriter(data.(msg_item).Show_obj...),
-            o.Level_string[1] + ": ",
-            log.Ldate|log.Ltime).Println(data.(msg_item).Msg_obj...)
-            return false
-        },
-        `W`:func(data interface{})(bool){
-            log.New(io.MultiWriter(data.(msg_item).Show_obj...),
-            o.Level_string[2] + ": ",
-            log.Ldate|log.Ltime).Println(data.(msg_item).Msg_obj...)
-            return false
-        },
-        `E`:func(data interface{})(bool){
-            log.New(io.MultiWriter(data.(msg_item).Show_obj...),
-            o.Level_string[3] + ": ",
-            log.Ldate|log.Ltime).Println(data.(msg_item).Msg_obj...)
+        `L`:func(data interface{})(bool){
+            log.New(io.MultiWriter(data.(Msg_item).Show_obj...),
+            data.(Msg_item).Prefix,
+            log.Ldate|log.Ltime).Println(data.(Msg_item).Msg_obj...)
             return false
         },
     })
@@ -80,10 +67,10 @@ func copy(i *Log_interface)(o *Log_interface){
 }
 
 //Level 设置之后日志等级
-func (I *Log_interface) Level(l int) (O *Log_interface) {
+func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
     O = copy(I)
-    for k,_ := range O.Level_string {
-        if k < l {O.Level_string[k] = ``}
+    for k,_ := range O.Prefix_string {
+        if _,ok := log[k];!ok{delete(O.Prefix_string,k)}
     }
     return
 }
@@ -93,6 +80,7 @@ func (I *Log_interface) Level(l int) (O *Log_interface) {
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
     O=I
     O.File_string = fileP
+    if fileP == `` {return}
     p.File().NewPath(fileP)
     return
 }
@@ -121,61 +109,17 @@ func (I *Log_interface) Base_add(i ...interface{}) (O *Log_interface) {
     O.Base_string = append(O.Base_string, i...)
     return
 }
-func (I *Log_interface) T(i ...interface{}) (O *Log_interface) {
+func (I *Log_interface) L(prefix string, i ...interface{}) (O *Log_interface) {
     O=I
-    if O.Level_string[0] == `` {return}
+    if _,ok := O.Prefix_string[prefix];!ok{return}
     var showObj = []io.Writer{os.Stdout}
 
     if O.File_string != `` {
         file, err := os.OpenFile(O.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-        if err != nil {O.E("Failed to open log file:", err)}else{showObj = append(showObj, file)}
+        if err != nil {O.L("Error: ","Failed to open log file:", err)}else{showObj = append(showObj, file)}
     }
-    O.MQ.Push_tag(`T`,msg_item{
-        Show_obj:showObj,
-        Msg_obj:append(O.Base_string, i),
-    })
-    return
-}
-func (I *Log_interface) I(i ...interface{}) (O *Log_interface) {
-    O=I
-    if O.Level_string[1] == `` {return}
-    var showObj = []io.Writer{os.Stdout}
-
-    if O.File_string != `` {
-        file, err := os.OpenFile(O.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-        if err != nil {O.E("Failed to open log file:", err)}else{showObj = append(showObj, file)}
-    }
-    O.MQ.Push_tag(`I`,msg_item{
-        Show_obj:showObj,
-        Msg_obj:append(O.Base_string, i),
-    })
-    return
-}
-func (I *Log_interface) W(i ...interface{}) (O *Log_interface) {
-    O=I
-    if O.Level_string[2] == `` {return}
-    var showObj = []io.Writer{os.Stdout}
-
-    if O.File_string != `` {
-        file, err := os.OpenFile(O.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-        if err != nil {O.E("Failed to open log file:", err)}else{showObj = append(showObj, file)}
-    }
-    O.MQ.Push_tag(`W`,msg_item{
-        Show_obj:showObj,
-        Msg_obj:append(O.Base_string, i),
-    })
-    return
-}
-func (I *Log_interface) E(i ...interface{}) (O *Log_interface) {
-    O=I
-    if O.Level_string[3] == `` {return}
-    var showObj = []io.Writer{os.Stdout}
-
-    if O.File_string != `` {
-        file, err := os.OpenFile(O.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-        if err != nil {O.E("Failed to open log file:", err)}else{showObj = append(showObj, file)}
-    }
-    O.MQ.Push_tag(`E`,msg_item{
+    O.MQ.Push_tag(`L`,Msg_item{
+        Prefix:prefix,
         Show_obj:showObj,
         Msg_obj:append(O.Base_string, i),
     })
