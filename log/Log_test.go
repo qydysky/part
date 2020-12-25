@@ -13,7 +13,6 @@ func Test_1(t *testing.T) {
     n := New(Config{
         Prefix_string:map[string]struct{}{`T:`:On,`I:`:On,`W:`:On,`E:`:On},
     })
-    time.Sleep(time.Second)
 
     n.Log_to_file(`1.log`).L(`T:`,`s`).L(`I:`,`s`).L(`W:`,`s`).L(`E:`,`s`)
 

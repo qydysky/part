@@ -50,12 +50,28 @@ func New(c Config) (o *Log_interface) {
             return false
         },
         `L`:func(data interface{})(bool){
-            log.New(io.MultiWriter(data.(Msg_item).Show_obj...),
-            data.(Msg_item).Prefix,
-            log.Ldate|log.Ltime).Println(data.(Msg_item).Msg_obj...)
+            tmp_data := data.(Msg_item)
+            if o.File_string != `` {
+                file, err := os.OpenFile(o.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+                if err == nil {tmp_data.Show_obj = append(tmp_data.Show_obj, file)}
+                defer file.Close()
+            }
+            log.New(io.MultiWriter(tmp_data.Show_obj...),
+            tmp_data.Prefix,
+            log.Ldate|log.Ltime).Println(tmp_data.Msg_obj...)
             return false
         },
     })
+    {//启动阻塞
+        b := make(chan struct{})
+        i := true
+        for i {
+            select {
+            case <-b:i = false
+            case <-time.After(time.Duration(10)*time.Millisecond):o.MQ.Push_tag(`block`,b)
+            }
+        }
+    }    
     return
 }
 
@@ -114,10 +130,6 @@ func (I *Log_interface) L(prefix string, i ...interface{}) (O *Log_interface) {
     if _,ok := O.Prefix_string[prefix];!ok{return}
     var showObj = []io.Writer{os.Stdout}
 
-    if O.File_string != `` {
-        file, err := os.OpenFile(O.File_string, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-        if err != nil {O.L("Error: ","Failed to open log file:", err)}else{showObj = append(showObj, file)}
-    }
     O.MQ.Push_tag(`L`,Msg_item{
         Prefix:prefix,
         Show_obj:showObj,
