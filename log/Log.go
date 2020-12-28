@@ -94,6 +94,8 @@ func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
 //Open 日志不显示
 func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
     O=I
+    //
+    O.Block(100)
     O.Stdout = show
     return
 }
@@ -101,6 +103,8 @@ func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
 //Open 日志输出至文件
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
     O=I
+    //
+    O.Block(100)
     O.File = fileP
     if O.File != `` {p.File().NewPath(O.File)}
     return
