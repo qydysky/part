@@ -8,6 +8,7 @@ import (
 
     p "github.com/qydysky/part"
     m "github.com/qydysky/part/msgq"
+    s "github.com/qydysky/part/signal"
 )
 
 var (
@@ -44,7 +45,7 @@ func New(c Config) (o *Log_interface) {
     o.MQ = m.New(10)
     o.MQ.Pull_tag(map[string]func(interface{})(bool){
         `block`:func(data interface{})(bool){
-            if v,ok := data.(chan struct{});ok{close(v)}
+            if v,ok := data.(*s.Signal);ok{v.Done()}
             return false
         },
         `L`:func(data interface{})(bool){
@@ -64,13 +65,10 @@ func New(c Config) (o *Log_interface) {
         },
     })
     {//启动阻塞
-        b := make(chan struct{})
-        i := true
-        for i {
-            select {
-            case <-b:i = false
-            case <-time.After(time.Duration(20)*time.Millisecond):o.MQ.Push_tag(`block`,b)
-            }
+        b := s.Init()
+        for b.Islive() {
+            o.MQ.Push_tag(`block`,b)
+            time.Sleep(time.Duration(20)*time.Millisecond)
         }
     }    
     return
@@ -113,12 +111,9 @@ func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 //Block 阻塞直到本轮日志输出完毕
 func (I *Log_interface) Block(timeout int) (O *Log_interface) {
     O=I
-    b := make(chan struct{})
+    b := s.Init()
     O.MQ.Push_tag(`block`,b)
-    select {
-    case <-b:
-    case <-time.After(time.Duration(timeout)*time.Millisecond):
-    }
+    b.Wait()
     return
 }
 
