@@ -21,6 +21,7 @@ type Log_interface struct {
 
 type Config struct {
     File string
+    Stdout bool
     Prefix_string map[string]struct{}
     Base_string []interface{}
 }
@@ -47,7 +48,8 @@ func New(c Config) (o *Log_interface) {
             return false
         },
         `L`:func(data interface{})(bool){
-            var showObj = []io.Writer{os.Stdout}
+            var showObj = []io.Writer{}
+            if o.Stdout {showObj = append(showObj, os.Stdout)} 
             if o.File != `` {
                 file, err := os.OpenFile(o.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
                 if err == nil {
@@ -67,7 +69,7 @@ func New(c Config) (o *Log_interface) {
         for i {
             select {
             case <-b:i = false
-            case <-time.After(time.Duration(10)*time.Millisecond):o.MQ.Push_tag(`block`,b)
+            case <-time.After(time.Duration(20)*time.Millisecond):o.MQ.Push_tag(`block`,b)
             }
         }
     }    
@@ -75,24 +77,30 @@ func New(c Config) (o *Log_interface) {
 }
 
 //
-func copy(i *Log_interface)(o *Log_interface){
+func Copy(i *Log_interface)(o *Log_interface){
     o = New((*i).Config)
     return
 }
 
 //Level 设置之后日志等级
 func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
-    O = copy(I)
+    O = Copy(I)
     for k,_ := range O.Prefix_string {
         if _,ok := log[k];!ok{delete(O.Prefix_string,k)}
     }
     return
 }
 
+//Open 日志不显示
+func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
+    O=I
+    O.Stdout = show
+    return
+}
 
 //Open 日志输出至文件
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
-    O=copy(I)
+    O=I
     O.File = fileP
     if O.File != `` {p.File().NewPath(O.File)}
     return
@@ -113,12 +121,12 @@ func (I *Log_interface) Block(timeout int) (O *Log_interface) {
 //日志等级
 //Base 追加到后续输出
 func (I *Log_interface) Base(i ...interface{}) (O *Log_interface) {
-    O=copy(I)
+    O=Copy(I)
     O.Base_string = i
     return
 }
 func (I *Log_interface) Base_add(i ...interface{}) (O *Log_interface) {
-    O=copy(I)
+    O=Copy(I)
     O.Base_string = append(O.Base_string, i...)
     return
 }

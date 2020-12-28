@@ -11,10 +11,11 @@ type test_item struct {
 func Test_1(t *testing.T) {
     n := New(Config{
         File:`1.log`,
+        Stdout:true,
         Prefix_string:map[string]struct{}{`T:`:On,`I:`:On,`W:`:On,`E:`:On},
     })
 
-    n.L(`T:`,`s`).L(`I:`,`s`)
+    n.L(`T:`,`s`).L(`I:`,`s`).Block(1000)
     n.Log_to_file(`2.log`).L(`W:`,`s`).L(`E:`,`s`)
 
     {
