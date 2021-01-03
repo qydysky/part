@@ -8,7 +8,7 @@ import (
 
 type Msgq struct {
 	data_list *list.List
-	wait_push chan bool
+	wait_push chan struct{}
 	max_data_mun int
 	sig uint64
 	sync.RWMutex
@@ -21,7 +21,7 @@ type Msgq_item struct {
 
 func New(want_max_data_mun int) (*Msgq) {
 	m := new(Msgq)
-	(*m).wait_push = make(chan bool,100)
+	(*m).wait_push = make(chan struct{},10)
 	(*m).data_list = list.New()
 	(*m).max_data_mun = want_max_data_mun
 	return m
@@ -35,7 +35,7 @@ func (m *Msgq) Push(msg interface{}) {
 		sig:m.get_sig(),
 	})
 	if m.data_list.Len() > m.max_data_mun {m.data_list.Remove(m.data_list.Front())}
-	for len(m.wait_push) == 0 {m.wait_push <- true}
+	for len(m.wait_push) == 0 {m.wait_push <- struct{}{}}
 	select {
 	case <- m.wait_push:
 	case <- time.After(time.Millisecond):

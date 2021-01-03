@@ -107,6 +107,30 @@ func Test_msgq2(t *testing.T) {
 }
 
 func Test_msgq3(t *testing.T) {
+	mq := New(100)
+
+	mun_c := make(chan bool,100)
+	mq.Pull_tag(map[string]func(interface{})(bool){
+		`A1`:func(data interface{})(bool){
+			if v,ok := data.(string);!ok || v != `a11`{t.Error(`1`)}
+			mun_c <- true
+			return false
+		},
+	})
+
+	var fin_turn = 0
+	t.Log(`start`)
+	time.Sleep(time.Second)
+	for fin_turn < 10000000 {
+		mq.Push_tag(`A1`,`a11`)
+		<-mun_c
+		fin_turn += 1
+		fmt.Print("\r",fin_turn)
+	}
+	t.Log(`fin`)
+}
+
+func Test_msgq4(t *testing.T) {
 	mq := New(5)
 
 	mun_c := make(chan bool,100)
