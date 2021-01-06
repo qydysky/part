@@ -30,6 +30,7 @@ type Config struct {
 type Msg_item struct {
     Prefix string
     Msg_obj []interface{}
+    Config
 }
 
 //New 初始化
@@ -42,25 +43,26 @@ func New(c Config) (o *Log_interface) {
     
     if c.File != `` {p.File().NewPath(c.File)}
 
-    o.MQ = m.New(10)
+    o.MQ = m.New(100)
     o.MQ.Pull_tag(map[string]func(interface{})(bool){
         `block`:func(data interface{})(bool){
             if v,ok := data.(*s.Signal);ok{v.Done()}
             return false
         },
         `L`:func(data interface{})(bool){
+            msg := data.(Msg_item)
             var showObj = []io.Writer{}
-            if o.Stdout {showObj = append(showObj, os.Stdout)} 
-            if o.File != `` {
-                file, err := os.OpenFile(o.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+            if msg.Stdout {showObj = append(showObj, os.Stdout)} 
+            if msg.File != `` {
+                file, err := os.OpenFile(msg.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
                 if err == nil {
                     showObj = append(showObj, file)
                     defer file.Close()
                 }else{log.Println(err)}
             }
             log.New(io.MultiWriter(showObj...),
-            data.(Msg_item).Prefix,
-            log.Ldate|log.Ltime).Println(data.(Msg_item).Msg_obj...)
+            msg.Prefix,
+            log.Ldate|log.Ltime).Println(msg.Msg_obj...)
             return false
         },
     })
@@ -76,7 +78,17 @@ func New(c Config) (o *Log_interface) {
 
 //
 func Copy(i *Log_interface)(o *Log_interface){
-    o = New((*i).Config)
+    o = new(Log_interface)
+    //设置
+    o.Config = (*i).Config
+    o.MQ = (*i).MQ
+    {//启动阻塞
+        b := s.Init()
+        for b.Islive() {
+            o.MQ.Push_tag(`block`,b)
+            time.Sleep(time.Duration(20)*time.Millisecond)
+        }
+    }
     return
 }
 
@@ -91,7 +103,7 @@ func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
 
 //Open 日志不显示
 func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
-    O=I
+    O = Copy(I)
     //
     O.Block(100)
     O.Stdout = show
@@ -136,6 +148,7 @@ func (I *Log_interface) L(prefix string, i ...interface{}) (O *Log_interface) {
     O.MQ.Push_tag(`L`,Msg_item{
         Prefix:prefix,
         Msg_obj:append(O.Base_string, i),
+        Config:O.Config,
     })
     return
 }

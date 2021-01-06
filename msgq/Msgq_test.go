@@ -3,6 +3,8 @@ package part
 import (
 	"time"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 	p "github.com/qydysky/part"
 )
@@ -230,6 +232,37 @@ func Test_msgq5(t *testing.T) {
 		<-mun_c1
 		<-mun_c2
 		fin_turn += 1
+		fmt.Print("\r",fin_turn)
+	}
+	t.Log(`fin`)
+}
+
+func Test_msgq6(t *testing.T) {
+	mq := New(30)
+	go func() {
+		http.ListenAndServe("0.0.0.0:8899", nil)
+	}()
+	go mq.Pull_tag(map[string]func(interface{})(bool){
+		`A1`:func(data interface{})(bool){
+			return false
+		},
+		`A2`:func(data interface{})(bool){
+			if v,ok := data.(string);!ok || v != `a11`{t.Error(`2`)}
+			return false
+		},
+		`Error`:func(data interface{})(bool){
+			if data == nil {t.Error(`out of list`)}
+			return false
+		},
+	})
+	
+	var fin_turn = 0
+	t.Log(`start`)
+	for fin_turn < 1000 {
+		time.Sleep(time.Second)
+		time.Sleep(time.Second)
+		mq.Push_tag(`A1`,`a11`)
+		fin_turn+=1
 		fmt.Print("\r",fin_turn)
 	}
 	t.Log(`fin`)

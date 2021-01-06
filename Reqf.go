@@ -122,11 +122,15 @@ func (this *req) Reqf_1(val Rval) (error) {
     req,_ := http.NewRequest(Method, Url, body)
     req = req.WithContext(cx)
 
+    var done = make(chan struct{})
+    defer close(done)
     go func(){
         this.cancel = make(chan interface{})
         this.cancelOpen = true
-        <- this.cancel
-        cancel()
+        select {
+        case <- this.cancel:cancel()
+        case <- done:
+        }
     }()
     
     if _,ok := Header["Accept"];!ok {Header["Accept"] = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
