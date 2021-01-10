@@ -15,7 +15,7 @@ func (this *lexec) Run(hide bool,prog string,cmd ...string){
     Ppart.PRun(hide,prog,cmd ...)
 }
 
-func (this *lexec) Startf(pro ...*exec.Cmd){
+func (this *lexec) Start(pro ...*exec.Cmd){
     Ppart.PStartf(pro)
 }
 

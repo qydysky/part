@@ -159,6 +159,7 @@ func (this *req) Reqf_1(val Rval) (error) {
         if _, err = io.Copy(out, Body); err != nil {out.Close();return err}
         out.Close()
 
+        if err = os.RemoveAll(filepath); err != nil {return err}
         if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
         return nil
     }

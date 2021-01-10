@@ -62,25 +62,24 @@ func SS2(source,stratS,endS string) (return_val []string,last_err error) {
 func SS(source,stratS,endS string, startI,lenI int) (string,error) {
 	if stratS == "" && startI == 0 {return "", errors.New("no symbol to start")}
 	if endS == "" && lenI == 0 {return "", errors.New("no symbol to stop")}
-	s := source
 
 	var ts,te int
 
 	if stratS != "" {
-		if tmp := strings.Index(s, stratS);tmp != -1{ts = tmp + len(stratS)}
+		if tmp := strings.Index(source, stratS);tmp != -1{ts = tmp + len(stratS)}
 	} else if startI != 0 {
-		if startI < len(s){ts = startI}
+		if startI < len(source){ts = startI}
 	}
 
-	if ts == 0 {return "", errors.New("no start symbol "+ stratS +" in " + s)}
+	if ts == 0 {return "", errors.New("no start symbol "+ stratS +" in " + source)}
 
 	if endS != "" {
-		if tmp := strings.Index(s[ts:], endS);tmp != -1{te = ts + tmp}
+		if tmp := strings.Index(source[ts:], endS);tmp != -1{te = ts + tmp}
 	} else if lenI != 0 {
-		if startI + lenI < len(s){te = startI + lenI}
+		if startI + lenI < len(source){te = startI + lenI}
 	}
 
-	if te == 0 {return "", errors.New("no stop symbol "+ endS +" in " + s)}
+	if te == 0 {return "", errors.New("no stop symbol "+ endS +" in " + source)}
 
-	return s[ts:te], nil
+	return source[ts:te], nil
 }
