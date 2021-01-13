@@ -1,7 +1,7 @@
 package part
 
 import (
-    gzip "github.com/klauspost/pgzip"
+    gzip "compress/gzip"
     "bytes"
     "io"
     "io/ioutil"
@@ -21,15 +21,14 @@ func InGzip(byteS []byte, level int) ([]byte,error) {
 }
 
 func UnGzip(byteS []byte) ([]byte,error) {
-    buf := bytes.NewBuffer(byteS)
-    Read,err := gzip.NewReader(buf)
+    Read,err := gzip.NewReader(bytes.NewBuffer(byteS))
     if err != nil {
-        return buf.Bytes(),err
+        return byteS,err
     }
-    defer Read.Close()
     rb, err := ioutil.ReadAll(Read)
+    Read.Close()
     if err == io.EOF || err == io.ErrUnexpectedEOF {
-        return rb, nil
+        return append([]byte{},rb...), nil
     }
-    return rb, err
+    return append([]byte{},rb...), err
 }

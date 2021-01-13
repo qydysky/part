@@ -36,11 +36,9 @@ type Msg_item struct {
 //New 初始化
 func New(c Config) (o *Log_interface) {
 
-    o = new(Log_interface)
-
-    //设置
-    o.Config = c
-    
+    o = &Log_interface{
+        Config:c,
+    }
     if c.File != `` {p.File().NewPath(c.File)}
 
     o.MQ = m.New(100)
@@ -78,10 +76,10 @@ func New(c Config) (o *Log_interface) {
 
 //
 func Copy(i *Log_interface)(o *Log_interface){
-    o = new(Log_interface)
-    //设置
-    o.Config = (*i).Config
-    o.MQ = (*i).MQ
+    o = &Log_interface{
+        Config:(*i).Config,
+        MQ:(*i).MQ,
+    }
     {//启动阻塞
         b := s.Init()
         for b.Islive() {

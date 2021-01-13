@@ -81,5 +81,5 @@ func SS(source,stratS,endS string, startI,lenI int) (string,error) {
 
 	if te == 0 {return "", errors.New("no stop symbol "+ endS +" in " + source)}
 
-	return source[ts:te], nil
+	return string(source[ts:te]), nil
 }

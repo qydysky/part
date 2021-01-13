@@ -1,7 +1,7 @@
 package part
 
 import (
-    "github.com/klauspost/compress/flate"
+    "compress/flate"
     "bytes"
     "io"
     "io/ioutil"
@@ -23,14 +23,11 @@ func InFlate(byteS []byte, level int) ([]byte,error) {
 }
 
 func UnFlate(byteS []byte) ([]byte,error) {
-    buf := bytes.NewBuffer(byteS)
-    // 创建一个flate.Write
-    flateRead := flate.NewReader(buf)
-    defer flateRead.Close()
-    // 写入待压缩内容
+    flateRead := flate.NewReader(bytes.NewBuffer(byteS))
     rb, err := ioutil.ReadAll(flateRead)
+    flateRead.Close()
     if err == io.EOF || err == io.ErrUnexpectedEOF {
-        return rb, nil
+        return append([]byte{},rb...), nil
     }
-    return rb, err
+    return append([]byte{},rb...), err
 }
