@@ -3,6 +3,7 @@ package part
 import (
 	"sync"
 	"time"
+	"runtime"
 	"container/list"
 )
 
@@ -44,6 +45,7 @@ func (m *Msgq) Push(msg interface{}) {
 		m.wait_push <- struct{}{}
 	}
 	if pull_num < 1 {<- m.ticker.C}
+	runtime.Gosched()
 	select {
 	case <- m.wait_push:
 	case <- m.ticker.C:
