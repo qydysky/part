@@ -36,6 +36,7 @@ func (t *Idpool) Get() (o Id) {
 }
 
 func (t *Idpool) Put(i Id) {
+	if i.item == nil {return}
 	t.pool.Put(i.item)
 	t.Lock()
 	t.sum -= 1
