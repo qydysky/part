@@ -26,7 +26,7 @@ func New_server() (*Server) {
 	}
 }
 
-func (t *Server) WS(w http.ResponseWriter, r *http.Request) {
+func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 	upgrader := websocket.Upgrader{}
 
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -34,11 +34,11 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) {
 		t.ws_mq.Push_tag(`error`,err)
 		return
 	}
-	defer ws.Close()
+
+	o = make(chan uintptr,1)
 
 	//从池中获取本会话id
 	User := t.userpool.Get()
-	defer t.userpool.Put(User)
 
 
 	//发送
@@ -61,26 +61,38 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) {
 	})
 
 	//接收
-	for {
-		ws.SetReadDeadline(time.Now().Add(time.Second*time.Duration(300)))
-		if _, message, err := ws.ReadMessage();err != nil {
-			if websocket.IsCloseError(err,websocket.CloseGoingAway) {
-			} else if err,ok := err.(net.Error);ok && err.Timeout() {
-				//Timeout , js will reload html
+	go func(){
+		for {
+			ws.SetReadDeadline(time.Now().Add(time.Second*time.Duration(300)))
+			if _, message, err := ws.ReadMessage();err != nil {
+				if websocket.IsCloseError(err,websocket.CloseGoingAway) {
+				} else if err,ok := err.(net.Error);ok && err.Timeout() {
+					//Timeout , js will reload html
+				} else {
+					t.ws_mq.Push_tag(`error`,err)
+				}
+				t.ws_mq.Push_tag(`close`,Uinterface{
+					Id:User.Id,
+				})
+				break
 			} else {
-				t.ws_mq.Push_tag(`error`,err)
+				t.ws_mq.Push_tag(`recv`,Uinterface{
+					Id:User.Id,
+					Data:message,
+				})
 			}
-			t.ws_mq.Push_tag(`close`,Uinterface{
-				Id:User.Id,
-			})
-			break
-		} else {
-			t.ws_mq.Push_tag(`recv`,Uinterface{
-				Id:User.Id,
-				Data:message,
-			})
 		}
-	}
+
+		//归还
+		t.userpool.Put(User)
+		//结束
+		ws.Close()
+		//通知上层结束，上层使用通道传出阻塞
+		close(o)
+	}()
+	//通知上层本此会话的id
+	o <- User.Id
+	return
 }
 
 //how to use

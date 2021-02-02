@@ -15,7 +15,8 @@ func Test_Server(t *testing.T) {
 		ws_mq.Pull_tag(map[string]func(interface{})(bool){
 			`recv`:func(data interface{})(bool){
 				if tmp,ok := data.(Uinterface);ok {
-					t.Log(tmp.Id,string(tmp.Data))
+					t.Log(tmp.Id, `=>`,string(tmp.Data))
+					t.Log(string(tmp.Data), `=>`,tmp.Id)
 					ws_mq.Push_tag(`send`,Uinterface{//just reply
 						Id:tmp.Id,
 						Data:tmp.Data,
@@ -30,7 +31,11 @@ func Test_Server(t *testing.T) {
 	open.Run("http://"+w.Server.Addr)
 	w.Handle(map[string]func(http.ResponseWriter,*http.Request){
 		`/ws`:func(w http.ResponseWriter,r *http.Request){
-			s.WS(w,r)
+			conn := s.WS(w,r)
+			id :=<- conn
+			t.Log(`user connect!`,id)
+			<- conn
+			t.Log(`user disconnect!`,id)
 		},
 	})
 	time.Sleep(time.Second*time.Duration(100))
