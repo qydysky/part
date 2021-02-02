@@ -11,6 +11,8 @@
 - [github.com/klauspost/compress](https://github.com/klauspost/compress) under [BSD 3-Clause](https://raw.githubusercontent.com/klauspost/compress/master/LICENSE)
 - [github.com/andybalholm/brotli](https:github.com/andybalholm/brotli) under [MIT](https://raw.githubusercontent.com/andybalholm/brotli/master/LICENSE)
 - [github.com/klauspost/pgzip](https://github.com/klauspost/pgzip) under [MIT](https://raw.githubusercontent.com/klauspost/pgzip/master/LICENSE)
+- [github.com/skratchdot/open-golang/open](https://github.com/skratchdot/open-golang) under [MIT](https://raw.githubusercontent.com/skratchdot/open-golang/master/LICENSE)
+- [github.com/gorilla/websocket](https://github.com/gorilla/websocket) under [BSD 2-Clause](https://raw.githubusercontent.com/gorilla/websocket/master/LICENSE)
 ---
 
 #### 介绍

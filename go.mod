@@ -11,6 +11,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5
 	github.com/miekg/dns v1.1.35
 	github.com/shirou/gopsutil v3.20.12+incompatible
+	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/thedevsaddam/gojsonq v2.3.0+incompatible
 	github.com/thedevsaddam/gojsonq/v2 v2.5.2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
