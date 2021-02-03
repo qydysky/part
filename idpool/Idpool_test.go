@@ -11,6 +11,7 @@ func Test(t *testing.T){
 	t.Log(a.Id,a.item,pool.Len())
 	t.Log(b.Id,b.item)
 	pool.Put(a)
+	pool.Put(a)
 	t.Log(a.Id,a.item,pool.Len())
 	t.Log(b.Id,b.item)
 	a = pool.Get()

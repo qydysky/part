@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-func Test_session(t *testing.T) {
-	s,e := Session(1e6, 1)
-	if e != nil {return}
+func Test_tmplV(t *testing.T) {
+	s := New_tmplV(1e6, 1)
 	v := s.Set("a")
 	if o,p := s.Buf();p != 1 || o - time.Now().Unix() > 1{return}
 	if ok,k := s.Get(v);!ok || k != "a" {return}

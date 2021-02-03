@@ -26,7 +26,8 @@ func New() (*Idpool) {
 	}
 }
 
-func (t *Idpool) Get() (o Id) {
+func (t *Idpool) Get() (o *Id) {
+	o = new(Id)
 	o.item = t.pool.Get()
 	o.Id = uintptr(unsafe.Pointer(&o.item))
 	t.Lock()
@@ -35,9 +36,10 @@ func (t *Idpool) Get() (o Id) {
 	return
 }
 
-func (t *Idpool) Put(i Id) {
+func (t *Idpool) Put(i *Id) {
 	if i.item == nil {return}
 	t.pool.Put(i.item)
+	i.item = nil
 	t.Lock()
 	t.sum -= 1
 	t.Unlock()
