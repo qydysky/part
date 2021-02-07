@@ -12,7 +12,7 @@ type tmplV struct {
 	now int64
 	pool *idpool.Idpool
 	kvt_map map[uintptr]tmplV_item
-	sync.Mutex
+	sync.RWMutex
 }
 
 type tmplV_item struct {
@@ -35,8 +35,8 @@ func New_tmplV(SumInDruation,Druation int64) (*tmplV) {
 			s.now = (<- ticker.C).Unix()
 			go func(){
 				tmp := make(map[uintptr]tmplV_item)
-				for k,v := range s.kvt_map {tmp[k] = v}
 				s.Lock()
+				for k,v := range s.kvt_map {tmp[k] = v}
 				s.kvt_map = tmp
 				s.Unlock()
 			}()
@@ -49,8 +49,8 @@ func New_tmplV(SumInDruation,Druation int64) (*tmplV) {
 func (s *tmplV) Set(contect string) (key uintptr) {
 
 	if s.SumInDruation >= 0 && s.pool.Len() >= uint(s.SumInDruation) {//不为无限&&达到限额 随机替代
+		s.Lock()
 		for key,item := range s.kvt_map {
-			s.Lock()
 			s.kvt_map[key] = tmplV_item{
 				kv: contect,
 				kt: s.now,
@@ -75,7 +75,9 @@ func (s *tmplV) Set(contect string) (key uintptr) {
 }
 
 func (s *tmplV) Get(key uintptr) (isLive bool,contect string){
+	s.RLock()
 	K, ok := s.kvt_map[key]
+	s.RUnlock()
 	contect = K.kv
 	isLive = ok && s.Druation < 0 || s.now - K.kt <= s.Druation
 	if !isLive && ok {

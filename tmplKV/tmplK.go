@@ -12,7 +12,7 @@ type tmplK struct {
 	now int64
 	pool *idpool.Idpool
 	kvt_map map[string]tmplK_item
-	sync.Mutex
+	sync.RWMutex
 }
 
 type tmplK_item struct {
@@ -35,8 +35,8 @@ func New_tmplK(SumInDruation,Druation int64) (*tmplK) {
 			s.now = (<- ticker.C).Unix()
 			go func(){
 				tmp := make(map[string]tmplK_item)
-				for k,v := range s.kvt_map {tmp[k] = v}
 				s.Lock()
+				for k,v := range s.kvt_map {tmp[k] = v}
 				s.kvt_map = tmp
 				s.Unlock()
 			}()
@@ -47,38 +47,39 @@ func New_tmplK(SumInDruation,Druation int64) (*tmplK) {
 }
 
 func (s *tmplK) Set(key string) (id uintptr) {
-
+	s.Lock()
+	defer s.Unlock()
+	
 	if tmp, oks := s.kvt_map[key];oks {
 		defer s.pool.Put(tmp.uid)//在取得新Id后才put回
 	} else if s.SumInDruation >= 0 && s.pool.Len() >= uint(s.SumInDruation){//不为无限&&达到限额 随机替代
 		for oldkey,item := range s.kvt_map {
-			s.Lock()
 			s.kvt_map[key] = tmplK_item{
 				kv: item.kv,
 				kt: s.now,
 				uid: item.uid,
 			}
 			delete(s.kvt_map,oldkey)
-			s.Unlock()
 			return item.kv
 		}
 	}
 
 	Uid := s.pool.Get()
 
-	s.Lock()
 	s.kvt_map[key] = tmplK_item{
 		kv: Uid.Id,
 		kt: s.now,
 		uid: Uid,
 	}
-	s.Unlock()
 
 	return Uid.Id
 }
 
 func (s *tmplK) Get(key string) (isLive bool,id uintptr){
+	s.RLock()
 	tmp, ok := s.kvt_map[key]
+	s.RUnlock()
+
 	id = tmp.kv
 	isLive = ok && s.Druation < 0 || s.now - tmp.kt <= s.Druation
 	if !isLive && ok {
