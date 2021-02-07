@@ -10,6 +10,7 @@ type tmplV struct {
 	SumInDruation int64
 	Druation int64
 	now int64
+	deleteNum int
 	pool *idpool.Idpool
 	kvt_map map[uintptr]tmplV_item
 	sync.RWMutex
@@ -33,13 +34,6 @@ func New_tmplV(SumInDruation,Druation int64) (*tmplV) {
 		ticker := time.NewTicker(time.Second)
 		for{
 			s.now = (<- ticker.C).Unix()
-			go func(){
-				tmp := make(map[uintptr]tmplV_item)
-				s.Lock()
-				for k,v := range s.kvt_map {tmp[k] = v}
-				s.kvt_map = tmp
-				s.Unlock()
-			}()
 		}
 	}()
 
@@ -84,6 +78,10 @@ func (s *tmplV) Get(key uintptr) (isLive bool,contect string){
 		s.pool.Put(K.uid)
 		s.Lock()
 		delete(s.kvt_map,key)
+		if s.deleteNum > len(s.kvt_map) {
+			s.deleteNum = 0
+			go s.Tidy()
+		}
 		s.Unlock()
 	}
 	return
@@ -96,4 +94,12 @@ func (s *tmplV) Check(key uintptr,contect string) bool {
 
 func (s *tmplV) Buf() (int64,int) {
 	return s.now,len(s.kvt_map)
+}
+
+func (s *tmplV) Tidy() {
+	tmp := make(map[uintptr]tmplV_item)
+	s.Lock()
+	for k,v := range s.kvt_map {tmp[k] = v}
+	s.kvt_map = tmp
+	s.Unlock()
 }
