@@ -222,6 +222,7 @@ func Cookies_String_2_Map(Cookies string) (o map[string]string) {
 }
 
 func Map_2_Cookies_String(Cookies map[string]string) (o string) {
+    if len(Cookies) == 0 {return ""}
     for k,v := range Cookies {
         o += k +`=`+ v + `; `
     }
