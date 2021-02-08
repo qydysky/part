@@ -21,6 +21,8 @@ type Msgq_item struct {
 	sig uint64
 }
 
+type FuncMap map[string]func(interface{})(bool)
+
 func New(want_max_data_mun int) (*Msgq) {
 	m := new(Msgq)
 	(*m).wait_push = make(chan struct{},10)
