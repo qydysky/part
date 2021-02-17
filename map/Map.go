@@ -37,7 +37,7 @@ func (t *Map) Store(k,v interface{}) {
 	t.lock.Unlock()
 }
 
-func (t *Map) Load(k interface{}) (v interface{}) {
+func (t *Map) Load(k interface{}) (interface{},bool) {
 
 	m,_ := t.readOnly.Load().(map[interface{}]*ptr)
 	p,ok := m[k]
@@ -60,10 +60,15 @@ func (t *Map) Load(k interface{}) (v interface{}) {
 	}
 
 	if !ok{
-		return nil
+		return nil,false
 	}
 
 	return p.tryLoad()
+}
+
+func (t *Map) LoadV(k interface{}) (v interface{}) {
+	v,_ = t.Load(k)
+	return
 }
 
 func (t *Map) Delete(k interface{}) {
@@ -103,12 +108,12 @@ func (t *ptr) tryStore(v *interface{}) {
 	// atomic.StorePointer(&t.p, unsafe.Pointer(v))
 }
 
-func (t *ptr) tryLoad() (interface{}) {
+func (t *ptr) tryLoad() (interface{},bool) {
 	// p := atomic.LoadPointer(&t.p)
 	if t.p == nil{
-		return nil
+		return nil,false
 	}
-	return *(*interface{})(t.p)
+	return *(*interface{})(t.p),true
 }
 
 type pLock struct{

@@ -9,13 +9,13 @@ func Test_customMap(t *testing.T) {
 	var c Map
 	//set
 	c.Store(0, 3)
-	if c.Load(0) != 3{t.Error(`1`)}
+	if v,ok := c.Load(0);ok && v != 3{t.Error(`1`)}
 	//change
 	c.Store(0, 1)
-	if c.Load(0) != 1{t.Error(`2`)}
+	if v,ok := c.Load(0);ok && v != 1{t.Error(`2`)}
 	//del
 	c.Store(0, nil)
-	if c.Load(0) != nil{t.Error(`3`)}
+	if v,ok := c.Load(0);ok && v != nil{t.Error(`3`)}
 }
 
 func Benchmark_customMap_Set(b *testing.B) {
@@ -79,7 +79,7 @@ func Benchmark_customMap_Get(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < t; i++ {
 		go func(index int) {
-			if c.Load(index).(int) != index {
+			if c.LoadV(index).(int) != index {
 				b.Error("q")
 			}
 			w.Done()
@@ -113,7 +113,7 @@ func Benchmark_customMap_SetGet(b *testing.B) {
 			w.Done()
 		}(i)
 		go func(index int) {
-			if t,ok := c.Load(index).(int);!ok || t != index && t != index+1{
+			if t,ok := c.LoadV(index).(int);!ok || t != index && t != index+1{
 				b.Error(`E`, index, t)
 			}
 			w.Done()
