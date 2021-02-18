@@ -11,11 +11,17 @@ func Test_customMap(t *testing.T) {
 	c.Store(0, 3)
 	if v,ok := c.Load(0);ok && v != 3{t.Error(`1`)}
 	//change
-	c.Store(0, 1)
-	if v,ok := c.Load(0);ok && v != 1{t.Error(`2`)}
+	c.Store(0, 0)
+	if v,ok := c.Load(0);ok && v != 0{t.Error(`2`)}
+	//range
+	c.Store(1, 1)
+	c.Range(func(key,value interface{})(bool){
+		if key.(int) != value.(int) {t.Error(`3`)}
+		return true
+	})
 	//del
 	c.Store(0, nil)
-	if v,ok := c.Load(0);ok && v != nil{t.Error(`3`)}
+	if v,ok := c.Load(0);ok && v != nil{t.Error(`4`)}
 }
 
 func Benchmark_customMap_Set(b *testing.B) {
@@ -102,8 +108,6 @@ func Benchmark_customMap_SetGet(b *testing.B) {
 	}
 	w.Wait()
 
-	b.Log(c.Len())
-
 	w.Add(b.N)
 	w.Add(b.N)
 	b.ResetTimer()
@@ -120,6 +124,28 @@ func Benchmark_customMap_SetGet(b *testing.B) {
 		}(i)
 	}
 	w.Wait()
+}
+
+func Benchmark_customMap_Range(b *testing.B) {
+	var c Map
+	var w = &sync.WaitGroup{}
+	var t = 900000//b.N
+
+	w.Add(t)
+	b.ResetTimer()
+	for i := 0; i < t; i++ {
+		go func(index int) {
+			c.Store(index, index)
+			w.Done()
+		}(i)
+	}
+	w.Wait()
+
+	b.ResetTimer()
+	c.Range(func(k,v interface{})(bool){
+		if k.(int) != v.(int) {b.Error(`p`)}
+		return true
+	})
 }
 
 func Benchmark_syncMap_Set(b *testing.B) {
@@ -215,4 +241,26 @@ func Benchmark_syncMap_SetGet(b *testing.B) {
 		}(i)
 	}
 	w.Wait()
+}
+
+func Benchmark_syncMap_Range(b *testing.B) {
+	var c sync.Map
+	var w = &sync.WaitGroup{}
+	var t = 900000//b.N
+
+	w.Add(t)
+	b.ResetTimer()
+	for i := 0; i < t; i++ {
+		go func(index int) {
+			c.Store(index, index)
+			w.Done()
+		}(i)
+	}
+	w.Wait()
+
+	b.ResetTimer()
+	c.Range(func(k,v interface{})(bool){
+		if k.(int) != v.(int) {b.Error(`p`)}
+		return true
+	})
 }

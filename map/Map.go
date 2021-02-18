@@ -71,6 +71,26 @@ func (t *Map) LoadV(k interface{}) (v interface{}) {
 	return
 }
 
+func (t *Map) Range(f func(key, value interface{})(bool)) {
+	t.lock.Lock()
+
+	m,_ := t.readOnly.Load().(map[interface{}]*ptr)
+	if t.m == nil {t.mapFrom(&m)}
+	t.readOnly.Store(t.m)
+	t.m = nil
+	t.num = 0
+
+	t.lock.Unlock()
+
+	for k,p := range m{
+		v,ok := p.tryLoad()
+		if !ok {continue} 
+		if !f(k,v) {return}
+	}
+
+	return
+}
+
 func (t *Map) Delete(k interface{}) {
 	m,_ := t.readOnly.Load().(map[interface{}]*ptr)
 	
