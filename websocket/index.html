@@ -13,15 +13,18 @@
     <p id="ws"></p>
     <script>
       if (window["WebSocket"]) {
+        var interval_handle = 0
         conn = new WebSocket("ws://" + document.location.host + "/ws");
-        conn.onclose = function () {
+        conn.onclose = function (evt) {
+          console.log(evt)
           document.getElementById("ws").innerHTML += `close!`
+          clearInterval(interval_handle)
         };
         conn.onmessage = function (evt) {
             document.getElementById("ws").innerHTML += evt.data+`<br>`
         };
 
-        setInterval(()=>{
+        interval_handle = setInterval(()=>{
             conn.send(`send`)
         },3000)
       }

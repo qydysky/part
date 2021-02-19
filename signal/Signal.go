@@ -19,10 +19,10 @@ func (i *Signal) Done() {
 func (i *Signal) Islive() (islive bool) {
 	if i == nil {return}
 	select {
-	case <-i.Chan:;
-	default:
-		if i.Chan == nil {break}
-		islive = true
+	case <-i.Chan:;//close
+	default://still alive
+		if i.Chan == nil {break}//not make yet
+		islive = true//has made
 	}
 	return
 }

@@ -19,6 +19,11 @@ type Uinterface struct {
 	Data []byte
 }
 
+type uinterface struct {//内部消息
+	Id uintptr
+	Data interface{}
+}
+
 func New_server() (*Server) {
 	return &Server{
 		ws_mq: mq.New(200),//收发通道
@@ -40,7 +45,6 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 	//从池中获取本会话id
 	User := t.userpool.Get()
 
-
 	//发送
 	t.ws_mq.Pull_tag(map[string]func(interface{})(bool){
 		`send`:func(data interface{})(bool){
@@ -53,8 +57,16 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 			return false
 		},
 		`close`:func(data interface{})(bool){
-			if u,ok := data.(Uinterface);ok && u.Id == 0 || u.Id == User.Id{
+			if u,ok := data.(Uinterface);ok && u.Id == 0 || u.Id == User.Id{//服务器主动关闭
+				msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, string(u.Data))
+				TO := time.Now().Add(time.Second*time.Duration(5))
+
+				if err := ws.WriteControl(websocket.CloseMessage, msg, TO);err != nil {
+					t.ws_mq.Push_tag(`error`,err)
+				}
 				return true
+			} else if u,ok := data.(uinterface);ok{//接收发生错误关闭
+				return ok && u.Data.(string) == `rev_close` && u.Id == 0 || u.Id == User.Id
 			}
 			return false
 		},
@@ -66,14 +78,13 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 			ws.SetReadDeadline(time.Now().Add(time.Second*time.Duration(300)))
 			if _, message, err := ws.ReadMessage();err != nil {
 				if websocket.IsCloseError(err,websocket.CloseGoingAway) {
-				} else if err,ok := err.(net.Error);ok && err.Timeout() {
-					//Timeout , js will reload html
+					//client close
+				} else if e,ok := err.(net.Error);ok && e.Timeout() {
+					//Timeout
 				} else {
+					//other
 					t.ws_mq.Push_tag(`error`,err)
 				}
-				t.ws_mq.Push_tag(`close`,Uinterface{
-					Id:User.Id,
-				})
 				break
 			} else {
 				t.ws_mq.Push_tag(`recv`,Uinterface{
@@ -83,6 +94,11 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 			}
 		}
 
+		//接收发生错误，通知发送关闭
+		t.ws_mq.Push_tag(`close`,uinterface{
+			Id:User.Id,
+			Data:`rev_close`,
+		})
 		//归还
 		t.userpool.Put(User)
 		//结束
