@@ -16,6 +16,7 @@ func Test_customMap(t *testing.T) {
 	//range
 	c.Store(1, 1)
 	c.Range(func(key,value interface{})(bool){
+		t.Log(key, value)
 		if key.(int) != value.(int) {t.Error(`3`)}
 		return true
 	})

@@ -82,6 +82,7 @@ func (t *Map) Range(f func(key, value interface{})(bool)) {
 
 	t.lock.Unlock()
 
+	m,_ = t.readOnly.Load().(map[interface{}]*ptr)//reload
 	for k,p := range m{
 		v,ok := p.tryLoad()
 		if !ok {continue} 
