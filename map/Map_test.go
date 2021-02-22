@@ -21,8 +21,12 @@ func Test_customMap(t *testing.T) {
 		return true
 	})
 	//del
-	c.Store(0, nil)
+	c.Delete(0)
 	if v,ok := c.Load(0);ok && v != nil{t.Error(`4`)}
+	t.Log(c.Len())
+	c.Delete(1)
+	if v,ok := c.Load(1);ok && v != nil{t.Error(`6`)}
+	t.Log(c.Len())
 }
 
 func Benchmark_customMap_Set(b *testing.B) {

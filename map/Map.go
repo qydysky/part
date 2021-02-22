@@ -103,7 +103,8 @@ func (t *Map) Delete(k interface{}) {
 	t.lock.Lock()
 
 	delete(t.m, k)
-
+	t.num -= 1
+	
 	t.lock.Unlock()
 }
 
