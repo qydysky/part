@@ -36,6 +36,10 @@ func (t *FlashFunc) Flash() (current uintptr) {
 	return
 }
 
+func (t *FlashFunc) UnFlash() {
+	t.b.Remove(t.b.Back())
+}
+
 func (t *FlashFunc) NeedExit(current uintptr) (bool) {
 	return current != t.b.Front().Value.(*idpool.Id).Id
 }

@@ -24,6 +24,8 @@ func Test_FlashFunc(t *testing.T) {
 	var b FlashFunc
 	var a = func(i int){
 		id := b.Flash()
+		defer b.UnFlash()
+		
 		t.Log(i,`.`)
 		time.Sleep(time.Second)
 		if b.NeedExit(id) {return}
