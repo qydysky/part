@@ -1,20 +1,20 @@
-package main
+package part
  
 import "testing"
 
 func Test(t *testing.T){
 	var k Crypto
-	if k.KeyStatus() != PublicKeyNoLoad {t.Error(`Keystatus not PublicKeyNoLoad`)}
+	if k.PubLoad() || k.PriLoad() {t.Error(`Keystatus not PublicKeyNoLoad`)}
 	{
 		d,_ := FileLoad(`public.pem`)
 		k.GetPKIXPubKey(d)
 	}
-	if k.KeyStatus() != PrivateKeyNoLoad {t.Error(`Keystatus not PrivateKeyNoLoad`)}
+	if !k.PubLoad() || k.PriLoad() {t.Error(`Keystatus not PrivateKeyNoLoad`)}
 	{
 		d,_ := FileLoad(`private.pem`)
 		k.GetPKCS1PriKey(d)
 	}
-	if k.KeyStatus() != nil {t.Error(`Keystatus not nil`)}
+	if !k.PubLoad() || !k.PriLoad() {t.Error(`Keystatus not nil`)}
 	if srcs,e := k.GetEncrypt([]byte(`1we23`));e != nil {
 		t.Error(e)
 	} else if des,e := k.GetDecrypt(srcs);e != nil {
