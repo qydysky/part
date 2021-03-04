@@ -11,6 +11,11 @@ import (
 	"encoding/pem"
 )
 
+var (
+	PublicKeyNoLoad = errors.New(`PublicKeyNoLoad`)
+	PrivateKeyNoLoad = errors.New(`PrivateKeyNoLoad`)
+)
+
 type Crypto struct {
 	pubKey *rsa.PublicKey
 	priKey *rsa.PrivateKey
@@ -29,6 +34,16 @@ func FileLoad(path string) (data []byte, err error) {
 		return
 	}
 	return
+}
+
+func (t *Crypto) KeyStatus() (error) {
+	if t.pubKey == nil {
+		return PublicKeyNoLoad
+	}
+	if t.priKey == nil {
+		return PrivateKeyNoLoad
+	}
+	return nil
 }
 
 func (t *Crypto) GetPKIXPubKey(pubPEMData []byte) (err error) {
