@@ -51,7 +51,7 @@ func (t *Crypto) GetPKIXPubKey(pubPEMData []byte) (err error) {
 		err = e
 		return
 	}
-	t.pubKey = pubI.(*rsa.PublicKey)
+	t.pubKey,_ = pubI.(*rsa.PublicKey)
 
 	return
 }
