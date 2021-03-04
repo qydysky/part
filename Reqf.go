@@ -216,6 +216,7 @@ func Cookies_String_2_Map(Cookies string) (o map[string]string) {
     list := strings.Split(Cookies, `; `)
     for _,v := range list {
         s := strings.SplitN(v, "=", 2)
+        if len(s) != 2 {continue}
         o[s[0]] = s[1]
     }
     return

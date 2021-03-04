@@ -2,7 +2,7 @@ package part
  
 import "testing"
 
-func Test(t *testing.T){
+func Test_Crypto(t *testing.T){
 	var k Crypto
 	if k.PubLoad() || k.PriLoad() {t.Error(`Keystatus not PublicKeyNoLoad`)}
 	{
