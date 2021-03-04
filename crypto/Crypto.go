@@ -56,6 +56,15 @@ func (t *Crypto) GetPKIXPubKey(pubPEMData []byte) (err error) {
 	return
 }
 
+func (t *Crypto) LoadPKIXPubKey(path string) (err error) {
+	if d,e := FileLoad(path);e != nil {
+		return e
+	} else {
+		err = t.GetPKIXPubKey(d)
+	}
+	return
+}
+
 func (t *Crypto) GetPKCS1PriKey(priPEMData []byte) (err error) {
 	block, _ := pem.Decode(priPEMData)
 	if block == nil || block.Type != "RSA PRIVATE KEY" {
@@ -65,6 +74,15 @@ func (t *Crypto) GetPKCS1PriKey(priPEMData []byte) (err error) {
 
 	t.priKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 
+	return
+}
+
+func (t *Crypto) LoadPKCS1PriKey(path string) (err error) {
+	if d,e := FileLoad(path);e != nil {
+		return e
+	} else {
+		err = t.GetPKCS1PriKey(d)
+	}
 	return
 }
 
