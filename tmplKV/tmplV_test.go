@@ -11,4 +11,8 @@ func Test_tmplV(t *testing.T) {
 	if o,p := s.Buf();p != 1 || o - time.Now().Unix() > 1{return}
 	if ok,k := s.Get(v);!ok || k != "a" {return}
 	if !s.Check(v, "a") {return}
+	ps := Uintptr2String(v)
+	if v != String2Uintptr(ps) {
+		t.Error(`aaa`)
+	}
 }
