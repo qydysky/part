@@ -30,11 +30,12 @@ func New_tmplKV() (*tmplKV) {
 	return s
 }
 
-// 设置Key Value Exp（有效秒数）
+// 设置Key Value Exp（有效秒数,<0永久）
 func (s *tmplKV) Set(key,value interface{},exp int64) {
+	if exp >= 0 {exp = s.now+exp}
 	s.kvt_map.Store(key, tmplKV_item{
 		kv: value,
-		kt: s.now+exp,
+		kt: exp,
 	})
 }
 
@@ -45,7 +46,7 @@ func (s *tmplKV) Get(key interface{}) (isLive bool,value interface{}){
 	item,_ := tmp.(tmplKV_item)
 	value = item.kv
 
-	isLive = ok && s.now <= item.kt
+	isLive = ok && item.kt < 0 || s.now <= item.kt
 	if !isLive && ok {
 		s.kvt_map.Delete(key)
 	}
