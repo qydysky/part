@@ -40,7 +40,7 @@ func (s *tmplKV) Set(key,value interface{},exp int64) {
 }
 
 //获取Value 及是否有效
-func (s *tmplKV) Get(key interface{}) (isLive bool,value interface{}){
+func (s *tmplKV) Get(key interface{}) (value interface{},isLive bool){
 	tmp, ok := s.kvt_map.Load(key)
 
 	item,_ := tmp.(tmplKV_item)
@@ -48,6 +48,21 @@ func (s *tmplKV) Get(key interface{}) (isLive bool,value interface{}){
 
 	isLive = ok && item.kt < 0 || s.now <= item.kt
 	if !isLive && ok {
+		s.kvt_map.Delete(key)
+	}
+	return
+}
+
+//获取Value 及是否有效
+func (s *tmplKV) GetV(key interface{}) (value interface{}){
+	tmp, ok := s.kvt_map.Load(key)
+
+	item,_ := tmp.(tmplKV_item)
+	value = item.kv
+
+	isLive := ok && item.kt < 0 || s.now <= item.kt
+	if !isLive && ok {
+		value = nil
 		s.kvt_map.Delete(key)
 	}
 	return
