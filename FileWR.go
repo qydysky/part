@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"syscall"
+
+	Ppart "github.com/qydysky/part/linuxwin"
 )
 
 type file struct {
@@ -230,6 +232,10 @@ func (this *file) NewPath(filename string) error{
 		}
 	}
 	return nil
+}
+
+func Move(src,trg string) error {
+	return Ppart.FileMove(src,trg)
 }
 
 // func main(){

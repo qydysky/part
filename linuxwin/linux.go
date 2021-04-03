@@ -60,3 +60,7 @@ func PProxy(s, pacUrl string) error {
     }
     return nil
 }
+
+func FileMove(src,trg string) error {
+    return os.Rename(src,trg)
+}

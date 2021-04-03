@@ -96,3 +96,15 @@ func Cdir()string{
     exPath := filepath.Dir(dir)
     return exPath
 }
+
+func FileMove(src,trg string) error {
+    from, err := syscall.UTF16PtrFromString(src)
+    if err != nil {
+        return err
+    }
+    to, err := syscall.UTF16PtrFromString(trg)
+    if err != nil {
+        return err
+    }
+    return syscall.MoveFile(from, to)
+}
