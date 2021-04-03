@@ -234,7 +234,7 @@ func (this *file) NewPath(filename string) error{
 	return nil
 }
 
-func Move(src,trg string) error {
+func FileMove(src,trg string) error {
 	return Ppart.FileMove(src,trg)
 }
 
