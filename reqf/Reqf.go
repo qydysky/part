@@ -95,10 +95,6 @@ func (this *req) Reqf_1(val Rval) (error) {
 
     if Header == nil {Header = make(map[string]string)}
 
-    if Timeout != -1 {
-        client.Timeout = time.Duration(Timeout)*time.Second
-    }
-
     if Proxy!="" {
         proxy := func(_ *http.Request) (*url.URL, error) {
             return url.Parse(Proxy)
@@ -119,6 +115,9 @@ func (this *req) Reqf_1(val Rval) (error) {
     }
 
     cx, cancel := context.WithCancel(context.Background())
+    if Timeout != -1 {
+        cx, _ = context.WithTimeout(cx,time.Duration(Timeout)*time.Second)
+    }
     req,_ := http.NewRequest(Method, Url, body)
     req = req.WithContext(cx)
 
@@ -200,6 +199,8 @@ func (this *req) Reqf_1(val Rval) (error) {
     return nil
 }
 
+func (t *req) Cancel(){t.Close()}
+
 func (t *req) Close(){
     if !t.cancelOpen {return}
     select {
@@ -238,4 +239,12 @@ func Cookies_List_2_Map(Cookies []*http.Cookie) (o map[string]string) {
 		o[v.Name] = v.Value
     }
     return
+}
+
+func IsTimeout(e error) bool {
+    return errors.Is(e, context.DeadlineExceeded)
+}
+
+func IsCancel(e error) bool {
+    return errors.Is(e, context.Canceled)
 }
