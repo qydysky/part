@@ -4,7 +4,7 @@ import (
 	"strings"
 	"errors"
 	"net/http"
-	p "github.com/qydysky/part"
+	reqf "github.com/qydysky/part/reqf"
 )
 
 type get struct {
@@ -15,12 +15,12 @@ type get struct {
 	Err error
 }
 
-func Get(r p.Rval) (o *get){
+func Get(r reqf.Rval) (o *get){
 	o = new(get)
 
 	if r.Url == "" {o.Err = errors.New("url == nil");return}
 
-	R := p.Req()
+	R := reqf.Req()
 	o.Err = R.Reqf(r)
 	(*o).body = R.Respon
 	(*o).Response = R.Response

@@ -9,6 +9,8 @@ import (
     "errors"
     "os"
 	"io/ioutil"
+
+	reqf "github.com/qydysky/part/reqf"
 )
 
 type checkfile struct {
@@ -137,12 +139,12 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 	if strings.Contains(checkFile,"https://") {
 		Logf().I("[wait]checkFile: Getting checkfile...")
 
-		var r = Rval {
+		var r = reqf.Rval {
 			Url:checkFile,
 			Timeout:6,
             Retry:2,
 		}
-		req := Req()
+		req := reqf.Req()
 		if e:=req.Reqf(r);e != nil {
 			Logf().E("[err]checkFile:",checkFile,e.Error())
 			return false
