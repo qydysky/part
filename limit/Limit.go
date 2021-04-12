@@ -38,7 +38,8 @@ func New(maxNum_in_period,ms_in_period,ms_to_timeout int) (*Limit) {
 
 	//make sure the bucket is full
 	for object.TK() != maxNum_in_period {}
-
+	object.pre_bucket_token_num = len(object.bucket)
+	
 	return &object
 }
 
