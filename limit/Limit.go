@@ -41,3 +41,9 @@ func (l *limit) TO() bool {
 	}
 	return false
 }
+
+//assert interface{} to *limit
+func GetStruct(i interface{}) (l *limit,ok bool) {
+	l,ok = i.(*limit)
+	return 
+}
