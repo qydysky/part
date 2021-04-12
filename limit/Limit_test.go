@@ -40,3 +40,15 @@ func Test_3(t *testing.T){
 	}
 	t.Log(pass)
 }
+
+func Test_4(t *testing.T){
+	l := New(0,0,10)
+	pass := 0
+	for i:=0;i<500;i+=1{
+		go func(){
+			if !l.TO() {pass += 1}
+		}()
+		time.Sleep(time.Millisecond)
+	}
+	t.Log(pass)
+}
