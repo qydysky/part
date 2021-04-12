@@ -52,10 +52,3 @@ func Test_4(t *testing.T){
 	}
 	t.Log(pass)
 }
-
-func Test_5(t *testing.T){
-	l := New(0,0,10)
-	if v,ok := GetStruct(interface{}(l));!ok{
-		t.Log(`error struct`,v)
-	}
-}
