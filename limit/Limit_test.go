@@ -60,4 +60,6 @@ func Test_5(t *testing.T){
 		l.TO()
 	}
 	if l.TK() != 50 {t.Error(`5`,l.TK())}
+	time.Sleep(time.Second*3)
+	if l.PTK() != 50 {t.Error(`5`,l.PTK())}
 }

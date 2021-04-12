@@ -9,6 +9,7 @@ type Limit struct {
 	ms_in_period int
 	ms_to_timeout int
 	bucket chan struct{}
+	pre_bucket_token_num int
 }
 
 // create a Limit Object
@@ -31,6 +32,7 @@ func New(maxNum_in_period,ms_in_period,ms_to_timeout int) (*Limit) {
 				}
 			}
 			time.Sleep(time.Duration(object.ms_in_period)*time.Millisecond)
+			object.pre_bucket_token_num = len(object.bucket)
 		}
 	}(&object)
 
@@ -49,7 +51,12 @@ func (l *Limit) TO() bool {
 	return false
 }
 
-// return the token number of bucket
+// return the token number of bucket at now
 func (l *Limit) TK() int {
 	return len(l.bucket)
+}
+
+// return the token number of bucket at previous
+func (l *Limit) PTK() int {
+	return l.pre_bucket_token_num
 }
