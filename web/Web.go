@@ -19,8 +19,6 @@ func New(conf *http.Server) (o *Web) {
 
 	o.Server = conf
 	
-	if o.Server.Addr == `` {o.Server.Addr = "127.0.0.1:"+strconv.Itoa(p.Sys().GetFreePort())}
-	if o.Server.WriteTimeout == 0 {o.Server.WriteTimeout =  time.Second * time.Duration(10)}
 	if o.Server.Handler == nil {
 		o.mux = http.NewServeMux()
 		o.Server.Handler = o.mux
@@ -38,7 +36,10 @@ func (t *Web) Handle(path_func map[string]func(http.ResponseWriter,*http.Request
 }
 
 func Easy_boot() (*Web) {
-	s := New(&http.Server{})
+	s := New(&http.Server{
+		Addr: "127.0.0.1:"+strconv.Itoa(p.Sys().GetFreePort()),
+		WriteTimeout:  time.Second * time.Duration(10),
+	})
 	s.Handle(map[string]func(http.ResponseWriter,*http.Request){
 		`/`:func(w http.ResponseWriter,r *http.Request){
 			var path string = r.URL.Path[1:]
