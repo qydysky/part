@@ -23,8 +23,12 @@ func New(maxNum_in_period,ms_in_period,ms_to_timeout int) (*Limit) {
 
 	go func(object *Limit){
 		for object.maxNum_in_period > 0 {
-			for i:=1;i<=object.maxNum_in_period;i++{
-				object.bucket <- struct{}{}
+			object.bucket <- struct{}{}
+			for i:=1;i<object.maxNum_in_period;i++{
+				select {
+				case object.bucket <- struct{}{}:;
+				default :i = object.maxNum_in_period
+				}
 			}
 			time.Sleep(time.Duration(object.ms_in_period)*time.Millisecond)
 		}

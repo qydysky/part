@@ -54,10 +54,10 @@ func Test_4(t *testing.T){
 }
 
 func Test_5(t *testing.T){
-	l := New(100,5000,0)
-	for i:=0;i<50;i+=1{
+	l := New(100,3000,0)
+	t.Log(l.TK())
+	for i:=1;i<=50;i+=1{
 		l.TO()
-		time.Sleep(time.Millisecond)
 	}
 	if l.TK() != 50 {t.Error(`5`,l.TK())}
 }
