@@ -4,6 +4,7 @@ import (
 	"time"
 	"errors"
 	"net/http"
+	"net/url"
 	"reflect"
 
 	"github.com/gorilla/websocket"
@@ -18,6 +19,7 @@ type Client struct {
 
 	TO int
 	Header map[string]string
+	Proxy string
 	
 	Ping Ping
 
@@ -54,6 +56,7 @@ func New_client(config Client) (o *Client) {
 	tmp.Header = config.Header
 	if v := config.Func_normal_close;v != nil {tmp.Func_normal_close = v}
 	if v := config.Func_abort_close;v != nil {tmp.Func_abort_close = v}
+	if v := config.Proxy;v != "" {tmp.Proxy = v}
 	if config.Ping.Period != 0 {tmp.Ping = config.Ping}
 	return &tmp
 }
@@ -80,7 +83,16 @@ func (i *Client) Handle() (o *Client) {
 		for k,v := range o.Header {
 			tmp_Header.Set(k, v)
 		}
-		c, _, err := websocket.DefaultDialer.Dial(o.Url, tmp_Header)
+
+		dial := websocket.DefaultDialer
+		if o.Proxy != "" {
+			proxy := func(_ *http.Request) (*url.URL, error) {
+				return url.Parse(o.Proxy)
+			}
+			dial.Proxy = proxy
+		}
+		c, _, err := dial.Dial(o.Url, tmp_Header)
+
 		if err != nil {return}
 		defer c.Close()
 
