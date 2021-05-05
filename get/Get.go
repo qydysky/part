@@ -20,7 +20,7 @@ func Get(r reqf.Rval) (o *get){
 
 	if r.Url == "" {o.Err = errors.New("url == nil");return}
 
-	R := reqf.Req()
+	R := reqf.New()
 	o.Err = R.Reqf(r)
 	(*o).body = R.Respon
 	(*o).Response = R.Response
