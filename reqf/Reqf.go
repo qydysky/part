@@ -23,12 +23,15 @@ type Rval struct {
     Retry int
     SleepTime int
     JustResponseCode bool
+
     SaveToPath string
+    SaveToChan chan[]byte
+    SaveToPipeWriter *io.PipeWriter
 
     Header map[string]string
 }
 
-type req struct {
+type Req struct {
     Respon []byte
     Response  *http.Response
     UsedTime time.Duration
@@ -38,8 +41,8 @@ type req struct {
     sync.Mutex
 }
 
-func Req() *req{
-    return &req{}
+func New() *Req{
+    return &Req{}
 }
 
 // func main(){
@@ -52,7 +55,7 @@ func Req() *req{
 //     Reqf(_ReqfVal)
 // }
 
-func (this *req) Reqf(val Rval) (error) {
+func (this *Req) Reqf(val Rval) (error) {
     this.Lock()
 	defer this.Unlock()
 
@@ -76,15 +79,17 @@ func (this *req) Reqf(val Rval) (error) {
 	return returnErr
 }
 
-func (this *req) Reqf_1(val Rval) (error) {
+func (this *Req) Reqf_1(val Rval) (error) {
 
 	var (
         Url string = val.Url
         PostStr string = val.PostStr
         Proxy string = val.Proxy
         Timeout int = val.Timeout
-        JustResponseCode bool =val.JustResponseCode
-        SaveToPath string =val.SaveToPath
+        JustResponseCode bool = val.JustResponseCode
+        SaveToChan chan[]byte = val.SaveToChan
+        SaveToPath string = val.SaveToPath
+        SaveToPipeWriter *io.PipeWriter = val.SaveToPipeWriter
 
         Header map[string]string = val.Header
     )
@@ -148,33 +153,32 @@ func (this *req) Reqf_1(val Rval) (error) {
         return err
     }
     
-    var saveToFile func(io.Reader,string)error = func (Body io.Reader,filepath string) error {
-        out, err := os.Create(filepath + ".dtmp")
-        if err != nil {out.Close();return err}
+    var (
+        saveToFile func(io.Reader,string)error = func (Body io.Reader,filepath string) error {
+            out, err := os.Create(filepath + ".dtmp")
+            if err != nil {out.Close();return err}
 
-        // resp, err := http.Get(url)
-        // if err != nil {out.Close();return err}
-        // defer resp.Body.Close()
+            if _, err = io.Copy(out, Body); err != nil {out.Close();return err}
+            out.Close()
 
-        if _, err = io.Copy(out, Body); err != nil {out.Close();return err}
-        out.Close()
-
-        if err = os.RemoveAll(filepath); err != nil {return err}
-        if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
-        return nil
-    }
+            if err = os.RemoveAll(filepath); err != nil {return err}
+            if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
+            return nil
+        }
+    )
     this.Response = resp
     if !JustResponseCode {
         defer resp.Body.Close()
-        if SaveToPath != "" && resp.StatusCode == 200 {
-            if err := saveToFile(resp.Body, SaveToPath); err != nil {
-                return err
-            }
-        }else{
+        if compress_type := resp.Header[`Content-Encoding`];compress_type!=nil &&
+        len(compress_type) != 0 && (compress_type[0] == `br` ||
+        compress_type[0] == `gzip` ||
+        compress_type[0] == `deflate`) {
             var err error
             this.Respon,err = ioutil.ReadAll(resp.Body)
             if err != nil {return err}
-            if compress_type := resp.Header[`Content-Encoding`];compress_type!=nil{
+
+            if compress_type := resp.Header[`Content-Encoding`];
+            compress_type!=nil && len(compress_type) != 0 {
                 switch compress_type[0]{
                 case `br`:
                     if tmp,err := compress.UnBr(this.Respon);err != nil {
@@ -188,7 +192,36 @@ func (this *req) Reqf_1(val Rval) (error) {
                     if tmp,err := compress.UnFlate(this.Respon);err != nil {
                         return err
                     }else{this.Respon = append([]byte{},tmp...)}
-                default:
+                default:;
+                }
+            }
+        } else {
+            if SaveToPath != "" {
+                if err := saveToFile(resp.Body, SaveToPath); err != nil {
+                    return err
+                }
+            } else {
+                buf := make([]byte, 1<<20)
+                for {
+                    if n,e := resp.Body.Read(buf); n != 0{
+                        b := make([]byte,n)
+                        copy(b,buf[:n])
+                        if SaveToChan != nil {
+                            SaveToChan <- b
+                        } else if SaveToPipeWriter != nil {
+                            SaveToPipeWriter.Write(b)
+                        } else {
+                            this.Respon = append(this.Respon,b...)
+                        }
+                    } else {
+                        if SaveToChan != nil {
+                            close(SaveToChan)
+                        }
+                        if SaveToPipeWriter != nil {
+                            SaveToPipeWriter.CloseWithError(e)
+                        }
+                        return err
+                    }
                 }
             }
         }
@@ -199,9 +232,9 @@ func (this *req) Reqf_1(val Rval) (error) {
     return nil
 }
 
-func (t *req) Cancel(){t.Close()}
+func (t *Req) Cancel(){t.Close()}
 
-func (t *req) Close(){
+func (t *Req) Close(){
     if !t.cancelOpen {return}
     select {
     case <- t.cancel://had close

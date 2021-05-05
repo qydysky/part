@@ -144,7 +144,7 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 			Timeout:6,
             Retry:2,
 		}
-		req := reqf.Req()
+		req := reqf.New()
 		if e:=req.Reqf(r);e != nil {
 			Logf().E("[err]checkFile:",checkFile,e.Error())
 			return false
