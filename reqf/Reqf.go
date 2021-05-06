@@ -12,6 +12,7 @@ import (
     "io/ioutil"
     "net/url"
     compress "github.com/qydysky/part/compress"
+    pio "github.com/qydysky/part/io"
     // "encoding/binary"
 )
 
@@ -19,6 +20,7 @@ type Rval struct {
     Url string
     PostStr string
     Timeout int
+    ReadTimeout int
     Proxy string
     Retry int
     SleepTime int
@@ -86,6 +88,7 @@ func (this *Req) Reqf_1(val Rval) (error) {
         PostStr string = val.PostStr
         Proxy string = val.Proxy
         Timeout int = val.Timeout
+        ReadTimeout int = val.ReadTimeout
         JustResponseCode bool = val.JustResponseCode
         SaveToChan chan[]byte = val.SaveToChan
         SaveToPath string = val.SaveToPath
@@ -201,26 +204,42 @@ func (this *Req) Reqf_1(val Rval) (error) {
                     return err
                 }
             } else {
-                buf := make([]byte, 1<<20)
+                rc,_ := pio.RW2Chan(resp.Body,nil)
+                var After = func(ReadTimeout int) (c <-chan time.Time) {
+                    if ReadTimeout > 0 {
+                        c = time.NewTimer(time.Second*time.Duration(ReadTimeout)).C
+                    }
+                    return
+                }
+                
                 for {
-                    if n,e := resp.Body.Read(buf); n != 0{
-                        b := make([]byte,n)
-                        copy(b,buf[:n])
-                        if SaveToChan != nil {
-                            SaveToChan <- b
-                        } else if SaveToPipeWriter != nil {
-                            SaveToPipeWriter.Write(b)
+                    select {
+                    case buf :=<- rc:
+                        if len(buf) != 0 {
+                            if SaveToChan != nil {
+                                SaveToChan <- buf
+                            } else if SaveToPipeWriter != nil {
+                                SaveToPipeWriter.Write(buf)
+                            } else {
+                                this.Respon = append(this.Respon,buf...)
+                            }
                         } else {
-                            this.Respon = append(this.Respon,b...)
+                            if SaveToChan != nil {
+                                close(SaveToChan)
+                            }
+                            if SaveToPipeWriter != nil {
+                                SaveToPipeWriter.Close()
+                            }
+                            return nil
                         }
-                    } else {
+                    case <-After(ReadTimeout):
                         if SaveToChan != nil {
                             close(SaveToChan)
                         }
                         if SaveToPipeWriter != nil {
-                            SaveToPipeWriter.CloseWithError(e)
+                            SaveToPipeWriter.Close()
                         }
-                        return err
+                        return context.DeadlineExceeded
                     }
                 }
             }

@@ -6,7 +6,7 @@ import (
 )
 
 func Test_Timeout(t *testing.T) {
-	r := Req()
+	r := New()
 	if e := r.Reqf(Rval{
 		Url:`https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso`,
 		Timeout:1,
@@ -20,7 +20,7 @@ func Test_Timeout(t *testing.T) {
 }
 
 func Test_Cancel(t *testing.T) {
-	r := Req()
+	r := New()
 
 	go func(){
 		time.Sleep(time.Second)
