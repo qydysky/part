@@ -12,10 +12,10 @@ func RW2Chan(r io.ReadCloser,w io.WriteCloser) (rc,wc chan[]byte) {
 		go func(rc chan[]byte,r io.ReadCloser){
 			for {
 				buf := make([]byte, 1<<16)
-				n,_ := r.Read(buf)
+				n,e := r.Read(buf)
 				if n != 0 {
 					rc <- buf[:n]
-				} else {
+				} else if e != nil {
 					close(rc)
 					break
 				}

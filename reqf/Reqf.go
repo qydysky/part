@@ -41,12 +41,17 @@ type Req struct {
     UsedTime time.Duration
 
     id *idpool.Id
+    idp *idpool.Idpool
     cancel *signal.Signal
     sync.Mutex
 }
 
 func New() *Req{
-    return &Req{}
+    idp := idpool.New()
+    return &Req{
+        idp:idp,
+        id:idp.Get(),
+    }
 }
 
 // func main(){
@@ -69,14 +74,9 @@ func (this *Req) Reqf(val Rval) (error) {
 
     if _val.Timeout==0{_val.Timeout=3}
 
-    {
-        idp := idpool.New()
-        this.id = idp.Get()
-        defer func(){
-            idp.Put(this.id)
-            this.id = nil
-        }()
-    }
+    defer func(){
+        this.idp.Put(this.id)
+    }()
 
     this.cancel = signal.Init()
 
