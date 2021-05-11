@@ -13,6 +13,8 @@ import (
     "net/url"
     compress "github.com/qydysky/part/compress"
     pio "github.com/qydysky/part/io"
+    signal "github.com/qydysky/part/signal"
+    idpool "github.com/qydysky/part/idpool"
     // "encoding/binary"
 )
 
@@ -38,8 +40,8 @@ type Req struct {
     Response  *http.Response
     UsedTime time.Duration
 
-    cancelOpen bool
-    cancel chan interface{}
+    id *idpool.Id
+    cancel *signal.Signal
     sync.Mutex
 }
 
@@ -67,10 +69,21 @@ func (this *Req) Reqf(val Rval) (error) {
 
     if _val.Timeout==0{_val.Timeout=3}
 
+    {
+        idp := idpool.New()
+        this.id = idp.Get()
+        defer func(){
+            idp.Put(this.id)
+            this.id = nil
+        }()
+    }
+
+    this.cancel = signal.Init()
+
 	for ;_val.Retry>=0;_val.Retry-- {
         returnErr=this.Reqf_1(_val)
         select {
-        case <- this.cancel://cancel
+        case <- this.cancel.WaitC()://cancel
             return returnErr
         default:
             if returnErr==nil {return nil}
@@ -132,10 +145,8 @@ func (this *Req) Reqf_1(val Rval) (error) {
     var done = make(chan struct{})
     defer close(done)
     go func(){
-        this.cancel = make(chan interface{})
-        this.cancelOpen = true
         select {
-        case <- this.cancel:cancel()
+        case <- this.cancel.WaitC():cancel()
         case <- done:
         }
     }()
@@ -241,6 +252,15 @@ func (this *Req) Reqf_1(val Rval) (error) {
                         }
                         return context.DeadlineExceeded
                     }
+                    if !this.cancel.Islive() {
+                        if SaveToChan != nil {
+                            close(SaveToChan)
+                        }
+                        if SaveToPipeWriter != nil {
+                            SaveToPipeWriter.Close()
+                        }
+                        return context.Canceled
+                    }
                 }
             }
         }
@@ -254,14 +274,13 @@ func (this *Req) Reqf_1(val Rval) (error) {
 func (t *Req) Cancel(){t.Close()}
 
 func (t *Req) Close(){
-    if !t.cancelOpen {return}
-    select {
-    case <- t.cancel://had close
-        return
-    default:
-        close(t.cancel)
-        t.cancelOpen = false
-    }
+    if !t.cancel.Islive() {return}
+    t.cancel.Done()
+}
+
+func (t *Req) Id() uintptr {
+    if t.id == nil {return 0}
+    return t.id.Id
 }
 
 func Cookies_String_2_Map(Cookies string) (o map[string]string) {

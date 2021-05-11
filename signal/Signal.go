@@ -12,6 +12,11 @@ func (i *Signal) Wait() {
 	if i.Islive() {<-i.Chan}
 }
 
+func (i *Signal) WaitC() (<-chan struct{}) {
+	if i.Islive() {return i.Chan}
+	return nil
+}
+
 func (i *Signal) Done() {
 	if i.Islive() {close(i.Chan)}
 }
