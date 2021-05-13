@@ -75,8 +75,8 @@ func (i *Client) Handle() (o *Client) {
 
 	go func(){
 		defer func(){
-			close(o.RecvChan)
 			o.signal.Done()
+			close(o.RecvChan)
 		}()
 
 		tmp_Header := make(http.Header)
@@ -96,10 +96,11 @@ func (i *Client) Handle() (o *Client) {
 		if err != nil {return}
 		defer c.Close()
 
-		done := make(chan struct{})
+		done := s.Init()
+		defer done.Done()
 
 		go func() {
-			defer close(done)
+			defer done.Done()
 	
 			for {
 				c.SetReadDeadline(time.Now().Add(time.Millisecond*time.Duration(o.TO)))
@@ -115,6 +116,7 @@ func (i *Client) Handle() (o *Client) {
 					}
 					return
 				}
+				if !done.Islive() {return}
 				switch msg_type {
 				case websocket.PingMessage:
 					o.SendChan <- ws_msg{
@@ -130,9 +132,10 @@ func (i *Client) Handle() (o *Client) {
 	
 		for {
 			select {
-			case <- done:
-				return
+			case <- done.WaitC():return
 			case t := <- o.SendChan:
+				if !done.Islive() {return}
+	
 				var err error
 				switch reflect.ValueOf(t).Type().Name() {
 				case `ws_msg`:
@@ -145,11 +148,13 @@ func (i *Client) Handle() (o *Client) {
 					return
 				}
 				c.SetWriteDeadline(time.Now().Add(time.Millisecond*time.Duration(o.TO)))
-			case <- o.signal.Chan:
+			case <- o.signal.WaitC():
+				if !done.Islive() {return}
+
 				err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close))
 				if err != nil {o.err = err}
 				select {
-				case <- done:
+				case <- done.WaitC():
 				case <- time.After(time.Second):
 				}
 				return

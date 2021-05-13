@@ -23,6 +23,7 @@ type Rval struct {
     PostStr string
     Timeout int
     ReadTimeout int
+    ConnectTimeout int
     Proxy string
     Retry int
     SleepTime int
@@ -72,7 +73,7 @@ func (this *Req) Reqf(val Rval) (error) {
 
 	_val := val;
 
-    if _val.Timeout==0{_val.Timeout=3}
+    if _val.Timeout==0{_val.Timeout=3000}
 
     defer func(){
         this.idp.Put(this.id)
@@ -80,7 +81,7 @@ func (this *Req) Reqf(val Rval) (error) {
 
     this.cancel = signal.Init()
 
-	for ;_val.Retry>=0;_val.Retry-- {
+	for SleepTime,Retry:=_val.SleepTime,_val.Retry;Retry>=0;Retry-=1 {
         returnErr=this.Reqf_1(_val)
         select {
         case <- this.cancel.WaitC()://cancel
@@ -88,13 +89,13 @@ func (this *Req) Reqf(val Rval) (error) {
         default:
             if returnErr==nil {return nil}
         }
-        time.Sleep(time.Duration(_val.SleepTime)*time.Millisecond)
+        time.Sleep(time.Duration(SleepTime)*time.Millisecond)
     }
 
 	return returnErr
 }
 
-func (this *Req) Reqf_1(val Rval) (error) {
+func (this *Req) Reqf_1(val Rval) (err error) {
 
 	var (
         Url string = val.Url
@@ -102,6 +103,7 @@ func (this *Req) Reqf_1(val Rval) (error) {
         Proxy string = val.Proxy
         Timeout int = val.Timeout
         ReadTimeout int = val.ReadTimeout
+        ConnectTimeout int = val.ConnectTimeout
         JustResponseCode bool = val.JustResponseCode
         SaveToChan chan[]byte = val.SaveToChan
         SaveToPath string = val.SaveToPath
@@ -137,7 +139,7 @@ func (this *Req) Reqf_1(val Rval) (error) {
 
     cx, cancel := context.WithCancel(context.Background())
     if Timeout != -1 {
-        cx, _ = context.WithTimeout(cx,time.Duration(Timeout)*time.Second)
+        cx, _ = context.WithTimeout(cx,time.Duration(Timeout)*time.Millisecond)
     }
     req,_ := http.NewRequest(Method, Url, body)
     req = req.WithContext(cx)
@@ -218,12 +220,31 @@ func (this *Req) Reqf_1(val Rval) (error) {
                 rc,_ := pio.RW2Chan(resp.Body,nil)
                 var After = func(ReadTimeout int) (c <-chan time.Time) {
                     if ReadTimeout > 0 {
-                        c = time.NewTimer(time.Second*time.Duration(ReadTimeout)).C
+                        c = time.NewTimer(time.Millisecond*time.Duration(ReadTimeout)).C
                     }
                     return
                 }
                 
-                for {
+                select {
+                case buf :=<- rc:
+                    if len(buf) != 0 {
+                        if SaveToChan != nil {
+                            SaveToChan <- buf
+                        } else if SaveToPipeWriter != nil {
+                            SaveToPipeWriter.Write(buf)
+                        } else {
+                            this.Respon = append(this.Respon,buf...)
+                        }
+                    } else {
+                        err = io.EOF
+                        return
+                    }
+                case <-After(ConnectTimeout):
+                    err = context.DeadlineExceeded
+                    return
+                }
+
+                for loop:=true;loop; {
                     select {
                     case buf :=<- rc:
                         if len(buf) != 0 {
@@ -235,32 +256,26 @@ func (this *Req) Reqf_1(val Rval) (error) {
                                 this.Respon = append(this.Respon,buf...)
                             }
                         } else {
-                            if SaveToChan != nil {
-                                close(SaveToChan)
-                            }
-                            if SaveToPipeWriter != nil {
-                                SaveToPipeWriter.Close()
-                            }
-                            return nil
+                            err = io.EOF
+                            loop = false
+                            break
                         }
                     case <-After(ReadTimeout):
-                        if SaveToChan != nil {
-                            close(SaveToChan)
-                        }
-                        if SaveToPipeWriter != nil {
-                            SaveToPipeWriter.Close()
-                        }
-                        return context.DeadlineExceeded
+                        err = context.DeadlineExceeded
+                        loop = false
+                        break
                     }
                     if !this.cancel.Islive() {
-                        if SaveToChan != nil {
-                            close(SaveToChan)
-                        }
-                        if SaveToPipeWriter != nil {
-                            SaveToPipeWriter.Close()
-                        }
-                        return context.Canceled
+                        err = context.Canceled
+                        loop = false
+                        break
                     }
+                }
+                if SaveToChan != nil {
+                    close(SaveToChan)
+                }
+                if SaveToPipeWriter != nil {
+                    SaveToPipeWriter.Close()
                 }
             }
         }

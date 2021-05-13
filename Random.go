@@ -31,6 +31,11 @@ func (*random) FakeRandom(max int64) int64 {
 
 func (t *random) MixRandom(min, max int64) int64 {
 	lenght := max - min
+	if lenght == 0 {
+		return min
+	} else if lenght < 0 {
+		panic(`max < min`) 
+	}
 	r := t.TrueRandom(lenght)
 	if r != -1 {return min + r}
 	return min + t.FakeRandom(lenght)
