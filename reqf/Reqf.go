@@ -331,6 +331,10 @@ func IsTimeout(e error) bool {
     return errors.Is(e, context.DeadlineExceeded)
 }
 
+func IsDnsErr(e error) bool {
+    return e != nil && strings.Contains(e.Error(), "lookup")
+}
+
 func IsCancel(e error) bool {
     return errors.Is(e, context.Canceled)
 }
