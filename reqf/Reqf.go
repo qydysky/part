@@ -7,6 +7,7 @@ import (
     "context"
     "time"
     "strings"
+    "bytes"
     "net/http"
     "errors"
     "io/ioutil"
@@ -170,16 +171,19 @@ func (this *Req) Reqf_1(val Rval) (err error) {
     }
     
     var (
-        saveToFile func(io.Reader,string)error = func (Body io.Reader,filepath string) error {
+        saveToFile func(io.Reader,string)([]byte,error) = func (Body io.Reader,filepath string) (bodyB []byte,err error) {
             out, err := os.Create(filepath + ".dtmp")
-            if err != nil {out.Close();return err}
+            if err != nil {out.Close();return bodyB,err}
+            var buf bytes.Buffer
 
-            if _, err = io.Copy(out, Body); err != nil {out.Close();return err}
+            w := io.MultiWriter(out, &buf)
+            if _, err = io.Copy(w, Body); err != nil {out.Close();return bodyB,err}
             out.Close()
+            bodyB = buf.Bytes()
 
-            if err = os.RemoveAll(filepath); err != nil {return err}
-            if err = os.Rename(filepath+".dtmp", filepath); err != nil {return err}
-            return nil
+            if err = os.RemoveAll(filepath); err != nil {return bodyB,err}
+            if err = os.Rename(filepath+".dtmp", filepath); err != nil {return bodyB,err}
+            return bodyB,nil
         }
     )
     this.Response = resp
@@ -213,8 +217,27 @@ func (this *Req) Reqf_1(val Rval) (err error) {
             }
         } else {
             if SaveToPath != "" {
-                if err := saveToFile(resp.Body, SaveToPath); err != nil {
+                if bodyB,err := saveToFile(resp.Body, SaveToPath); err != nil {
                     return err
+                } else {
+                    if len(bodyB) != 0 {
+                        if SaveToChan != nil {
+                            SaveToChan <- bodyB
+                        } else if SaveToPipeWriter != nil {
+                            SaveToPipeWriter.Write(bodyB)
+                        } else {
+                            this.Respon = append(this.Respon,bodyB...)
+                        }
+                    } else {
+                        return io.EOF
+                    }
+
+                    if SaveToChan != nil {
+                        close(SaveToChan)
+                    }
+                    if SaveToPipeWriter != nil {
+                        SaveToPipeWriter.Close()
+                    }
                 }
             } else {
                 rc,_ := pio.RW2Chan(resp.Body,nil)

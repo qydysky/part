@@ -26,8 +26,7 @@ func New(maxNum_in_period,ms_in_period,ms_to_timeout int) (*Limit) {
 
 	go func(object *Limit){
 		for object.maxNum_in_period > 0 {
-			object.bucket <- struct{}{}
-			for i:=1;i<object.maxNum_in_period;i++{
+			for i:=0;i<object.maxNum_in_period;i++{
 				select {
 				case object.bucket <- struct{}{}:;
 				default :i = object.maxNum_in_period
@@ -51,6 +50,11 @@ func (l *Limit) TO() bool {
 	var AfterMS = func(ReadTimeout int) (c <-chan time.Time) {
 		if ReadTimeout > 0 {
 			c = time.NewTimer(time.Millisecond*time.Duration(ReadTimeout)).C
+		} else if ReadTimeout < 0 {
+			tc := make(chan time.Time,1)
+			tc <- time.Now()
+			close(tc)
+			c = tc
 		}
 		return
 	}
