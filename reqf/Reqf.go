@@ -20,8 +20,8 @@ import (
 )
 
 var (
-    ConnectTimeoutErr = errors.New(ConnectTimeoutErr)
-    ReadTimeoutErr = errors.New(ReadTimeoutErr)
+    ConnectTimeoutErr = errors.New("ConnectTimeoutErr")
+    ReadTimeoutErr = errors.New("ReadTimeoutErr")
 )
 
 type Rval struct {
