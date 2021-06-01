@@ -3,6 +3,7 @@ package part
 import (
 	"sync"
 	"unsafe"
+	"runtime"
 	"sync/atomic"
 	"container/list"
 	idpool "github.com/qydysky/part/idpool"
@@ -54,4 +55,39 @@ func (t *BlockFunc) Block() {
 
 func (t *BlockFunc) UnBlock() {
 	t.Unlock()
+}
+
+type BlockFuncN struct{//新的等待旧的 个数
+	n int64
+	Max int64
+}
+
+func (t *BlockFuncN) Block() {
+	for {
+		now := atomic.LoadInt64(&t.n)
+		if now < t.Max && now >= 0 {break}
+		runtime.Gosched()
+	}
+	atomic.AddInt64(&t.n, 1)
+}
+
+func (t *BlockFuncN) UnBlock() {
+	for {
+		now := atomic.LoadInt64(&t.n)
+		if now > 0 {break}
+		runtime.Gosched()
+	}
+	atomic.AddInt64(&t.n, -1)
+}
+
+func (t *BlockFuncN) None() {
+	for !atomic.CompareAndSwapInt64(&t.n, 0, -1) {
+		runtime.Gosched()
+	}
+}
+
+func (t *BlockFuncN) UnNone() {
+	for !atomic.CompareAndSwapInt64(&t.n, -1, 0) {
+		runtime.Gosched()
+	}
 }

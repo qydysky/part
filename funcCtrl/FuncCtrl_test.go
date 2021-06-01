@@ -51,3 +51,21 @@ func Test_BlockFunc(t *testing.T) {
 	go a(2)
 	time.Sleep(5*time.Second)
 }
+
+func Test_BlockFuncN(t *testing.T) {
+	var b = BlockFuncN{
+		Max:2,
+	}
+	var a = func(i int){
+		b.Block()
+		defer b.UnBlock()
+		t.Log(i,`.`)
+		time.Sleep(time.Second)
+		t.Log(i,`.`)
+	}
+	t.Log(`show two . at one time`)
+	go a(1)
+	go a(2)
+	go a(3)
+	time.Sleep(5*time.Second)
+}
