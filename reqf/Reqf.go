@@ -19,6 +19,11 @@ import (
     // "encoding/binary"
 )
 
+var (
+    ConnectTimeoutErr = errors.New(ConnectTimeoutErr)
+    ReadTimeoutErr = errors.New(ReadTimeoutErr)
+)
+
 type Rval struct {
     Url string
     PostStr string
@@ -73,9 +78,7 @@ func (this *Req) Reqf(val Rval) (error) {
 	var returnErr error
 
 	_val := val;
-
-    if _val.Timeout==0{_val.Timeout=3000}
-
+    
     defer func(){
         this.idp.Put(this.id)
     }()
@@ -139,7 +142,7 @@ func (this *Req) Reqf_1(val Rval) (err error) {
     }
 
     cx, cancel := context.WithCancel(context.Background())
-    if Timeout != -1 {
+    if Timeout > 0 {
         cx, _ = context.WithTimeout(cx,time.Duration(Timeout)*time.Millisecond)
     }
     req,_ := http.NewRequest(Method, Url, body)
@@ -263,7 +266,7 @@ func (this *Req) Reqf_1(val Rval) (err error) {
                         return
                     }
                 case <-After(ConnectTimeout):
-                    err = context.DeadlineExceeded
+                    err = ConnectTimeoutErr
                     return
                 }
 
@@ -284,7 +287,7 @@ func (this *Req) Reqf_1(val Rval) (err error) {
                             break
                         }
                     case <-After(ReadTimeout):
-                        err = context.DeadlineExceeded
+                        err = ReadTimeoutErr
                         loop = false
                         break
                     }
@@ -351,7 +354,7 @@ func Cookies_List_2_Map(Cookies []*http.Cookie) (o map[string]string) {
 }
 
 func IsTimeout(e error) bool {
-    return errors.Is(e, context.DeadlineExceeded)
+    return errors.Is(e, context.DeadlineExceeded) || errors.Is(e, ConnectTimeoutErr) || errors.Is(e, ReadTimeoutErr)
 }
 
 func IsDnsErr(e error) bool {
