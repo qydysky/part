@@ -357,10 +357,6 @@ func IsTimeout(e error) bool {
     return errors.Is(e, context.DeadlineExceeded) || errors.Is(e, ConnectTimeoutErr) || errors.Is(e, ReadTimeoutErr)
 }
 
-func IsDnsErr(e error) bool {
-    return e != nil && strings.Contains(e.Error(), "lookup")
-}
-
 func IsCancel(e error) bool {
     return errors.Is(e, context.Canceled)
 }
