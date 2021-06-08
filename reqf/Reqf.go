@@ -354,7 +354,10 @@ func Cookies_List_2_Map(Cookies []*http.Cookie) (o map[string]string) {
 }
 
 func IsTimeout(e error) bool {
-    return errors.Is(e, context.DeadlineExceeded) || errors.Is(e, ConnectTimeoutErr) || errors.Is(e, ReadTimeoutErr)
+    if errors.Is(e, context.DeadlineExceeded) || errors.Is(e, ConnectTimeoutErr) || errors.Is(e, ReadTimeoutErr) {return true}
+    if net_err,ok := e.(net.Error);ok && net_err.Timeout() {return true}
+    if os.IsTimeout(e) {return true}
+    return false
 }
 
 func IsCancel(e error) bool {
