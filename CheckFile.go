@@ -26,7 +26,6 @@ func (this *checkfile) Build(checkFile,root,checkDir,SplitString string,usemd5 b
 	v,_,_:=this.GetAllFile(checkDir)
 	_checkFile := Filel {
 		File:checkFile,
-		Write:true,
 		Loc:0,
 	}
 
@@ -155,7 +154,6 @@ func (this *checkfile) CheckList(checkFile,root,SplitString string)bool{
 	}else{
 		var _checkFile = Filel {
 			File:checkFile,
-			Write:false,
 			Loc:0,
 		}
 		

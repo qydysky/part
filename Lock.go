@@ -39,7 +39,6 @@ func (l *lock) Start(filePath string,timeout int64) error {
 		for lock_file != "" {
 			File().FileWR(Filel{
 				File:filePath,
-				Write:true,
 				Loc:0,
 				Context:[]interface{}{"still alive"},
 			})

@@ -30,11 +30,22 @@ const (
 
 type Filel struct {
 	File string //src
-	Write bool //false:read
 	Loc int64 //WriteOrRead loc ;0:rewrite Or read all;-1 write on end
 	ReadNum int64
 	Context []interface{} //Write string
+
+	// wrap with encoder/decoder
+	//https://pkg.go.dev/golang.org/x/text/encoding
+	WrapWriter func(io.Writer)(io.Writer)
+	// WrapReader func(io.Reader)(io.Reader)
+
+	// read func(b []byte)(int,error)
+	write func(b []byte)(int,error)
 }
+
+// func (t Filel) Read(b []byte)(int,error){return t.read(b)}
+func (t Filel) Write(b []byte)(int,error){return t.write(b)}
+
 
 func File() *file{
 	return &file{}
@@ -48,9 +59,7 @@ func (this *file) FileWR(C Filel) string {
 
 	if C.File == "" {returnVal="";return returnVal}
 	
-	if C.Write {
-		if len(C.Context) == 0 {return ""}
-
+	if len(C.Context) != 0 {
 		switch C.Context[0].(type) {
 		case io.Reader:
 			if len(C.Context) != 1 {
@@ -113,11 +122,20 @@ func (this *file) write(C Filel) string {
 
 	Loc=this.locfix(Loc,File,fileObj)
 
+	var writer io.Writer
+	C.write = func(b []byte)(int, error){
+		return fileObj.WriteAt(b, Loc)
+	}
+	writer = C
+	if C.WrapWriter != nil {
+		writer = C.WrapWriter(writer)
+	}
+
 	for _,v := range C.Context{
 		switch v.(type) {
 		case []uint8:
 			tmp := v.([]byte)
-			_, err = fileObj.WriteAt(tmp, Loc)
+			_, err = writer.Write(tmp)
 			if err != nil {
 				fmt.Println("Err:cant write file:",File,err);
 				return ""
@@ -125,7 +143,7 @@ func (this *file) write(C Filel) string {
 			Loc += int64(len(tmp))
 		case string:
 			tmp := []byte(v.(string))
-			_, err = fileObj.WriteAt(tmp, Loc)
+			_, err = writer.Write(tmp)
 			if err != nil {
 				fmt.Println("Err:cant write file:",File,err);
 				return ""
