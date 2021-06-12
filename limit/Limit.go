@@ -16,6 +16,7 @@ type Limit struct {
 
 // create a Limit Object
 // it will allow maxNum_in_period requests(call TO()) in ms_in_period. if the request(call TO()) is out of maxNum_in_period,it will wait ms_to_timeout
+//ms_to_timeout [>0:will wait ms] [=0:no wait] [<0:will block]
 func New(maxNum_in_period,ms_in_period,ms_to_timeout int) (*Limit) {
 	object := Limit{
 		maxNum_in_period:maxNum_in_period,
@@ -50,7 +51,7 @@ func (l *Limit) TO() bool {
 	var AfterMS = func(ReadTimeout int) (c <-chan time.Time) {
 		if ReadTimeout > 0 {
 			c = time.NewTimer(time.Millisecond*time.Duration(ReadTimeout)).C
-		} else if ReadTimeout < 0 {
+		} else if ReadTimeout == 0 {
 			tc := make(chan time.Time,1)
 			tc <- time.Now()
 			close(tc)
