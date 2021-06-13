@@ -139,7 +139,7 @@ func (this *Req) Reqf_1(val Rval) (err error) {
     if len(PostStr) > 0 {
         Method = "POST";
         body = strings.NewReader(PostStr);
-        if _,ok := Header["ContentType"];!ok {Header["ContentType"] = "application/x-www-form-urlencoded"}
+        if _,ok := Header["Content-Type"];!ok {Header["Content-Type"] = "application/x-www-form-urlencoded"}
     }
 
     cx, cancel := context.WithCancel(context.Background())
