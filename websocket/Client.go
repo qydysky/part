@@ -1,6 +1,7 @@
 package part
 
 import (
+	"io"
 	"time"
 	"errors"
 	"net/http"
@@ -73,28 +74,47 @@ func (i *Client) Handle() (o *Client) {
 		return
 	}
 
+	tmp_Header := make(http.Header)
+	for k,v := range o.Header {
+		tmp_Header.Set(k, v)
+	}
+
+	dial := websocket.DefaultDialer
+	if o.Proxy != "" {
+		proxy := func(_ *http.Request) (*url.URL, error) {
+			return url.Parse(o.Proxy)
+		}
+		dial.Proxy = proxy
+	}
+	c, response, err := dial.Dial(o.Url, tmp_Header)
+
+	if err != nil {
+		o.signal.Done()
+		e := err.Error()
+		if response != nil {
+			if response.Status != "" {
+				e += ` `+response.Status
+			}
+			if response.Body != nil {
+				body, err := io.ReadAll(response.Body)
+				if err != nil {
+					o.err = err
+					return
+				}
+				response.Body.Close()
+				e += ` `+string(body)
+			}
+		}
+		o.err = errors.New(e)
+		return
+	}
+
 	go func(){
 		defer func(){
 			o.signal.Done()
 			close(o.RecvChan)
+			c.Close()
 		}()
-
-		tmp_Header := make(http.Header)
-		for k,v := range o.Header {
-			tmp_Header.Set(k, v)
-		}
-
-		dial := websocket.DefaultDialer
-		if o.Proxy != "" {
-			proxy := func(_ *http.Request) (*url.URL, error) {
-				return url.Parse(o.Proxy)
-			}
-			dial.Proxy = proxy
-		}
-		c, _, err := dial.Dial(o.Url, tmp_Header)
-
-		if err != nil {return}
-		defer c.Close()
 
 		done := s.Init()
 		defer done.Done()
