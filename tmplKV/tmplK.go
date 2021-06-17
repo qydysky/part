@@ -40,7 +40,7 @@ func New_tmplK(SumInDruation,Druation int64) (*tmplK) {
 	return s
 }
 
-func (s *tmplK) Set(key string) (id uintptr) {
+func (s *tmplK) Set(key interface{}) (id uintptr) {
 	
 	if tmp, oks := s.kvt_map.LoadV(key).(tmplK_item);oks {
 		s.free(tmp.uid)
@@ -69,7 +69,7 @@ func (s *tmplK) Set(key string) (id uintptr) {
 	return Uid.Id
 }
 
-func (s *tmplK) Get(key string) (isLive bool,id uintptr){
+func (s *tmplK) Get(key interface{}) (isLive bool,id uintptr){
 	tmp, ok := s.kvt_map.Load(key)
 
 	item,_ := tmp.(tmplK_item)
@@ -83,9 +83,9 @@ func (s *tmplK) Get(key string) (isLive bool,id uintptr){
 	return
 }
 
-func (s *tmplK) Check(key string,id uintptr) bool {
+func (s *tmplK) Check(key interface{},id uintptr) bool {
 	ok,k := s.Get(key)
-	return ok && k == id
+	return ok && (k == id)
 }
 
 func (s *tmplK) Len() (int64,int) {
@@ -99,7 +99,7 @@ func (s *tmplK) freeLen() (int64) {
 func (s *tmplK) free(i *idpool.Id) {
 	s.slowBackList.PushBack(i)
 	if s.freeLen() > s.SumInDruation {
-		if el := s.slowBackList.Front();el != nil{
+		if el := s.slowBackList.Front();el != nil && el.Value != nil{
 			e := s.slowBackList.Remove(el)
 			s.pool.Put(e.(*idpool.Id))
 		}
