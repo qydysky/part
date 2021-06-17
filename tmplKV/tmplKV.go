@@ -71,7 +71,7 @@ func (s *tmplKV) GetV(key interface{}) (value interface{}){
 //检查Key Value是否对应及有效
 func (s *tmplKV) Check(key,value interface{}) bool {
 	ok,v := s.Get(key)
-	return ok && v == value
+	return ok && (v == value)
 }
 
 //当前储存器键值数量

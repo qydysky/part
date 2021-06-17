@@ -89,7 +89,7 @@ func (s *tmplV) Get(key uintptr) (isLive bool,contect string){
 
 func (s *tmplV) Check(key uintptr,contect string) bool {
 	ok,k := s.Get(key)
-	return ok && k == contect
+	return ok && (k == contect)
 }
 
 func (s *tmplV) Buf() (int64,int) {

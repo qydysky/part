@@ -55,7 +55,7 @@ func (t *checkfile) IsExist(f string) bool {
 
 	_, err := os.Stat(f)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			t.RV = append(t.RV,false,nil)
 			return false
 		}else{
