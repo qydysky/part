@@ -3,8 +3,10 @@ package part
 import (
     "net"
     "sync"
+    "strings"
     "errors"
 	"bytes"
+    "net/url"
 	"os/exec"
     "runtime"
     "time"
@@ -56,111 +58,6 @@ func (*netl) TestDial(network,address string, Timeout int) bool {
     return true
 }
 
-// func (t *netl) Forward(targetaddr,targetnetwork *string, listenaddr string,Need_Accept bool) {
-//     proxylistener, err := net.Listen("tcp", listenaddr + ":0")
-//     if err != nil {
-//         Logf().E("[part/Forward]Unable to listen, error:", err.Error())
-//     }
-//     const max = 1000
-//     var accept_chan chan bool = make(chan bool,max)
-//     t.RV = append(t.RV,proxylistener.Addr().(*net.TCPAddr).Port,accept_chan,err)
-
-//     defer proxylistener.Close()
-
-//     tcpBridge2 := func (a, b net.Conn) {
-    
-//         fin:=make(chan bool,1)
-//         var wg sync.WaitGroup
-    
-//         wg.Add(2)
-//         go func(){
-//             defer func() {
-//                 a.Close()
-//                 b.Close()
-//                 fin <- true
-//                 wg.Done()
-//             }()
-    
-//             buf := make([]byte, 20480)
-            
-//             for {
-//                 select {
-//                 case <-fin:
-//                     return;
-//                 default:
-//                     n, err := a.Read(buf)
-            
-//                     if err != nil {return}
-//                     b.Write(buf[:n])
-//                 }
-//             }
-//         }()
-        
-//         go func(){
-//             defer func() {
-//                 a.Close()
-//                 b.Close()
-//                 fin <- true
-//                 wg.Done()
-//             }()
-    
-//             buf := make([]byte, 20480)
-            
-//             for {
-//                 select {
-//                 case <-fin:
-//                     return;
-//                 default:
-//                     n, err := b.Read(buf)
-            
-//                     if err != nil {return}
-//                     a.Write(buf[:n])
-//                 }
-//             }
-//         }()
-    
-//         wg.Wait()
-//     }
-
-//     for {
-
-//         proxyconn, err := proxylistener.Accept()
-//         if err != nil {
-//             Logf().E("[part/Forward]Unable to accept a request:", err.Error())
-//             continue
-//         }
-        
-//         if Need_Accept {
-//             if len(accept_chan) == max {
-//                 Logf().E("[part/Forward] accept channel full.Skip")
-//                 <- accept_chan 
-//             }
-//             accept_chan <- true
-//         }
-//         if *targetaddr == "" || *targetnetwork == "" {
-//             proxyconn.Close()
-//             Logf().I("[part/Forward]Stop!", *targetaddr, *targetnetwork)
-//             break
-//         }
-
-//         retry := 0
-//         for {
-//             targetconn, err := net.Dial(*targetnetwork, *targetaddr)
-//             if err != nil {
-//                 Logf().E("[part/Forward]Unable to connect:", *targetaddr, err.Error())
-//                 retry += 1
-//                 if retry >= 2 {proxyconn.Close();break}
-//                 time.Sleep(time.Duration(1)*time.Millisecond)
-//                 continue
-//             }    
-
-//             go tcpBridge2(proxyconn,targetconn)
-//             break
-//         }
-//     }
-
-// }
-
 const (
     ErrorMsg = iota
     AcceptMsg
@@ -175,7 +72,7 @@ type ForwardMsg struct {
     Msg interface{}
 }
 
-func Forward(targetaddr,targetnetwork *string, listenaddr string) (close func(),msg_chan chan ForwardMsg) {
+func Forward(targetaddr,targetnetwork *string, listenaddr string) (closef func(),msg_chan chan ForwardMsg) {
     //初始化消息通道
     msg_chan = make(chan ForwardMsg, 1000)
 
@@ -193,7 +90,7 @@ func Forward(targetaddr,targetnetwork *string, listenaddr string) (close func(),
     }
 
     //初始化关闭方法
-    close = func(){ 
+    closef = func(){ 
         *targetaddr, *targetnetwork = "", ""
         listener.Close()
     }
@@ -308,6 +205,8 @@ func Forward(targetaddr,targetnetwork *string, listenaddr string) (close func(),
             go tcpBridge2(proxyconn,targetconn)
         }
     }(listener, targetaddr, targetnetwork, msg_chan)
+
+    return 
 }
 
 
@@ -355,13 +254,13 @@ func (this *netl) GetLocalDns() error {
 	return errors.New("1")
 }
 
-func MasterDomain(url string) (string,error){
-    if u,e := url.Parse(url);e != nil {
+func MasterDomain(url_s string) (string,error){
+    if u,e := url.Parse(url_s);e != nil {
         return "",e
     } else {
         host := u.Hostname()
         list := strings.SplitAfter(host, ".")
-        if len(list) < 2 {return "",errors.new("invalid domain:"+host)}
+        if len(list) < 2 {return "",errors.New("invalid domain:"+host)}
         return strings.Join(list[len(list)-2:], "."),nil
     }
     return "",nil
