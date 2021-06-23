@@ -56,110 +56,260 @@ func (*netl) TestDial(network,address string, Timeout int) bool {
     return true
 }
 
-func (t *netl) Forward(targetaddr,targetnetwork *string, listenaddr string,Need_Accept bool) {
-    proxylistener, err := net.Listen("tcp", listenaddr + ":0")
+// func (t *netl) Forward(targetaddr,targetnetwork *string, listenaddr string,Need_Accept bool) {
+//     proxylistener, err := net.Listen("tcp", listenaddr + ":0")
+//     if err != nil {
+//         Logf().E("[part/Forward]Unable to listen, error:", err.Error())
+//     }
+//     const max = 1000
+//     var accept_chan chan bool = make(chan bool,max)
+//     t.RV = append(t.RV,proxylistener.Addr().(*net.TCPAddr).Port,accept_chan,err)
+
+//     defer proxylistener.Close()
+
+//     tcpBridge2 := func (a, b net.Conn) {
+    
+//         fin:=make(chan bool,1)
+//         var wg sync.WaitGroup
+    
+//         wg.Add(2)
+//         go func(){
+//             defer func() {
+//                 a.Close()
+//                 b.Close()
+//                 fin <- true
+//                 wg.Done()
+//             }()
+    
+//             buf := make([]byte, 20480)
+            
+//             for {
+//                 select {
+//                 case <-fin:
+//                     return;
+//                 default:
+//                     n, err := a.Read(buf)
+            
+//                     if err != nil {return}
+//                     b.Write(buf[:n])
+//                 }
+//             }
+//         }()
+        
+//         go func(){
+//             defer func() {
+//                 a.Close()
+//                 b.Close()
+//                 fin <- true
+//                 wg.Done()
+//             }()
+    
+//             buf := make([]byte, 20480)
+            
+//             for {
+//                 select {
+//                 case <-fin:
+//                     return;
+//                 default:
+//                     n, err := b.Read(buf)
+            
+//                     if err != nil {return}
+//                     a.Write(buf[:n])
+//                 }
+//             }
+//         }()
+    
+//         wg.Wait()
+//     }
+
+//     for {
+
+//         proxyconn, err := proxylistener.Accept()
+//         if err != nil {
+//             Logf().E("[part/Forward]Unable to accept a request:", err.Error())
+//             continue
+//         }
+        
+//         if Need_Accept {
+//             if len(accept_chan) == max {
+//                 Logf().E("[part/Forward] accept channel full.Skip")
+//                 <- accept_chan 
+//             }
+//             accept_chan <- true
+//         }
+//         if *targetaddr == "" || *targetnetwork == "" {
+//             proxyconn.Close()
+//             Logf().I("[part/Forward]Stop!", *targetaddr, *targetnetwork)
+//             break
+//         }
+
+//         retry := 0
+//         for {
+//             targetconn, err := net.Dial(*targetnetwork, *targetaddr)
+//             if err != nil {
+//                 Logf().E("[part/Forward]Unable to connect:", *targetaddr, err.Error())
+//                 retry += 1
+//                 if retry >= 2 {proxyconn.Close();break}
+//                 time.Sleep(time.Duration(1)*time.Millisecond)
+//                 continue
+//             }    
+
+//             go tcpBridge2(proxyconn,targetconn)
+//             break
+//         }
+//     }
+
+// }
+
+const (
+    ErrorMsg = iota
+    AcceptMsg
+    PortMsg
+)
+
+//when Type is ErrorMsg, Msg is set to error
+//when Type is AcceptMsg, Msg is set to nil
+//when Type is PortMsg, Msg is set to Listen Port(int)
+type ForwardMsg struct {
+    Type int
+    Msg interface{}
+}
+
+func Forward(targetaddr,targetnetwork *string, listenaddr string) (close func(),msg_chan chan ForwardMsg) {
+    //初始化消息通道
+    msg_chan = make(chan ForwardMsg, 1000)
+
+    //尝试监听
+    listener, err := net.Listen("tcp", listenaddr + ":0")
     if err != nil {
-        Logf().E("[part/Forward]Unable to listen, error:", err.Error())
-    }
-    const max = 1000
-    var accept_chan chan bool = make(chan bool,max)
-    t.RV = append(t.RV,proxylistener.Addr().(*net.TCPAddr).Port,accept_chan,err)
-
-    defer proxylistener.Close()
-
-    tcpBridge2 := func (a, b net.Conn) {
-    
-        fin:=make(chan bool,1)
-        var wg sync.WaitGroup
-    
-        wg.Add(2)
-        go func(){
-            defer func() {
-                a.Close()
-                b.Close()
-                fin <- true
-                wg.Done()
-            }()
-    
-            buf := make([]byte, 20480)
-            
-            for {
-                select {
-                case <-fin:
-                    return;
-                default:
-                    n, err := a.Read(buf)
-            
-                    if err != nil {return}
-                    b.Write(buf[:n])
-                }
-            }
-        }()
-        
-        go func(){
-            defer func() {
-                a.Close()
-                b.Close()
-                fin <- true
-                wg.Done()
-            }()
-    
-            buf := make([]byte, 20480)
-            
-            for {
-                select {
-                case <-fin:
-                    return;
-                default:
-                    n, err := b.Read(buf)
-            
-                    if err != nil {return}
-                    a.Write(buf[:n])
-                }
-            }
-        }()
-    
-        wg.Wait()
+        select{
+        default:;
+        case msg_chan <- ForwardMsg{
+            Type: ErrorMsg,
+            Msg: err,
+        }:;
+        }
+        return
     }
 
-    for {
+    //初始化关闭方法
+    close = func(){ 
+        *targetaddr, *targetnetwork = "", ""
+        listener.Close()
+    }
+    
+    //返回监听端口
+    select{
+    default:;
+    case msg_chan <- ForwardMsg{
+        Type: PortMsg,
+        Msg: listener.Addr().(*net.TCPAddr).Port,
+    }:;
+    }
 
-        proxyconn, err := proxylistener.Accept()
-        if err != nil {
-            Logf().E("[part/Forward]Unable to accept a request:", err.Error())
-            continue
-        }
+    //开始准备转发
+    go func(listener net.Listener, targetaddr,targetnetwork *string, msg_chan chan ForwardMsg){
+        defer close(msg_chan)
+        defer listener.Close()
+
+        //tcp 桥
+        tcpBridge2 := func (a, b net.Conn) {
         
-        if Need_Accept {
-            if len(accept_chan) == max {
-                Logf().E("[part/Forward] accept channel full.Skip")
-                <- accept_chan 
-            }
-            accept_chan <- true
-        }
-        if *targetaddr == "" || *targetnetwork == "" {
-            proxyconn.Close()
-            Logf().I("[part/Forward]Stop!", *targetaddr, *targetnetwork)
-            break
+            fin:=make(chan bool,1)
+            var wg sync.WaitGroup
+        
+            wg.Add(2)
+            go func(){
+                defer func() {
+                    a.Close()
+                    b.Close()
+                    fin <- true
+                    wg.Done()
+                }()
+        
+                buf := make([]byte, 20480)
+                
+                for {
+                    select {
+                    case <-fin:
+                        return;
+                    default:
+                        n, err := a.Read(buf)
+                
+                        if err != nil {return}
+                        b.Write(buf[:n])
+                    }
+                }
+            }()
+            
+            go func(){
+                defer func() {
+                    a.Close()
+                    b.Close()
+                    fin <- true
+                    wg.Done()
+                }()
+        
+                buf := make([]byte, 20480)
+                
+                for {
+                    select {
+                    case <-fin:
+                        return;
+                    default:
+                        n, err := b.Read(buf)
+                
+                        if err != nil {return}
+                        a.Write(buf[:n])
+                    }
+                }
+            }()
+        
+            wg.Wait()
         }
 
-        retry := 0
         for {
+            proxyconn, err := listener.Accept()
+            if err != nil {
+                //返回Accept错误
+                select{
+                default:;
+                case msg_chan <- ForwardMsg{
+                    Type: ErrorMsg,
+                    Msg: err,
+                }:;
+                }
+                continue
+            }
+            
+            //返回Accept
+            select{
+            default:;
+            case msg_chan <- ForwardMsg{
+                Type: AcceptMsg,
+            }:;
+            }
+    
+            if *targetaddr == "" || *targetnetwork == "" {break}
+    
             targetconn, err := net.Dial(*targetnetwork, *targetaddr)
             if err != nil {
-                Logf().E("[part/Forward]Unable to connect:", *targetaddr, err.Error())
-                retry += 1
-                if retry >= 2 {proxyconn.Close();break}
-                time.Sleep(time.Duration(1)*time.Millisecond)
+                select{
+                default:;
+                case msg_chan <- ForwardMsg{
+                    Type: ErrorMsg,
+                    Msg: err,
+                }:;
+                }
+                proxyconn.Close()
                 continue
-            }    
-
+            }
+    
             go tcpBridge2(proxyconn,targetconn)
-            break
         }
-    }
-
+    }(listener, targetaddr, targetnetwork, msg_chan)
 }
+
 
 func (this *netl) GetLocalDns() error {
 	if runtime.GOOS == "windows" {
@@ -203,4 +353,16 @@ func (this *netl) GetLocalDns() error {
 	Logf().E("[err]Dns: none")
 
 	return errors.New("1")
+}
+
+func MasterDomain(url string) (string,error){
+    if u,e := url.Parse(url);e != nil {
+        return "",e
+    } else {
+        host := u.Hostname()
+        list := strings.SplitAfter(host, ".")
+        if len(list) < 2 {return "",errors.new("invalid domain:"+host)}
+        return strings.Join(list[len(list)-2:], "."),nil
+    }
+    return "",nil
 }
