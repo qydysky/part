@@ -11,7 +11,7 @@ type Map struct{
 
 func (t *Map) Get(key interface{})interface{}{
 	if val,ok := t.m.Load(key);ok{return val}
-	return t.m.Set(key, t.m.New())
+	return m.Set(key, m.New())
 }
 
 func (t *Map) Del(key interface{}){
