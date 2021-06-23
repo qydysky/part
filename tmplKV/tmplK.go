@@ -3,7 +3,7 @@ package part
 import (
 	"time"
 	"container/list"
-	syncmap "github.com/qydysky/part/map"
+	syncmap "github.com/qydysky/part/sync"
 	idpool "github.com/qydysky/part/idpool"
 )
 

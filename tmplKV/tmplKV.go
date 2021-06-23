@@ -2,7 +2,7 @@ package part
 
 import (
 	"time"
-	syncmap "github.com/qydysky/part/map"
+	syncmap "github.com/qydysky/part/sync"
 )
 
 type tmplKV struct {
