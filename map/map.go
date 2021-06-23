@@ -9,16 +9,16 @@ type Map struct{
 	New func()interface{}
 }
 
-func (m *Map) Get(key interface{})interface{}{
-	if val,ok := m.Load(key);ok{return val}
-	return m.Set(key, m.New())
+func (t *Map) Get(key interface{})interface{}{
+	if val,ok := t.m.Load(key);ok{return val}
+	return t.m.Set(key, t.m.New())
 }
 
-func (m *Map) Del(key interface{}){
-	m.Delete(key)
+func (t *Map) Del(key interface{}){
+	t.m.Delete(key)
 }
 
-func (m *Map) Set(key interface{},val interface{})interface{}{
-	m.Store(key, val)
+func (t *Map) Set(key interface{},val interface{})interface{}{
+	t.m.Store(key, val)
 	return val
 }
