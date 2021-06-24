@@ -259,7 +259,7 @@ func MasterDomain(url_s string) (string,error){
         return "",e
     } else {
         host := u.Hostname()
-        list := strings.SplitAfter(host, ".")
+        list := strings.Split(host, ".")
         if len(list) < 2 {return "",errors.New("invalid domain:"+host)}
         return strings.Join(list[len(list)-2:], "."),nil
     }
