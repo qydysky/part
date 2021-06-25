@@ -21,6 +21,7 @@ func (this *lexec) Start(pro ...*exec.Cmd){
 
 func (this *lexec) Stop(pro ...*exec.Cmd){
     for i := range pro {
+        if pro[i] == nil {continue}
         pro[i].Process.Kill()
     }
 }
