@@ -5,13 +5,15 @@ import (
 	"sync"
 	"time"
 	"errors"
+	"strings"
 	"encoding/json"
 
 	part "github.com/qydysky/part"
 )
 
 type lock struct {
-	Time int64 `json:"t"`
+	Time int64 `json:"time"`
+	Data string `json:"date"`
 	stopsign bool
 	b chan struct{}
 	sync.Mutex
@@ -26,7 +28,9 @@ func New() *lock {
 	return &lock{}
 }
 
-func (l *lock) Start() (err error) {
+//start will save current time and Data
+//if start func is called in other programe, Data or "still alive" will return as error
+func (l *lock) Start(Data ...string) (err error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -48,10 +52,14 @@ func (l *lock) Start() (err error) {
 		if err != nil {panic(err.Error())}
 
 		if time.Now().Unix() - l.Time <= lock_timeout {
+			if l.Data != "" {
+				return errors.New(l.Data)
+			}
 			return errors.New("still alive")
 		}
 	} else {
 		l.b = make(chan struct{})
+		l.Data = strings.Join(Data, "&")
 		go func(l *lock){
 			for !l.stopsign {
 				l.Time = time.Now().Unix()

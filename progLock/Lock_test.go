@@ -7,7 +7,7 @@ import (
 
 func Test(t *testing.T) {
 	l := New()
-	t.Log(l.Start())
+	t.Log(l.Start("111","222"))
 	t.Log(New().Start())
 	time.Sleep(time.Second)
 	t.Log(l.Stop())
