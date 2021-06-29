@@ -91,6 +91,9 @@ func (l *lock) Stop() error {
 	defer l.Unlock()
 	
 	l.stopsign = true
-	close(l.b)
+	if l.b != nil {
+		close(l.b)
+		l.b = nil
+	}
 	return os.RemoveAll(lock_file)
 }

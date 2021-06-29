@@ -11,4 +11,5 @@ func Test(t *testing.T) {
 	t.Log(New().Start())
 	time.Sleep(time.Second)
 	t.Log(l.Stop())
+	t.Log(l.Stop())
 }
