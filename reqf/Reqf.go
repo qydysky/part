@@ -35,6 +35,7 @@ type Rval struct {
     Retry int
     SleepTime int
     JustResponseCode bool
+    Cookies []*http.Cookie
 
     SaveToPath string
     SaveToChan chan[]byte
@@ -146,7 +147,8 @@ func (this *Req) Reqf_1(val Rval) (err error) {
     if Timeout > 0 {
         cx, _ = context.WithTimeout(cx,time.Duration(Timeout)*time.Millisecond)
     }
-    req,_ := http.NewRequest(Method, Url, body)
+    req,e := http.NewRequest(Method, Url, body)
+    if e != nil {panic(e)}
     req = req.WithContext(cx)
 
     var done = make(chan struct{})
@@ -158,6 +160,10 @@ func (this *Req) Reqf_1(val Rval) (err error) {
         }
     }()
     
+    for _,v := range val.Cookies {
+        req.AddCookie(v)
+    }
+
     if _,ok := Header["Accept"];!ok {Header["Accept"] = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`}
     if _,ok := Header["Connection"];!ok {Header["Connection"] = "keep-alive"}
     if _,ok := Header["Accept-Encoding"];!ok {Header["Accept-Encoding"] = "gzip, deflate, br"}
@@ -323,35 +329,6 @@ func (t *Req) Close(){
 func (t *Req) Id() uintptr {
     if t.id == nil {return 0}
     return t.id.Id
-}
-
-func Cookies_String_2_Map(Cookies string) (o map[string]string) {
-    o = make(map[string]string)
-    list := strings.Split(Cookies, `; `)
-    for _,v := range list {
-        s := strings.SplitN(v, "=", 2)
-        if len(s) != 2 {continue}
-        o[s[0]] = s[1]
-    }
-    return
-}
-
-func Map_2_Cookies_String(Cookies map[string]string) (o string) {
-    if len(Cookies) == 0 {return ""}
-    for k,v := range Cookies {
-        o += k +`=`+ v + `; `
-    }
-    t := []rune(o)
-    o = string(t[:len(t)-2])
-    return
-}
-
-func Cookies_List_2_Map(Cookies []*http.Cookie) (o map[string]string) {
-    o = make(map[string]string)
-    for _,v := range Cookies {
-		o[v.Name] = v.Value
-    }
-    return
 }
 
 func IsTimeout(e error) bool {
