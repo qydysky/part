@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	Ppart "github.com/qydysky/part/linuxwin"
@@ -192,29 +191,5 @@ func (this *sys) PreventSleep() (stop *signal.Signal) {
 		return
 	}
 
-	const (
-		EsSystemRequired = 0x00000001
-		EsContinuous     = 0x80000000
-	)
-
-	var pulseTime = 10 * time.Second
-
-	kernel32 := syscall.NewLazyDLL("kernel32.dll")
-	setThreadExecStateProc := kernel32.NewProc("SetThreadExecutionState")
-
-	pulse := time.NewTicker(pulseTime)
-
-	stop = signal.Init()
-
-	go func() {
-		defer setThreadExecStateProc.Call(uintptr(EsContinuous))
-		for stop.Islive() {
-			select {
-			case <-pulse.C:
-				setThreadExecStateProc.Call(uintptr(EsSystemRequired | EsContinuous))
-			}
-		}
-	}()
-
-	return
+	return Ppart.PreventSleep()
 }
