@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	signal "github.com/qydysky/part/Signal"
 	Ppart "github.com/qydysky/part/linuxwin"
+	signal "github.com/qydysky/part/signal"
 	gopsutilCpu "github.com/shirou/gopsutil/cpu"
 	gopsutilLoad "github.com/shirou/gopsutil/load"
 )
@@ -215,4 +215,6 @@ func (this *sys) PreventSleep() (stop *signal.Signal) {
 			}
 		}
 	}()
+
+	return
 }
