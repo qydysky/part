@@ -1,21 +1,23 @@
 package part
 
 import (
+	"errors"
 	"fmt"
-	"sync"
-    "path/filepath"
-	"os"
-	"runtime"
-	"time"
+	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
-	"io/ioutil"
-	"errors"
+	"sync"
+	"syscall"
+	"time"
 
-	gopsutilLoad "github.com/shirou/gopsutil/load"
-	gopsutilCpu "github.com/shirou/gopsutil/cpu"
+	signal "github.com/qydysky/part/Signal"
 	Ppart "github.com/qydysky/part/linuxwin"
+	gopsutilCpu "github.com/shirou/gopsutil/cpu"
+	gopsutilLoad "github.com/shirou/gopsutil/load"
 )
 
 type sys struct {
@@ -23,41 +25,44 @@ type sys struct {
 	sync.Mutex
 }
 
-func Sys () *sys {
+func Sys() *sys {
 	return &sys{}
 }
 
 func (*sys) Type(s ...interface{}) string {
-	if len(s) == 0{return "nil"}
+	if len(s) == 0 {
+		return "nil"
+	}
 	switch t := s[0].(type) {
-	default:return fmt.Sprintf("%T", t)
+	default:
+		return fmt.Sprintf("%T", t)
 	}
 	return ""
 }
 
-func (this *sys) Cdir()string{
+func (this *sys) Cdir() string {
 	this.Lock()
 	defer this.Unlock()
 
-    dir, _ := os.Executable()
-    exPath := filepath.Dir(dir)
-    return exPath
+	dir, _ := os.Executable()
+	exPath := filepath.Dir(dir)
+	return exPath
 }
 
-func (t *sys) Pdir(cdir string) string{
+func (t *sys) Pdir(cdir string) string {
 	var s string = "/"
 	if t.GetSys("windows") {
 		s = "\\"
 	}
-	if p := strings.LastIndex(cdir, s);p == -1 {
-		Logf().E(cdir,"LastIndex",s,"-1")
-	}else{
+	if p := strings.LastIndex(cdir, s); p == -1 {
+		Logf().E(cdir, "LastIndex", s, "-1")
+	} else {
 		return cdir[:p]
 	}
 	return cdir
 }
 
-func GetRV(i *[]interface{},num int) []interface{} {
+func GetRV(i *[]interface{}, num int) []interface{} {
 	p := (*i)[:num]
 	(*i) = append((*i)[num:])
 	return p
@@ -66,24 +71,24 @@ func GetRV(i *[]interface{},num int) []interface{} {
 func (this *sys) Timeoutf(Timeout int) {
 	this.Lock()
 	defer this.Unlock()
-	
-    time.Sleep(time.Duration(Timeout)*time.Second)
+
+	time.Sleep(time.Duration(Timeout) * time.Second)
 }
 
 func (this *sys) MTimeoutf(Millisecond int) {
 	this.Lock()
 	defer this.Unlock()
-	
-    time.Sleep(time.Duration(Millisecond)*time.Millisecond)
+
+	time.Sleep(time.Duration(Millisecond) * time.Millisecond)
 }
 
-func (this *sys) GetSys(sys string)bool{
+func (this *sys) GetSys(sys string) bool {
 	this.RV = append(this.RV, runtime.GOOS)
-    return runtime.GOOS==sys
+	return runtime.GOOS == sys
 }
 
 func (this *sys) GetTime() string {
-	now := strconv.FormatInt(time.Now().Unix(),10)
+	now := strconv.FormatInt(time.Now().Unix(), 10)
 	return now[len(now)-4:]
 }
 
@@ -114,7 +119,10 @@ func (t *sys) GetTmpDir(pdir string) string {
 	t.Lock()
 
 	dir, err := ioutil.TempDir(pdir, "")
-	if err != nil {Logf().E(err.Error());return ""}
+	if err != nil {
+		Logf().E(err.Error())
+		return ""
+	}
 
 	return dir
 }
@@ -124,50 +132,87 @@ func (t *sys) GetTmpFile(pdir string) string {
 	t.Lock()
 
 	tmpfile, err := ioutil.TempFile(pdir, "*.tmp")
-	if err != nil {Logf().E(err.Error());return ""}
+	if err != nil {
+		Logf().E(err.Error())
+		return ""
+	}
 	name := tmpfile.Name()
 	tmpfile.Close()
 	return name
 }
 
 func (this *sys) GetIntranetIp() string {
-    netInterfaces, err := net.Interfaces()
-    if err != nil {
-        Logf().E("net.Interfaces failed, err:", err.Error())
-        Logf().E("[part]no loacl ip")
-    	return "127.0.0.1"
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		Logf().E("net.Interfaces failed, err:", err.Error())
+		Logf().E("[part]no loacl ip")
+		return "127.0.0.1"
 	}
- 
-    for i := 0; i < len(netInterfaces); i++ {
-        if (netInterfaces[i].Flags & net.FlagUp) != 0 {
-            addrs, _ := netInterfaces[i].Addrs()
- 
-            for _, address := range addrs {
-                if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-                    if ipnet.IP.To4() != nil {
-                        return ipnet.IP.String()
-                    }
-                }
-            }
-        }
-    }
-    Logf().E("[part]no loacl ip")
-    return "127.0.0.1"
+
+	for i := 0; i < len(netInterfaces); i++ {
+		if (netInterfaces[i].Flags & net.FlagUp) != 0 {
+			addrs, _ := netInterfaces[i].Addrs()
+
+			for _, address := range addrs {
+				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						return ipnet.IP.String()
+					}
+				}
+			}
+		}
+	}
+	Logf().E("[part]no loacl ip")
+	return "127.0.0.1"
 }
 
 func (this *sys) CheckProgram(pros ...string) []int {
-    return Ppart.PCheck(pros);
+	return Ppart.PCheck(pros)
 }
 
-func (this *sys) SetProxy(s,pac string) error {
-    return Ppart.PProxy(s,pac);
+func (this *sys) SetProxy(s, pac string) error {
+	return Ppart.PProxy(s, pac)
 }
 
-func (this *sys) GetCpuPercent() (float64,error) {
-	if a,e := gopsutilLoad.Avg();e == nil{
-		if i,e:=gopsutilCpu.Counts(true);e == nil{
-			return (*a).Load1/float64(i),nil
-		}else{Logf().E(e.Error())}
-	}else{Logf().E(e.Error())}
-	return 0.0,errors.New("cant get CpuPercent")
+func (this *sys) GetCpuPercent() (float64, error) {
+	if a, e := gopsutilLoad.Avg(); e == nil {
+		if i, e := gopsutilCpu.Counts(true); e == nil {
+			return (*a).Load1 / float64(i), nil
+		} else {
+			Logf().E(e.Error())
+		}
+	} else {
+		Logf().E(e.Error())
+	}
+	return 0.0, errors.New("cant get CpuPercent")
+}
+
+func (this *sys) PreventSleep() (stop *signal.Signal) {
+	if !this.GetSys("windows") {
+		return
+	}
+
+	const (
+		EsSystemRequired = 0x00000001
+		EsContinuous     = 0x80000000
+	)
+
+	var pulseTime = 10 * time.Second
+
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	setThreadExecStateProc := kernel32.NewProc("SetThreadExecutionState")
+
+	pulse := time.NewTicker(pulseTime)
+
+	stop = signal.Init()
+
+	go func() {
+		defer setThreadExecStateProc.Call(uintptr(EsContinuous))
+		for stop.Islive() {
+			select {
+			case <-pulse.C:
+				setThreadExecStateProc.Call(uintptr(EsSystemRequired | EsContinuous))
+			}
+		}
+	}()
 }
