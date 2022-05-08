@@ -187,9 +187,5 @@ func (this *sys) GetCpuPercent() (float64, error) {
 }
 
 func (this *sys) PreventSleep() (stop *signal.Signal) {
-	if !this.GetSys("windows") {
-		return
-	}
-
 	return Ppart.PreventSleep()
 }
