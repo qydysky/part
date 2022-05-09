@@ -63,9 +63,9 @@ func (t *BlockFunc) UnBlock() {
 }
 
 type BlockFuncN struct { //新的等待旧的 个数
-	started int64
-	n       int64
-	Max     int64
+	plan int64
+	n    int64
+	Max  int64
 }
 
 func (t *BlockFuncN) Block() {
@@ -77,7 +77,6 @@ func (t *BlockFuncN) Block() {
 		runtime.Gosched()
 	}
 	atomic.AddInt64(&t.n, 1)
-	atomic.StoreInt64(&t.started, 1)
 }
 
 func (t *BlockFuncN) UnBlock() {
@@ -89,12 +88,12 @@ func (t *BlockFuncN) UnBlock() {
 		runtime.Gosched()
 	}
 	atomic.AddInt64(&t.n, -1)
+	if atomic.LoadInt64(&t.plan) > 0 {
+		atomic.AddInt64(&t.plan, -1)
+	}
 }
 
 func (t *BlockFuncN) None() {
-	for !atomic.CompareAndSwapInt64(&t.started, 1, 0) {
-		runtime.Gosched()
-	}
 	for !atomic.CompareAndSwapInt64(&t.n, 0, -1) {
 		runtime.Gosched()
 	}
@@ -102,6 +101,18 @@ func (t *BlockFuncN) None() {
 
 func (t *BlockFuncN) UnNone() {
 	for !atomic.CompareAndSwapInt64(&t.n, -1, 0) {
+		runtime.Gosched()
+	}
+}
+
+func (t *BlockFuncN) Plan(n int64) {
+	for !atomic.CompareAndSwapInt64(&t.plan, 0, n) {
+		runtime.Gosched()
+	}
+}
+
+func (t *BlockFuncN) PlanDone() {
+	for atomic.LoadInt64(&t.plan) > 0 {
 		runtime.Gosched()
 	}
 }
