@@ -10,8 +10,8 @@ import (
 
 const (
 	Number    RandType = 0
-	lowNumber RandType = 1
-	uppNumber RandType = 2
+	LowNumber RandType = 1
+	UppNumber RandType = 2
 )
 
 type RandType int

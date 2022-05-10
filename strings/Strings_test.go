@@ -6,8 +6,8 @@ import (
 
 func Test_Rand(t *testing.T) {
 	t.Log(Rand(Number, 14))
-	t.Log(Rand(lowNumber, 14))
-	t.Log(Rand(uppNumber, 14))
+	t.Log(Rand(LowNumber, 14))
+	t.Log(Rand(UppNumber, 14))
 }
 
 func Test_UnescapeUnicode(t *testing.T) {
