@@ -10,8 +10,8 @@ func RW2Chan(r io.ReadCloser, w io.WriteCloser) (rc, wc chan []byte) {
 	if r != nil {
 		rc = make(chan []byte, 10)
 		go func(rc chan []byte, r io.ReadCloser) {
+			buf := make([]byte, 1<<16)
 			for {
-				buf := make([]byte, 1<<16)
 				n, e := r.Read(buf)
 				if n != 0 {
 					rc <- buf[:n]
