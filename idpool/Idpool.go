@@ -44,7 +44,6 @@ func (t *Idpool) Put(i *Id) {
 	if i.Item == nil {
 		return
 	}
-	i.Item = nil
 	t.pool.Put(i)
 	atomic.AddInt64(&t.sum, -1)
 }

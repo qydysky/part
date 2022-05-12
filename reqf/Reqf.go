@@ -71,6 +71,10 @@ func (t *Req) Reqf(val Rval) error {
 	t.Lock()
 	defer t.Unlock()
 
+	t.Respon = []byte{}
+	t.Response = nil
+	t.UsedTime = 0
+
 	var returnErr error
 
 	_val := val
