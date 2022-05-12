@@ -29,7 +29,7 @@ type FlashFunc struct { //新的替换旧的
 
 func (t *FlashFunc) Flash() (current uintptr) {
 	if t.pool == nil {
-		t.pool = idpool.New()
+		t.pool = idpool.New(func() interface{} { return new(struct{}) })
 	}
 	if t.b == nil {
 		t.b = list.New()

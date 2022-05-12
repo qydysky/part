@@ -2,49 +2,48 @@ package part
 
 import (
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
 type Idpool struct {
 	pool sync.Pool
-	sum uint
-	sync.Mutex
+	sum  int64
 }
 
 type Id struct {
-	Id uintptr
-	item interface{}
+	Id   uintptr
+	Item interface{}
 }
 
-func New() (*Idpool) {
+func New(f func() interface{}) *Idpool {
 	return &Idpool{
-		pool:sync.Pool{
+		pool: sync.Pool{
 			New: func() interface{} {
-				return new(struct{})
+				var o = new(Id)
+				o.Item = f()
+				o.Id = uintptr(unsafe.Pointer(&o.Item))
+				return o
 			},
 		},
 	}
 }
 
 func (t *Idpool) Get() (o *Id) {
-	o = new(Id)
-	o.item = t.pool.Get()
-	o.Id = uintptr(unsafe.Pointer(&o.item))
-	t.Lock()
-	t.sum += 1
-	t.Unlock()
+	o = t.pool.Get().(*Id)
+	atomic.AddInt64(&t.sum, 1)
 	return
 }
 
 func (t *Idpool) Put(i *Id) {
-	if i.item == nil {return}
-	t.pool.Put(i.item)
-	i.item = nil
-	t.Lock()
-	t.sum -= 1
-	t.Unlock()
+	if i.Item == nil {
+		return
+	}
+	i.Item = nil
+	t.pool.Put(i)
+	atomic.AddInt64(&t.sum, -1)
 }
 
-func (t *Idpool) Len() uint {
-	return t.sum
+func (t *Idpool) Len() int64 {
+	return atomic.LoadInt64(&t.sum)
 }

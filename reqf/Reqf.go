@@ -15,7 +15,6 @@ import (
 	"time"
 
 	compress "github.com/qydysky/part/compress"
-	idpool "github.com/qydysky/part/idpool"
 	pio "github.com/qydysky/part/io"
 	signal "github.com/qydysky/part/signal"
 	// "encoding/binary"
@@ -50,18 +49,12 @@ type Req struct {
 	Response *http.Response
 	UsedTime time.Duration
 
-	id     *idpool.Id
-	idp    *idpool.Idpool
 	cancel *signal.Signal
 	sync.Mutex
 }
 
 func New() *Req {
-	idp := idpool.New()
-	return &Req{
-		idp: idp,
-		id:  idp.Get(),
-	}
+	return new(Req)
 }
 
 // func main(){
@@ -81,10 +74,6 @@ func (t *Req) Reqf(val Rval) error {
 	var returnErr error
 
 	_val := val
-
-	defer func() {
-		t.idp.Put(t.id)
-	}()
 
 	t.cancel = signal.Init()
 
@@ -372,13 +361,6 @@ func (t *Req) Close() {
 		return
 	}
 	t.cancel.Done()
-}
-
-func (t *Req) Id() uintptr {
-	if t.id == nil {
-		return 0
-	}
-	return t.id.Id
 }
 
 func IsTimeout(e error) bool {
