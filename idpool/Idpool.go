@@ -35,6 +35,7 @@ func (t *Idpool) Get() (o *Id) {
 	o = t.pool.Get().(*Id)
 	if o.Item == nil {
 		o.Item = t.initF()
+		o.Id = uintptr(unsafe.Pointer(&o.Item))
 	}
 	atomic.AddInt64(&t.sum, 1)
 	return
