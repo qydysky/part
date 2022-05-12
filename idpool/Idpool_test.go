@@ -4,9 +4,11 @@ import (
 	"testing"
 )
 
+type test struct{}
+
 func Test(t *testing.T) {
 	pool := New(func() interface{} {
-		return new(int)
+		return &test{}
 	})
 	a := pool.Get()
 	b := pool.Get()

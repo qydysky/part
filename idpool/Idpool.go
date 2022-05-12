@@ -7,8 +7,9 @@ import (
 )
 
 type Idpool struct {
-	pool sync.Pool
-	sum  int64
+	pool  sync.Pool
+	sum   int64
+	initF func() interface{}
 }
 
 type Id struct {
@@ -18,6 +19,7 @@ type Id struct {
 
 func New(f func() interface{}) *Idpool {
 	return &Idpool{
+		initF: f,
 		pool: sync.Pool{
 			New: func() interface{} {
 				var o = new(Id)
@@ -31,6 +33,9 @@ func New(f func() interface{}) *Idpool {
 
 func (t *Idpool) Get() (o *Id) {
 	o = t.pool.Get().(*Id)
+	if o.Item == nil {
+		o.Item = t.initF()
+	}
 	atomic.AddInt64(&t.sum, 1)
 	return
 }
