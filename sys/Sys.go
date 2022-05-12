@@ -36,12 +36,11 @@ func (*sys) Type(s ...interface{}) string {
 	default:
 		return fmt.Sprintf("%T", t)
 	}
-	return ""
 }
 
-func (this *sys) Cdir() string {
-	this.Lock()
-	defer this.Unlock()
+func (t *sys) Cdir() string {
+	t.Lock()
+	defer t.Unlock()
 
 	dir, _ := os.Executable()
 	exPath := filepath.Dir(dir)
@@ -54,7 +53,7 @@ func (t *sys) Pdir(cdir string) string {
 		s = "\\"
 	}
 	if p := strings.LastIndex(cdir, s); p == -1 {
-		Logf().E(cdir, "LastIndex", s, "-1")
+		fmt.Println(cdir, "LastIndex", s, "-1")
 	} else {
 		return cdir[:p]
 	}
@@ -67,38 +66,38 @@ func GetRV(i *[]interface{}, num int) []interface{} {
 	return p
 }
 
-func (this *sys) Timeoutf(Timeout int) {
-	this.Lock()
-	defer this.Unlock()
+func (t *sys) Timeoutf(Timeout int) {
+	t.Lock()
+	defer t.Unlock()
 
 	time.Sleep(time.Duration(Timeout) * time.Second)
 }
 
-func (this *sys) MTimeoutf(Millisecond int) {
-	this.Lock()
-	defer this.Unlock()
+func (t *sys) MTimeoutf(Millisecond int) {
+	t.Lock()
+	defer t.Unlock()
 
 	time.Sleep(time.Duration(Millisecond) * time.Millisecond)
 }
 
-func (this *sys) GetSys(sys string) bool {
-	this.RV = append(this.RV, runtime.GOOS)
+func (t *sys) GetSys(sys string) bool {
+	t.RV = append(t.RV, runtime.GOOS)
 	return runtime.GOOS == sys
 }
 
-func (this *sys) GetTime() string {
+func (t *sys) GetTime() string {
 	now := strconv.FormatInt(time.Now().Unix(), 10)
 	return now[len(now)-4:]
 }
 
-func (this *sys) GetMTime() int64 {
+func (t *sys) GetMTime() int64 {
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }
-func (this *sys) GetSTime() int64 {
+func (t *sys) GetSTime() int64 {
 	return time.Now().Unix()
 }
 
-func (this *sys) GetFreePort() int {
+func (t *sys) GetFreePort() int {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0
@@ -119,7 +118,7 @@ func (t *sys) GetTmpDir(pdir string) string {
 
 	dir, err := ioutil.TempDir(pdir, "")
 	if err != nil {
-		Logf().E(err.Error())
+		fmt.Println(err.Error())
 		return ""
 	}
 
@@ -132,7 +131,7 @@ func (t *sys) GetTmpFile(pdir string) string {
 
 	tmpfile, err := ioutil.TempFile(pdir, "*.tmp")
 	if err != nil {
-		Logf().E(err.Error())
+		fmt.Println(err.Error())
 		return ""
 	}
 	name := tmpfile.Name()
@@ -140,12 +139,23 @@ func (t *sys) GetTmpFile(pdir string) string {
 	return name
 }
 
-func (this *sys) GetIntranetIp() string {
+func GetIntranetIp(cidr string) (ips []string) {
 	netInterfaces, err := net.Interfaces()
 	if err != nil {
-		Logf().E("net.Interfaces failed, err:", err.Error())
-		Logf().E("[part]no loacl ip")
-		return "127.0.0.1"
+		fmt.Println("net.Interfaces failed, err:", err.Error())
+		fmt.Println("[part]no loacl ip")
+		return []string{"127.0.0.1"}
+	}
+
+	var (
+		cidrN *net.IPNet
+	)
+	if cidr == `` {
+		cidr = `0.0.0.0/0`
+	}
+	_, cidrN, err = net.ParseCIDR(cidr)
+	if err != nil {
+		fmt.Println("[part]cidr incorrect")
 	}
 
 	for i := 0; i < len(netInterfaces); i++ {
@@ -155,37 +165,44 @@ func (this *sys) GetIntranetIp() string {
 			for _, address := range addrs {
 				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 					if ipnet.IP.To4() != nil {
-						return ipnet.IP.String()
+						if cidrN != nil && cidrN.Contains(ipnet.IP) {
+							ips = append(ips, ipnet.IP.String())
+						}
 					}
 				}
 			}
 		}
 	}
-	Logf().E("[part]no loacl ip")
-	return "127.0.0.1"
+
+	if len(ips) != 0 {
+		return
+	}
+
+	fmt.Println("[part]no loacl ip")
+	return []string{"127.0.0.1"}
 }
 
-func (this *sys) CheckProgram(pros ...string) []int {
+func (t *sys) CheckProgram(pros ...string) []int {
 	return Ppart.PCheck(pros)
 }
 
-func (this *sys) SetProxy(s, pac string) error {
+func (t *sys) SetProxy(s, pac string) error {
 	return Ppart.PProxy(s, pac)
 }
 
-func (this *sys) GetCpuPercent() (float64, error) {
+func (t *sys) GetCpuPercent() (float64, error) {
 	if a, e := gopsutilLoad.Avg(); e == nil {
 		if i, e := gopsutilCpu.Counts(true); e == nil {
 			return (*a).Load1 / float64(i), nil
 		} else {
-			Logf().E(e.Error())
+			fmt.Println(e.Error())
 		}
 	} else {
-		Logf().E(e.Error())
+		fmt.Println(e.Error())
 	}
 	return 0.0, errors.New("cant get CpuPercent")
 }
 
-func (this *sys) PreventSleep() (stop *signal.Signal) {
+func (t *sys) PreventSleep() (stop *signal.Signal) {
 	return Ppart.PreventSleep()
 }
