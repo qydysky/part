@@ -43,7 +43,7 @@ func New_tmplV(SumInDruation, Druation int64) *tmplV {
 
 func (s *tmplV) Set(contect string) (key uintptr) {
 
-	if s.SumInDruation >= 0 && s.pool.Len() >= uint(s.SumInDruation) { //不为无限&&达到限额 随机替代
+	if s.SumInDruation >= 0 && s.pool.Len() >= s.SumInDruation { //不为无限&&达到限额 随机替代
 		s.Lock()
 		for key, item := range s.kvt_map {
 			s.kvt_map[key] = tmplV_item{
