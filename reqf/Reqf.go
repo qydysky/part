@@ -34,7 +34,7 @@ type Rval struct {
 	Cookies          []*http.Cookie
 
 	SaveToPath       string
-	SaveToChan       chan []byte
+	SaveToChan       chan []byte // deprecated
 	SaveToPipeWriter *io.PipeWriter
 
 	Header map[string]string
@@ -169,7 +169,7 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	if _, ok := Header["Accept-Encoding"]; !ok {
 		Header["Accept-Encoding"] = "gzip, deflate, br"
 	}
-	if val.SaveToPath != "" || val.SaveToChan != nil || val.SaveToPipeWriter != nil {
+	if val.SaveToPath != "" || val.SaveToPipeWriter != nil {
 		Header["Accept-Encoding"] = "identity"
 	}
 	if _, ok := Header["User-Agent"]; !ok {
@@ -255,23 +255,23 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 			defer val.SaveToPipeWriter.Close()
 			ws = append(ws, val.SaveToPipeWriter)
 		}
-		if val.SaveToChan != nil {
-			r, w := io.Pipe()
-			go func() {
-				buf := make([]byte, 1<<16)
-				for {
-					n, e := r.Read(buf)
-					if n != 0 {
-						val.SaveToChan <- buf[:n]
-					} else if e != nil {
-						defer close(val.SaveToChan)
-						break
-					}
-				}
-			}()
-			defer w.Close()
-			ws = append(ws, w)
-		}
+		// if val.SaveToChan != nil {
+		// 	r, w := io.Pipe()
+		// 	go func() {
+		// 		buf := make([]byte, 1<<16)
+		// 		for {
+		// 			n, e := r.Read(buf)
+		// 			if n != 0 {
+		// 				val.SaveToChan <- buf[:n]
+		// 			} else if e != nil {
+		// 				defer close(val.SaveToChan)
+		// 				break
+		// 			}
+		// 		}
+		// 	}()
+		// 	defer w.Close()
+		// 	ws = append(ws, w)
+		// }
 		if !val.NoResponse {
 			var buf bytes.Buffer
 			defer func() {
