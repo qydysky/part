@@ -340,11 +340,9 @@ func ToForm(m map[string]string) (postStr string, contentType string) {
 	var buf strings.Builder
 	sign := s.Rand(0, 30)
 	for k, v := range m {
-		buf.WriteString(`-----------------------------` + sign)
-		buf.WriteString(`Content-Disposition: form-data; name=` + k)
-		buf.WriteString("\n")
-		buf.WriteString(v)
-		buf.WriteString("\n")
+		buf.WriteString(`-----------------------------` + sign + "\n")
+		buf.WriteString(`Content-Disposition: form-data; name="` + k + `"` + "\n\n")
+		buf.WriteString(v + "\n")
 	}
 	buf.WriteString(`-----------------------------` + sign + `--`)
 	return buf.String(), `multipart/form-data; boundary=---------------------------` + sign
