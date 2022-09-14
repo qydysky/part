@@ -17,6 +17,7 @@ import (
 
 	compress "github.com/qydysky/part/compress"
 	signal "github.com/qydysky/part/signal"
+	s "github.com/qydysky/part/strings"
 	// "encoding/binary"
 )
 
@@ -333,4 +334,18 @@ func IsTimeout(e error) bool {
 
 func IsCancel(e error) bool {
 	return errors.Is(e, context.Canceled)
+}
+
+func ToForm(m map[string]string) (postStr string, contentType string) {
+	var buf strings.Builder
+	sign := s.Rand(0, 30)
+	for k, v := range m {
+		buf.WriteString(`-----------------------------` + sign)
+		buf.WriteString(`Content-Disposition: form-data; name=` + k)
+		buf.WriteString("\n")
+		buf.WriteString(v)
+		buf.WriteString("\n")
+	}
+	buf.WriteString(`-----------------------------` + sign + `--`)
+	return buf.String(), `multipart/form-data; boundary=---------------------------` + sign
 }
