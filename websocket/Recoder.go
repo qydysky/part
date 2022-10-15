@@ -92,23 +92,31 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 
 		startT := time.Now()
 		timer := time.NewTicker(time.Second)
+		var (
+			data []byte
+			err  error
+		)
 
 		for sg.Islive() {
 			cu := (<-timer.C).Sub(startT).Seconds()
 
 			for sg.Islive() {
-				if data, err := f.ReadUntil('\n', perReadSize, maxReadSize); err != nil {
-					panic(err)
-				} else if len(data) != 0 {
+				if data == nil {
+					if data, err = f.ReadUntil('\n', perReadSize, maxReadSize); err != nil {
+						panic(err)
+					}
+				}
+				if len(data) != 0 {
 					tIndex := bytes.Index(data, []byte{','})
+					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
+						break
+					}
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
 						Data: data[danmuIndex:],
 					})
-					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
-						break
-					}
+					data = nil
 				} else {
 					break
 				}
