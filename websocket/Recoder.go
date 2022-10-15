@@ -100,13 +100,13 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 				if data, err := f.ReadUntil('\n', perReadSize, maxReadSize); err != nil {
 					panic(err)
 				} else if len(data) != 0 {
-					datas := bytes.Split(data, []byte(","))
-					d, _ := strconv.ParseFloat(string(datas[0]), 64)
+					tIndex := bytes.Index(data, []byte{','})
+					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
-						Data: datas[2],
+						Data: data[danmuIndex:],
 					})
-					if d > cu {
+					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
 						break
 					}
 				} else {
