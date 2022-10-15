@@ -185,7 +185,7 @@ func (t *File) Close() error {
 
 func (t *File) getRWCloser() {
 	if t.Config.AutoClose || t.file == nil {
-		if !t.isExist() {
+		if !t.IsExist() {
 			if f, e := os.Create(t.Config.FilePath); e != nil {
 				panic(e)
 			} else {
@@ -244,7 +244,7 @@ func transfer(r io.ReadCloser, w io.WriteCloser, byteInSec int64) (e error) {
 	return nil
 }
 
-func (t *File) isExist() bool {
+func (t *File) IsExist() bool {
 	if len(t.Config.FilePath) > 4096 {
 		panic(ErrFilePathTooLong)
 	}
