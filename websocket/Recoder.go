@@ -55,6 +55,10 @@ func (t *Recorder) Start(filePath string) error {
 				}
 				return false
 			},
+			`close`: func(data interface{}) bool {
+				t.Stop()
+				return true
+			},
 		})
 		t.stopflag.Wait()
 	}()
@@ -68,8 +72,18 @@ func (t *Recorder) Stop() {
 	t.onlyOnce.UnSet()
 }
 
-func Play(filePath string, perReadSize int, maxReadSize int) (s *Server) {
+func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close func()) {
+	sg := signal.Init()
+
 	s = New_server()
+
+	close = func() {
+		s.Interface().Push_tag(`close`, uinterface{
+			Id:   0,
+			Data: `rev_close`,
+		})
+		sg.Done()
+	}
 
 	go func() {
 		f := file.New(filePath, 0, false)
@@ -78,10 +92,10 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server) {
 		startT := time.Now()
 		timer := time.NewTicker(time.Second)
 
-		for {
+		for sg.Islive() {
 			cu := (<-timer.C).Sub(startT).Seconds()
 
-			for {
+			for sg.Islive() {
 				if data, err := f.ReadUntil('\n', perReadSize, maxReadSize); err != nil {
 					panic(err)
 				} else if len(data) != 0 {
