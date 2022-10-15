@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	l "github.com/qydysky/part/Limit"
+	l "github.com/qydysky/part/limit"
 )
 
 var (
