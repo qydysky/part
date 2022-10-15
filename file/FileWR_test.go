@@ -128,6 +128,10 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(e)
 	}
 
+	if e := f.Sync(); e != nil {
+		t.Fatal(e)
+	}
+
 	if e := f.Seed(0); e != nil {
 		t.Fatal(e)
 	}

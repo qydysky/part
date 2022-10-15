@@ -52,6 +52,7 @@ func (t *Recorder) Start(filePath string) error {
 				}
 				if tmp, ok := data.(Uinterface); ok {
 					f.Write([]byte(fmt.Sprintf("%f,%d,%s\n", time.Since(startTimeStamp).Seconds(), tmp.Id, tmp.Data)), true)
+					f.Sync()
 				}
 				return false
 			},

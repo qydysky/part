@@ -167,6 +167,20 @@ func (t *File) Seed(index int64) (e error) {
 	return nil
 }
 
+func (t *File) Sync() (e error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.RUnlock()
+
+	return t.file.Sync()
+}
+
 func (t *File) Delete() error {
 	if !t.TryLock() {
 		return ErrFailToLock
