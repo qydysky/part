@@ -20,16 +20,15 @@ var (
 
 type Recorder struct {
 	Server   *Server
-	FilePath string
 	onlyOnce funcCtrl.SkipFunc
 	stopflag *signal.Signal
 }
 
-func (t *Recorder) Start() error {
+func (t *Recorder) Start(filePath string) error {
 	if t.Server == nil {
 		return ErrSerIsNil
 	}
-	if t.FilePath == "" {
+	if filePath == "" {
 		return ErrFileNoSet
 	}
 	if t.onlyOnce.NeedSkip() {
@@ -37,7 +36,7 @@ func (t *Recorder) Start() error {
 	}
 
 	go func() {
-		f := file.New(t.FilePath, 0, false)
+		f := file.New(filePath, 0, false)
 		defer f.Close()
 
 		var startTimeStamp time.Time

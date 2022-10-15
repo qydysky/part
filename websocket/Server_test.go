@@ -18,10 +18,9 @@ func Test_Server(t *testing.T) {
 		ws_mq := s.Interface()
 
 		recoder := &Recorder{
-			Server:   s,
-			FilePath: "l.csv",
+			Server: s,
 		}
-		recoder.Start()
+		recoder.Start("l.csv")
 		defer recoder.Stop()
 
 		ws_mq.Pull_tag(map[string]func(interface{}) bool{
