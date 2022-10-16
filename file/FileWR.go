@@ -24,6 +24,7 @@ type File struct {
 	file   *os.File
 	wr     io.Writer
 	rr     io.Reader
+	cu     int64
 	sync.RWMutex
 }
 
@@ -168,7 +169,7 @@ func (t *File) Seed(index int64) (e error) {
 	if index < 0 {
 		whenc = 2
 	}
-	t.Config.CurIndex, e = t.file.Seek(index, whenc)
+	t.cu, e = t.file.Seek(index, whenc)
 
 	return nil
 }
@@ -200,6 +201,8 @@ func (t *File) Close() error {
 	if t.file != nil {
 		if e := t.file.Close(); e != nil {
 			return e
+		} else {
+			t.file = nil
 		}
 	}
 	return nil
@@ -234,7 +237,8 @@ func (t *File) getRWCloser() {
 				panic(e)
 			} else {
 				if t.Config.CurIndex > 0 {
-					t.Config.CurIndex, e = f.Seek(t.Config.CurIndex, 0)
+					t.cu = t.Config.CurIndex
+					t.cu, e = f.Seek(t.cu, 0)
 					if e != nil {
 						panic(e)
 					}
@@ -246,11 +250,13 @@ func (t *File) getRWCloser() {
 				panic(e)
 			} else {
 				if t.Config.CurIndex != 0 {
+					t.cu = t.Config.CurIndex
 					whenc := 0
 					if t.Config.CurIndex < 0 {
+						t.cu = t.cu + 1
 						whenc = 2
 					}
-					t.Config.CurIndex, e = f.Seek(t.Config.CurIndex, whenc)
+					t.cu, e = f.Seek(t.cu, whenc)
 					if e != nil {
 						panic(e)
 					}
