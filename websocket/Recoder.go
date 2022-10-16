@@ -57,10 +57,6 @@ func (t *Recorder) Start(filePath string) error {
 				}
 				return false
 			},
-			`close`: func(data interface{}) bool {
-				t.Stop()
-				return true
-			},
 		})
 		t.stopflag.Wait()
 	}()
