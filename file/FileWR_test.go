@@ -2,6 +2,8 @@ package part
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"testing"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -154,6 +156,12 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(e)
 	} else if !bytes.Equal(data, []byte("s99s9")) {
 		t.Fatal(string(data))
+	}
+
+	if data, e := f.ReadUntil('\n', 5, 20); e == nil || !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	} else {
+		t.Log(string(data))
 	}
 
 	if e := f.Close(); e != nil {

@@ -127,11 +127,9 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 		n, e = t.read().Read(tmpArea)
 
 		if n == 0 && e != nil {
-			if errors.Is(e, io.EOF) {
-				e = nil
-			}
 			return
 		}
+
 		maxReadSize = maxReadSize - n
 
 		if i := bytes.Index(tmpArea[:n], []byte{separation}); i != -1 {
