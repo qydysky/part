@@ -233,12 +233,8 @@ func (t *File) getRWCloser() {
 			if f, e := os.Create(t.Config.FilePath); e != nil {
 				panic(e)
 			} else {
-				if t.Config.CurIndex != 0 {
-					whenc := 0
-					if t.Config.CurIndex < 0 {
-						whenc = 2
-					}
-					t.Config.CurIndex, e = f.Seek(t.Config.CurIndex, whenc)
+				if t.Config.CurIndex > 0 {
+					t.Config.CurIndex, e = f.Seek(t.Config.CurIndex, 0)
 					if e != nil {
 						panic(e)
 					}

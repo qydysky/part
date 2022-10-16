@@ -11,7 +11,7 @@ import (
 )
 
 func TestWriteReadDelSync(t *testing.T) {
-	f := New("test/rwd.txt", 0, true)
+	f := New("test/rwd.txt", -1, true)
 	if i, e := f.Write([]byte("sss"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
@@ -20,10 +20,8 @@ func TestWriteReadDelSync(t *testing.T) {
 	if i, e := f.Read(buf); i == 0 || e != nil {
 		t.Fatal(i, e)
 	} else {
-		for _, v := range buf {
-			if v != 's' {
-				t.Fatal(v)
-			}
+		if !bytes.Equal(buf[:i], []byte("sss")) {
+			t.Fatal(string(buf[:i]), e)
 		}
 	}
 
