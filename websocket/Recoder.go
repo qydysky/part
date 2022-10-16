@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"time"
 
@@ -102,7 +103,7 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 
 			for sg.Islive() {
 				if data == nil {
-					if data, err = f.ReadUntil('\n', perReadSize, maxReadSize); err != nil {
+					if data, err = f.ReadUntil('\n', perReadSize, maxReadSize); err != nil && !errors.Is(err, io.EOF) {
 						panic(err)
 					}
 				}
