@@ -3,6 +3,9 @@ package part
 import (
 	"bytes"
 	"testing"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/unicode"
 )
 
 func TestWriteReadDelSync(t *testing.T) {
@@ -39,7 +42,8 @@ func TestWriteReadDelSync(t *testing.T) {
 
 func TestWriteReadDel(t *testing.T) {
 	f := New("rwd.txt", 0, false)
-	if i, e := f.Write([]byte("sss"), true); i == 0 || e != nil {
+	f.Config.Coder = unicode.UTF8
+	if i, e := f.Write([]byte("sssaaa"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -50,12 +54,14 @@ func TestWriteReadDel(t *testing.T) {
 	var buf = make([]byte, 3)
 	if i, e := f.Read(buf); i == 0 || e != nil {
 		t.Fatal(i, e)
-	} else {
-		for _, v := range buf {
-			if v != 's' {
-				t.Fatal(v)
-			}
-		}
+	} else if !bytes.Equal(buf, []byte("sss")) {
+		t.Fatal(string(buf))
+	}
+
+	if i, e := f.Read(buf); i == 0 || e != nil {
+		t.Fatal(i, e)
+	} else if !bytes.Equal(buf, []byte("aaa")) {
+		t.Fatal(string(buf))
 	}
 
 	if e := f.Close(); e != nil {
@@ -157,4 +163,27 @@ func TestReadUntil(t *testing.T) {
 	if e := f.Delete(); e != nil {
 		t.Fatal(e)
 	}
+}
+
+func TestEncoderDecoder(t *testing.T) {
+	sf := New("GBK.txt", 0, true)
+	sf.Config.Coder = simplifiedchinese.GBK
+	if i, e := sf.Write([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
+		t.Fatal(e)
+	}
+
+	tf := New("UTF8.txt", 0, true)
+	tf.Config.Coder = unicode.UTF8
+	if e := sf.CopyTo(tf, 5, true); e != nil {
+		t.Fatal(e)
+	}
+
+	if data, e := tf.ReadUntil('\n', 3, 100); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("测1试s啊是3大家看s法$和")) {
+		t.Fatal(string(data))
+	}
+
+	sf.Delete()
+	tf.Delete()
 }

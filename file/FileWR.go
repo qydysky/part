@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	l "github.com/qydysky/part/limit"
+	encoder "golang.org/x/text/encoding"
 )
 
 var (
@@ -21,6 +22,8 @@ var (
 type File struct {
 	Config Config
 	file   *os.File
+	wr     io.Writer
+	rr     io.Reader
 	sync.RWMutex
 }
 
@@ -28,6 +31,10 @@ type Config struct {
 	FilePath  string //文件路径
 	CurIndex  int64  //初始化光标位置
 	AutoClose bool   //自动关闭句柄
+
+	// wrap with encoder
+	//https://pkg.go.dev/golang.org/x/text/encoding#section-directories
+	Coder encoder.Encoding
 }
 
 func New(filePath string, curIndex int64, autoClose bool) *File {
@@ -65,7 +72,7 @@ func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
 	}
 	defer to.Unlock()
 
-	return transfer(t.file, to.file, byteInSec)
+	return transfer(t, to, byteInSec)
 }
 
 func (t *File) Write(data []byte, tryLock bool) (int, error) {
@@ -83,7 +90,7 @@ func (t *File) Write(data []byte, tryLock bool) (int, error) {
 	}
 	defer t.Unlock()
 
-	return t.file.Write(data)
+	return t.write().Write(data)
 }
 
 func (t *File) Read(data []byte) (int, error) {
@@ -97,7 +104,7 @@ func (t *File) Read(data []byte) (int, error) {
 	}
 	defer t.RUnlock()
 
-	return t.file.Read(data)
+	return t.read().Read(data)
 }
 
 func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (data []byte, e error) {
@@ -117,9 +124,9 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 	)
 
 	for maxReadSize > 0 {
-		n, e = t.file.Read(tmpArea)
+		n, e = t.read().Read(tmpArea)
 
-		if e != nil {
+		if n == 0 && e != nil {
 			if errors.Is(e, io.EOF) {
 				e = nil
 			}
@@ -197,6 +204,25 @@ func (t *File) Close() error {
 	return nil
 }
 
+func (t *File) IsExist() bool {
+	if len(t.Config.FilePath) > 4096 {
+		panic(ErrFilePathTooLong)
+	}
+
+	_, err := os.Stat(t.Config.FilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		} else {
+			if !strings.Contains(err.Error(), "file name too long") {
+				panic(ErrFilePathTooLong)
+			}
+			return false
+		}
+	}
+	return true
+}
+
 func (t *File) getRWCloser() {
 	if t.Config.AutoClose || t.file == nil {
 		if !t.IsExist() {
@@ -235,16 +261,16 @@ func (t *File) getRWCloser() {
 	}
 }
 
-func transfer(r io.ReadCloser, w io.WriteCloser, byteInSec int64) (e error) {
+func transfer(r *File, w *File, byteInSec int64) (e error) {
 	if byteInSec > 0 {
 		limit := l.New(1, 1000, -1)
 		defer limit.Close()
 
 		buf := make([]byte, byteInSec)
 		for {
-			n, err := r.Read(buf)
+			n, err := r.read().Read(buf)
 			if n != 0 {
-				w.Write(buf[:n])
+				w.write().Write(buf[:n])
 			} else if err != nil {
 				e = err
 				break
@@ -252,27 +278,28 @@ func transfer(r io.ReadCloser, w io.WriteCloser, byteInSec int64) (e error) {
 			limit.TO()
 		}
 	} else {
-		_, e = io.Copy(w, r)
+		_, e = io.Copy(w.write(), r.read())
 	}
 
 	return nil
 }
 
-func (t *File) IsExist() bool {
-	if len(t.Config.FilePath) > 4096 {
-		panic(ErrFilePathTooLong)
-	}
-
-	_, err := os.Stat(t.Config.FilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		} else {
-			if !strings.Contains(err.Error(), "file name too long") {
-				panic(ErrFilePathTooLong)
-			}
-			return false
+func (t *File) write() io.Writer {
+	if t.wr == nil {
+		t.wr = io.Writer(t.file)
+		if t.Config.Coder != nil {
+			t.wr = t.Config.Coder.NewEncoder().Writer(t.wr)
 		}
 	}
-	return true
+	return t.wr
+}
+
+func (t *File) read() io.Reader {
+	if t.rr == nil {
+		t.rr = io.Reader(t.file)
+		if t.Config.Coder != nil {
+			t.rr = t.Config.Coder.NewDecoder().Reader(t.rr)
+		}
+	}
+	return t.rr
 }
