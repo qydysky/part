@@ -11,7 +11,7 @@ import (
 )
 
 func TestWriteReadDelSync(t *testing.T) {
-	f := New("rwd.txt", 0, true)
+	f := New("test/rwd.txt", 0, true)
 	if i, e := f.Write([]byte("sss"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
@@ -186,8 +186,8 @@ func TestEncoderDecoder(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if data, e := tf.ReadUntil('\n', 3, 100); e != nil {
-		t.Fatal(e)
+	if data, e := tf.ReadUntil('\n', 3, 100); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(string(data), e)
 	} else if !bytes.Equal(data, []byte("测1试s啊是3大家看s法$和")) {
 		t.Fatal(string(data))
 	}

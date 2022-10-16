@@ -121,10 +121,11 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 	var (
 		tmpArea = make([]byte, perReadSize)
 		n       int
+		reader  = t.read()
 	)
 
 	for maxReadSize > 0 {
-		n, e = t.read().Read(tmpArea)
+		n, e = reader.Read(tmpArea)
 
 		if n == 0 && e != nil {
 			return
@@ -197,7 +198,9 @@ func (t *File) Delete() error {
 
 func (t *File) Close() error {
 	if t.file != nil {
-		return t.file.Close()
+		if e := t.file.Close(); e != nil {
+			return e
+		}
 	}
 	return nil
 }
@@ -224,6 +227,9 @@ func (t *File) IsExist() bool {
 func (t *File) getRWCloser() {
 	if t.Config.AutoClose || t.file == nil {
 		if !t.IsExist() {
+			if e := t.newPath(); e != nil {
+				panic(e)
+			}
 			if f, e := os.Create(t.Config.FilePath); e != nil {
 				panic(e)
 			} else {
@@ -259,16 +265,49 @@ func (t *File) getRWCloser() {
 	}
 }
 
+func (t *File) newPath() error {
+
+	/*
+		如果filename路径不存在，就新建它
+	*/
+	var exist func(string) bool = func(s string) bool {
+		_, err := os.Stat(s)
+		return err == nil || os.IsExist(err)
+	}
+
+	for i := 0; true; {
+		a := strings.Index(t.Config.FilePath[i:], "/")
+		if a == -1 {
+			break
+		}
+		if a == 0 {
+			a = 1
+		} //bug fix 当绝对路径时开头的/导致问题
+		i = i + a + 1
+		if !exist(t.Config.FilePath[:i-1]) {
+			err := os.Mkdir(t.Config.FilePath[:i-1], os.ModePerm)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func transfer(r *File, w *File, byteInSec int64) (e error) {
 	if byteInSec > 0 {
 		limit := l.New(1, 1000, -1)
 		defer limit.Close()
 
+		reader := r.read()
+		writer := w.write()
+
 		buf := make([]byte, byteInSec)
 		for {
-			n, err := r.read().Read(buf)
+			n, err := reader.Read(buf)
 			if n != 0 {
-				w.write().Write(buf[:n])
+				writer.Write(buf[:n])
 			} else if err != nil {
 				e = err
 				break
@@ -283,7 +322,7 @@ func transfer(r *File, w *File, byteInSec int64) (e error) {
 }
 
 func (t *File) write() io.Writer {
-	if t.wr == nil {
+	if t.Config.AutoClose || t.wr == nil {
 		t.wr = io.Writer(t.file)
 		if t.Config.Coder != nil {
 			t.wr = t.Config.Coder.NewEncoder().Writer(t.wr)
@@ -293,7 +332,7 @@ func (t *File) write() io.Writer {
 }
 
 func (t *File) read() io.Reader {
-	if t.rr == nil {
+	if t.Config.AutoClose || t.rr == nil {
 		t.rr = io.Reader(t.file)
 		if t.Config.Coder != nil {
 			t.rr = t.Config.Coder.NewDecoder().Reader(t.rr)
