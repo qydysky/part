@@ -73,7 +73,21 @@ func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
 	}
 	defer to.Unlock()
 
-	return transfer(t, to, byteInSec)
+	return transferIO(t.read(), to.write(), byteInSec)
+}
+
+func (t *File) CopyToIoWriter(to io.Writer, byteInSec int64, tryLock bool) error {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.RUnlock()
+
+	return transferIO(t.read(), to, byteInSec)
 }
 
 func (t *File) Write(data []byte, tryLock bool) (int, error) {
@@ -297,6 +311,7 @@ func (t *File) newPath() error {
 	return nil
 }
 
+// deprecated
 func transfer(r *File, w *File, byteInSec int64) (e error) {
 	if byteInSec > 0 {
 		limit := l.New(1, 1000, -1)
@@ -318,6 +333,29 @@ func transfer(r *File, w *File, byteInSec int64) (e error) {
 		}
 	} else {
 		_, e = io.Copy(w.write(), r.read())
+	}
+
+	return nil
+}
+
+func transferIO(r io.Reader, w io.Writer, byteInSec int64) (e error) {
+	if byteInSec > 0 {
+		limit := l.New(1, 1000, -1)
+		defer limit.Close()
+
+		buf := make([]byte, byteInSec)
+		for {
+			n, err := r.Read(buf)
+			if n != 0 {
+				w.Write(buf[:n])
+			} else if err != nil {
+				e = err
+				break
+			}
+			limit.TO()
+		}
+	} else {
+		_, e = io.Copy(w, r)
 	}
 
 	return nil
