@@ -277,6 +277,10 @@ func (t *File) IsExist() bool {
 	return true
 }
 
+func (t *File) File() *os.File {
+	return t.file
+}
+
 func (t *File) getRWCloser() {
 	if t.Config.AutoClose || t.file == nil {
 		if !t.IsExist() {
