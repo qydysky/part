@@ -191,3 +191,16 @@ func TestEncoderDecoder(t *testing.T) {
 	sf.Delete()
 	tf.Delete()
 }
+
+func TestReadAll(t *testing.T) {
+	sf := New("t.txt", 0, true)
+	defer sf.Delete()
+
+	if i, e := sf.Write([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
+		t.Fatal(e)
+	}
+
+	if data, e := sf.ReadAll(10, 1000); (e != nil && !errors.Is(e, io.EOF)) || !bytes.Equal(data, []byte("测1试s啊是3大家看s法$和")) {
+		t.Fatal(e, string(data))
+	}
+}

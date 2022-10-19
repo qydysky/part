@@ -168,6 +168,42 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 	return
 }
 
+func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.TryRLock() {
+		return nil, ErrFailToLock
+	}
+	defer t.RUnlock()
+
+	var (
+		tmpArea = make([]byte, perReadSize)
+		n       = 0
+		reader  = t.read()
+	)
+
+	for maxReadSize > 0 {
+		n, e = reader.Read(tmpArea)
+
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		data = append(data, tmpArea[:n]...)
+	}
+
+	if maxReadSize <= 0 {
+		e = ErrMaxReadSizeReach
+	}
+
+	return
+}
+
 func (t *File) Seed(index int64) (e error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
@@ -306,33 +342,6 @@ func (t *File) newPath() error {
 				return err
 			}
 		}
-	}
-
-	return nil
-}
-
-// deprecated
-func transfer(r *File, w *File, byteInSec int64) (e error) {
-	if byteInSec > 0 {
-		limit := l.New(1, 1000, -1)
-		defer limit.Close()
-
-		reader := r.read()
-		writer := w.write()
-
-		buf := make([]byte, byteInSec)
-		for {
-			n, err := reader.Read(buf)
-			if n != 0 {
-				writer.Write(buf[:n])
-			} else if err != nil {
-				e = err
-				break
-			}
-			limit.TO()
-		}
-	} else {
-		_, e = io.Copy(w.write(), r.read())
 	}
 
 	return nil
