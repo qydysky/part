@@ -278,6 +278,7 @@ func (t *File) IsExist() bool {
 }
 
 func (t *File) File() *os.File {
+	t.getRWCloser()
 	return t.file
 }
 
