@@ -3,7 +3,6 @@ package part
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -116,7 +115,7 @@ func (t *sys) GetTmpDir(pdir string) string {
 	defer t.Unlock()
 	t.Lock()
 
-	dir, err := ioutil.TempDir(pdir, "")
+	dir, err := os.MkdirTemp(pdir, "")
 	if err != nil {
 		fmt.Println(err.Error())
 		return ""
@@ -129,13 +128,12 @@ func (t *sys) GetTmpFile(pdir string) string {
 	defer t.Unlock()
 	t.Lock()
 
-	tmpfile, err := ioutil.TempFile(pdir, "*.tmp")
+	tmpfile, err := os.MkdirTemp(pdir, "*.tmp")
 	if err != nil {
 		fmt.Println(err.Error())
 		return ""
 	}
-	name := tmpfile.Name()
-	tmpfile.Close()
+	name := tmpfile
 	return name
 }
 

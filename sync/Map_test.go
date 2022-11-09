@@ -5,11 +5,17 @@ import (
 	"testing"
 )
 
+type tmp struct {
+	p int
+}
+
 func Test_customMap(t *testing.T) {
 	var c Map
 	//set
-	c.Store(0, 3)
-	if v, ok := c.Load(0); ok && v != 3 {
+	var p1 = new(tmp)
+	p1.p = 0
+	c.Store(0, p1)
+	if v, ok := c.Load(0); !ok || v == nil || v.(*tmp).p != 0 {
 		t.Error(`1`)
 	}
 	//change

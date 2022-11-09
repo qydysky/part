@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +14,10 @@ import (
 	"sync"
 	"time"
 
-	compress "github.com/qydysky/part/compress"
+	flate "compress/flate"
+	gzip "compress/gzip"
+
+	br "github.com/andybalholm/brotli"
 	signal "github.com/qydysky/part/signal"
 	s "github.com/qydysky/part/strings"
 	// "encoding/binary"
@@ -191,7 +193,6 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	}
 
 	t.Response = resp
-	defer resp.Body.Close()
 	defer func() {
 		t.UsedTime = time.Since(beginTime)
 	}()
@@ -204,109 +205,86 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		err = errors.New(strconv.Itoa(resp.StatusCode))
 	}
 
-	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 && (compress_type[0] == `br` ||
-		compress_type[0] == `gzip` ||
-		compress_type[0] == `deflate`) {
-
-		if val.NoResponse {
-			return errors.New("respose had compress, must load all data, but NoResponse is true")
-		}
-
-		var err error
-		t.Respon, err = ioutil.ReadAll(resp.Body)
+	var ws []io.Writer
+	if val.SaveToPath != "" {
+		out, err := os.Create(val.SaveToPath)
 		if err != nil {
+			out.Close()
 			return err
 		}
-
-		if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
-			switch compress_type[0] {
-			case `br`:
-				if tmp, err := compress.UnBr(t.Respon); err != nil {
-					return err
-				} else {
-					t.Respon = append([]byte{}, tmp...)
-				}
-			case `gzip`:
-				if tmp, err := compress.UnGzip(t.Respon); err != nil {
-					return err
-				} else {
-					t.Respon = append([]byte{}, tmp...)
-				}
-			case `deflate`:
-				if tmp, err := compress.UnFlate(t.Respon); err != nil {
-					return err
-				} else {
-					t.Respon = append([]byte{}, tmp...)
-				}
-			default:
-			}
-		}
-	} else {
-		var ws []io.Writer
-		if val.SaveToPath != "" {
-			out, err := os.Create(val.SaveToPath)
-			if err != nil {
-				out.Close()
-				return err
-			}
-			defer out.Close()
-			ws = append(ws, out)
-		}
-		if val.SaveToPipeWriter != nil {
-			defer val.SaveToPipeWriter.Close()
-			ws = append(ws, val.SaveToPipeWriter)
-		}
-		// if val.SaveToChan != nil {
-		// 	r, w := io.Pipe()
-		// 	go func() {
-		// 		buf := make([]byte, 1<<16)
-		// 		for {
-		// 			n, e := r.Read(buf)
-		// 			if n != 0 {
-		// 				val.SaveToChan <- buf[:n]
-		// 			} else if e != nil {
-		// 				defer close(val.SaveToChan)
-		// 				break
-		// 			}
-		// 		}
-		// 	}()
-		// 	defer w.Close()
-		// 	ws = append(ws, w)
-		// }
-		if !val.NoResponse {
-			var buf bytes.Buffer
-			defer func() {
-				t.Respon = buf.Bytes()
-			}()
-			ws = append(ws, &buf)
-		}
-
-		w := io.MultiWriter(ws...)
-		s := signal.Init()
-		go func() {
-			buf := make([]byte, 1<<16)
-			for {
-				if n, e := resp.Body.Read(buf); n != 0 {
-					w.Write(buf[:n])
-				} else if e != nil {
-					if !errors.Is(e, io.EOF) {
-						err = e
-					}
-					break
-				}
-
-				if !t.cancel.Islive() {
-					err = context.Canceled
-					break
-				}
-			}
-			s.Done()
-		}()
-		s.Wait()
-		// if _, e := io.Copy(w, resp.Body); e != nil {
-		// 	err = e
-		// }
+		defer out.Close()
+		ws = append(ws, out)
 	}
+	if val.SaveToPipeWriter != nil {
+		defer val.SaveToPipeWriter.Close()
+		ws = append(ws, val.SaveToPipeWriter)
+	}
+	// if val.SaveToChan != nil {
+	// 	r, w := io.Pipe()
+	// 	go func() {
+	// 		buf := make([]byte, 1<<16)
+	// 		for {
+	// 			n, e := r.Read(buf)
+	// 			if n != 0 {
+	// 				val.SaveToChan <- buf[:n]
+	// 			} else if e != nil {
+	// 				defer close(val.SaveToChan)
+	// 				break
+	// 			}
+	// 		}
+	// 	}()
+	// 	defer w.Close()
+	// 	ws = append(ws, w)
+	// }
+	if !val.NoResponse {
+		var buf bytes.Buffer
+		defer func() {
+			t.Respon = buf.Bytes()
+		}()
+		ws = append(ws, &buf)
+	}
+
+	w := io.MultiWriter(ws...)
+	s := signal.Init()
+
+	var resReader io.Reader
+	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
+		switch compress_type[0] {
+		case `br`:
+			resReader = br.NewReader(resp.Body)
+		case `gzip`:
+			resReader, _ = gzip.NewReader(resp.Body)
+		case `deflate`:
+			resReader = flate.NewReader(resp.Body)
+		default:
+			resReader = resp.Body
+		}
+		defer resp.Body.Close()
+	}
+
+	go func() {
+		buf := make([]byte, 1<<16)
+		for {
+			if n, e := resReader.Read(buf); n != 0 {
+				w.Write(buf[:n])
+			} else if e != nil {
+				if !errors.Is(e, io.EOF) {
+					err = e
+				}
+				break
+			}
+
+			if !t.cancel.Islive() {
+				err = context.Canceled
+				break
+			}
+		}
+		s.Done()
+	}()
+	s.Wait()
+	// if _, e := io.Copy(w, resp.Body); e != nil {
+	// 	err = e
+	// }
 	return
 }
 

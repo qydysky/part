@@ -1,14 +1,14 @@
 package part
 
 import (
-	"os"
-	"io/ioutil"
-	"errors"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"io"
+	"os"
 )
 
 type Crypto struct {
@@ -17,13 +17,13 @@ type Crypto struct {
 }
 
 func FileLoad(path string) (data []byte, err error) {
-	fileObject,e := os.OpenFile(path, os.O_RDONLY, 0644)
+	fileObject, e := os.OpenFile(path, os.O_RDONLY, 0644)
 	if e != nil {
 		err = e
 		return
 	}
 	defer fileObject.Close()
-	data,e = ioutil.ReadAll(fileObject)
+	data, e = io.ReadAll(fileObject)
 	if e != nil {
 		err = e
 		return
@@ -31,11 +31,11 @@ func FileLoad(path string) (data []byte, err error) {
 	return
 }
 
-func (t *Crypto) PubLoad() (bool) {
+func (t *Crypto) PubLoad() bool {
 	return t.pubKey != nil
 }
 
-func (t *Crypto) PriLoad() (bool) {
+func (t *Crypto) PriLoad() bool {
 	return t.priKey != nil
 }
 
@@ -51,13 +51,13 @@ func (t *Crypto) GetPKIXPubKey(pubPEMData []byte) (err error) {
 		err = e
 		return
 	}
-	t.pubKey,_ = pubI.(*rsa.PublicKey)
+	t.pubKey, _ = pubI.(*rsa.PublicKey)
 
 	return
 }
 
 func (t *Crypto) LoadPKIXPubKey(path string) (err error) {
-	if d,e := FileLoad(path);e != nil {
+	if d, e := FileLoad(path); e != nil {
 		return e
 	} else {
 		err = t.GetPKIXPubKey(d)
@@ -78,7 +78,7 @@ func (t *Crypto) GetPKCS1PriKey(priPEMData []byte) (err error) {
 }
 
 func (t *Crypto) LoadPKCS1PriKey(path string) (err error) {
-	if d,e := FileLoad(path);e != nil {
+	if d, e := FileLoad(path); e != nil {
 		return e
 	} else {
 		err = t.GetPKCS1PriKey(d)

@@ -1,22 +1,30 @@
 package part
 
 import (
+	_ "embed"
 	"testing"
 )
 
+//go:embed data.txt
+var data []byte
+
 func Test_Br(t *testing.T) {
-	s := []byte(`abc`)
-	t.Log(string(s))
+	b, e := InBr(data, 6)
+	if e != nil {
+		t.Error(e)
+		return
+	}
+	t.Log(len(data))
 
-	b,e := InBr(s, 6)
-	if e != nil {t.Error(e);return}
-	t.Log(string(b))
+	c, e := UnBr(b)
+	if e != nil {
+		t.Error(e)
+		return
+	}
 
-	c,e := UnBr(b)
-	if e != nil {t.Error(e);return}
-	t.Log(string(c))
-	
-	for k,v := range c {
-		if v != []byte("abc")[k] {t.Error(`no match`)}
+	for k, v := range c {
+		if v != []byte("abc")[k] {
+			t.Error(`no match`)
+		}
 	}
 }

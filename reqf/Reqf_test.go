@@ -1,9 +1,15 @@
 package part
 
 import (
+	"bytes"
+	"context"
 	"io"
+	"net/http"
 	"testing"
 	"time"
+
+	web "github.com/qydysky/part/Web"
+	compress "github.com/qydysky/part/compress"
 )
 
 func Test_Timeout(t *testing.T) {
@@ -90,4 +96,101 @@ func Test_Io_Pipe(t *testing.T) {
 	}
 	t.Log(`no error`)
 	<-c
+}
+
+func Test_compress(t *testing.T) {
+	addr := "127.0.0.1:10001"
+	s := web.New(&http.Server{
+		Addr:         addr,
+		WriteTimeout: time.Second * time.Duration(10),
+	})
+	s.Handle(map[string]func(http.ResponseWriter, *http.Request){
+		`/br`: func(w http.ResponseWriter, _ *http.Request) {
+			d, _ := compress.InBr([]byte("abc强强强强"), 6)
+			w.Header().Set("Content-Encoding", "br")
+			w.Write(d)
+		},
+		`/flate`: func(w http.ResponseWriter, _ *http.Request) {
+			d, _ := compress.InFlate([]byte("abc强强强强"), -1)
+			w.Header().Set("Content-Encoding", "deflate")
+			w.Write(d)
+		},
+		`/gzip`: func(w http.ResponseWriter, _ *http.Request) {
+			d, _ := compress.InGzip([]byte("abc强强强强"), -1)
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Write(d)
+		},
+		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
+			s.Server.Shutdown(context.Background())
+		},
+	})
+
+	r := New()
+	r.Reqf(Rval{
+		Url: "http://" + addr + "/br",
+	})
+	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+		t.Error("br fail")
+	}
+	r.Reqf(Rval{
+		Url: "http://" + addr + "/gzip",
+	})
+	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+		t.Error("gzip fail")
+	}
+	r.Reqf(Rval{
+		Url: "http://" + addr + "/flate",
+	})
+	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+		t.Error("flate fail")
+	}
+
+	{
+		rc, wc := io.Pipe()
+		c := make(chan struct{})
+		go func() {
+			d, _ := io.ReadAll(rc)
+			if !bytes.Equal(d, []byte("abc强强强强")) {
+				t.Error("br fail")
+			}
+			close(c)
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/br",
+			SaveToPipeWriter: wc,
+		})
+		<-c
+	}
+	{
+		rc, wc := io.Pipe()
+		c := make(chan struct{})
+		go func() {
+			d, _ := io.ReadAll(rc)
+			if !bytes.Equal(d, []byte("abc强强强强")) {
+				t.Error("gzip fail")
+			}
+			close(c)
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/gzip",
+			SaveToPipeWriter: wc,
+		})
+		<-c
+	}
+	{
+		rc, wc := io.Pipe()
+		c := make(chan struct{})
+		go func() {
+			d, _ := io.ReadAll(rc)
+			if !bytes.Equal(d, []byte("abc强强强强")) {
+				t.Error("flate fail")
+			}
+			close(c)
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/flate",
+			SaveToPipeWriter: wc,
+		})
+		<-c
+	}
 }
