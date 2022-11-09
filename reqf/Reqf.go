@@ -259,8 +259,10 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		default:
 			resReader = resp.Body
 		}
-		defer resp.Body.Close()
+	} else {
+		resReader = resp.Body
 	}
+	defer resp.Body.Close()
 
 	go func() {
 		buf := make([]byte, 1<<16)
