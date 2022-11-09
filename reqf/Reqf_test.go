@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	web "github.com/qydysky/part/Web"
 	compress "github.com/qydysky/part/compress"
+	web "github.com/qydysky/part/web"
 )
 
 func Test_Timeout(t *testing.T) {
