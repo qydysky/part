@@ -12,99 +12,16 @@ import (
 	web "github.com/qydysky/part/web"
 )
 
-func Test_Timeout(t *testing.T) {
-	r := New()
-	if e := r.Reqf(Rval{
-		Url:     `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso`,
-		Timeout: 1000,
-	}); e != nil {
-		if !IsTimeout(e) {
-			t.Error(`type error`, e)
-		}
-		return
-	}
-	t.Log(`no error`)
-}
-
-func Test_Cancel(t *testing.T) {
-	r := New()
-
-	go func() {
-		time.Sleep(time.Second)
-		r.Cancel()
-	}()
-
-	if e := r.Reqf(Rval{
-		Url: `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso`,
-	}); e != nil {
-		if !IsCancel(e) {
-			t.Error(`type error`, e)
-		}
-		return
-	}
-	t.Log(`no error`)
-}
-
-func Test_Cancel_chan(t *testing.T) {
-	r := New()
-
-	c := make(chan []byte, 1<<16)
-
-	go func() {
-		for {
-			<-c
-		}
-	}()
-
-	go func() {
-		time.Sleep(time.Second * 3)
-		r.Cancel()
-	}()
-
-	if e := r.Reqf(Rval{
-		Url:        `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso`,
-		SaveToChan: c,
-		Timeout:    5000,
-	}); e != nil {
-		if !IsCancel(e) {
-			t.Error(`type error`, e)
-		}
-		return
-	}
-	t.Log(`no error`)
-}
-
-func Test_Io_Pipe(t *testing.T) {
-	r := New()
-	rp, wp := io.Pipe()
-	c := make(chan struct{}, 1)
-	go func() {
-		buf, _ := io.ReadAll(rp)
-		t.Log("Test_Io_Pipe download:", len(buf))
-		t.Log("Test_Io_Pipe download:", len(r.Respon))
-		close(c)
-	}()
-	if e := r.Reqf(Rval{
-		Url:              `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso`,
-		SaveToPipeWriter: wp,
-		Timeout:          5000,
-	}); e != nil {
-		if !IsTimeout(e) {
-			t.Error(`type error`, e)
-		}
-		return
-	}
-	t.Log(`no error`)
-	<-c
-}
-
-func Test_compress(t *testing.T) {
+func Test_req(t *testing.T) {
 	addr := "127.0.0.1:10001"
 	s := web.New(&http.Server{
 		Addr:         addr,
 		WriteTimeout: time.Second * time.Duration(10),
 	})
 	s.Handle(map[string]func(http.ResponseWriter, *http.Request){
+		`/no`: func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("abc强强强强"))
+		},
 		`/br`: func(w http.ResponseWriter, _ *http.Request) {
 			d, _ := compress.InBr([]byte("abc强强强强"), 6)
 			w.Header().Set("Content-Encoding", "br")
@@ -116,6 +33,12 @@ func Test_compress(t *testing.T) {
 			w.Write(d)
 		},
 		`/gzip`: func(w http.ResponseWriter, _ *http.Request) {
+			d, _ := compress.InGzip([]byte("abc强强强强"), -1)
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Write(d)
+		},
+		`/to`: func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(time.Minute)
 			d, _ := compress.InGzip([]byte("abc强强强强"), -1)
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Write(d)
@@ -144,7 +67,47 @@ func Test_compress(t *testing.T) {
 	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
 		t.Error("flate fail")
 	}
-
+	{
+		c := make(chan []byte)
+		r.Reqf(Rval{
+			Url:        "http://" + addr + "/no",
+			Async:      true,
+			SaveToChan: c,
+		})
+		b := []byte{}
+		for {
+			buf := <-c
+			if len(buf) == 0 {
+				break
+			}
+			b = append(b, buf...)
+		}
+		if !bytes.Equal(b, []byte("abc强强强强")) {
+			t.Error("chan fail")
+		}
+	}
+	{
+		e := r.Reqf(Rval{
+			Url:     "http://" + addr + "/to",
+			Timeout: 1000,
+		})
+		if !IsTimeout(e) {
+			t.Error("Timeout fail")
+		}
+	}
+	{
+		timer := time.NewTimer(time.Second)
+		go func() {
+			<-timer.C
+			r.Cancel()
+		}()
+		e := r.Reqf(Rval{
+			Url: "http://" + addr + "/to",
+		})
+		if !IsCancel(e) {
+			t.Error("Cancel fail")
+		}
+	}
 	{
 		rc, wc := io.Pipe()
 		c := make(chan struct{})
@@ -158,6 +121,7 @@ func Test_compress(t *testing.T) {
 		r.Reqf(Rval{
 			Url:              "http://" + addr + "/br",
 			SaveToPipeWriter: wc,
+			Async:            true,
 		})
 		<-c
 	}
@@ -174,6 +138,7 @@ func Test_compress(t *testing.T) {
 		r.Reqf(Rval{
 			Url:              "http://" + addr + "/gzip",
 			SaveToPipeWriter: wc,
+			Async:            true,
 		})
 		<-c
 	}
@@ -190,7 +155,40 @@ func Test_compress(t *testing.T) {
 		r.Reqf(Rval{
 			Url:              "http://" + addr + "/flate",
 			SaveToPipeWriter: wc,
+			Async:            true,
 		})
 		<-c
+	}
+	{
+		r.Reqf(Rval{
+			Url:   "http://" + addr + "/flate",
+			Async: true,
+		})
+		if len(r.Respon) != 0 {
+			t.Error("async fail")
+		}
+		r.Wait()
+		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+			t.Error("async fail")
+		}
+	}
+	{
+		rc, wc := io.Pipe()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/flate",
+			SaveToPipeWriter: wc,
+			NoResponse:       true,
+			Async:            true,
+		})
+		if len(r.Respon) != 0 {
+			t.Error("io async fail")
+		}
+		d, _ := io.ReadAll(rc)
+		if !bytes.Equal(d, []byte("abc强强强强")) {
+			t.Error("io async fail")
+		}
+		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+			t.Error("io async fail")
+		}
 	}
 }

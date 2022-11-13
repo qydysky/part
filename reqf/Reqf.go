@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	flate "compress/flate"
@@ -34,10 +33,11 @@ type Rval struct {
 	SleepTime        int
 	JustResponseCode bool
 	NoResponse       bool
+	Async            bool
 	Cookies          []*http.Cookie
 
 	SaveToPath       string
-	SaveToChan       chan []byte // deprecated
+	SaveToChan       chan []byte
 	SaveToPipeWriter *io.PipeWriter
 
 	Header map[string]string
@@ -48,8 +48,10 @@ type Req struct {
 	Response *http.Response
 	UsedTime time.Duration
 
-	cancel *signal.Signal
-	sync.Mutex
+	cancel     *signal.Signal
+	running    *signal.Signal
+	responBuf  *bytes.Buffer
+	responFile *os.File
 }
 
 func New() *Req {
@@ -67,8 +69,12 @@ func New() *Req {
 // }
 
 func (t *Req) Reqf(val Rval) error {
-	t.Lock()
-	defer t.Unlock()
+	if val.SaveToChan != nil && len(val.SaveToChan) == 1 && !val.Async {
+		panic("must make sure chan size larger then 1 or use Async true")
+	}
+	if val.SaveToPipeWriter != nil && !val.Async {
+		panic("SaveToPipeWriter must use Async true")
+	}
 
 	t.Respon = []byte{}
 	t.Response = nil
@@ -77,9 +83,6 @@ func (t *Req) Reqf(val Rval) error {
 	var returnErr error
 
 	_val := val
-
-	t.cancel = signal.Init()
-	defer t.cancel.Done()
 
 	for SleepTime, Retry := _val.SleepTime, _val.Retry; Retry >= 0; Retry -= 1 {
 		returnErr = t.Reqf_1(_val)
@@ -98,7 +101,6 @@ func (t *Req) Reqf(val Rval) error {
 }
 
 func (t *Req) Reqf_1(val Rval) (err error) {
-
 	var (
 		Header map[string]string = val.Header
 	)
@@ -207,45 +209,22 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 
 	var ws []io.Writer
 	if val.SaveToPath != "" {
-		out, err := os.Create(val.SaveToPath)
+		t.responFile, err = os.Create(val.SaveToPath)
 		if err != nil {
-			out.Close()
+			t.responFile.Close()
 			return err
 		}
-		defer out.Close()
-		ws = append(ws, out)
+		ws = append(ws, t.responFile)
 	}
 	if val.SaveToPipeWriter != nil {
-		defer val.SaveToPipeWriter.Close()
 		ws = append(ws, val.SaveToPipeWriter)
 	}
-	// if val.SaveToChan != nil {
-	// 	r, w := io.Pipe()
-	// 	go func() {
-	// 		buf := make([]byte, 1<<16)
-	// 		for {
-	// 			n, e := r.Read(buf)
-	// 			if n != 0 {
-	// 				val.SaveToChan <- buf[:n]
-	// 			} else if e != nil {
-	// 				defer close(val.SaveToChan)
-	// 				break
-	// 			}
-	// 		}
-	// 	}()
-	// 	defer w.Close()
-	// 	ws = append(ws, w)
-	// }
 	if !val.NoResponse {
-		var buf bytes.Buffer
-		defer func() {
-			t.Respon = buf.Bytes()
-		}()
-		ws = append(ws, &buf)
+		t.responBuf = new(bytes.Buffer)
+		ws = append(ws, t.responBuf)
 	}
 
 	w := io.MultiWriter(ws...)
-	s := signal.Init()
 
 	var resReader io.Reader
 	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
@@ -262,13 +241,18 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	} else {
 		resReader = resp.Body
 	}
-	defer resp.Body.Close()
 
+	t.running = signal.Init()
+	t.cancel = signal.Init()
 	go func() {
-		buf := make([]byte, 1<<16)
+		buf := make([]byte, 512)
 		for {
 			if n, e := resReader.Read(buf); n != 0 {
 				w.Write(buf[:n])
+				select {
+				case val.SaveToChan <- buf[:n]:
+				default:
+				}
 			} else if e != nil {
 				if !errors.Is(e, io.EOF) {
 					err = e
@@ -281,13 +265,33 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 				break
 			}
 		}
-		s.Done()
+		resp.Body.Close()
+		if val.SaveToChan != nil {
+			close(val.SaveToChan)
+		}
+		if t.responFile != nil {
+			t.responFile.Close()
+		}
+		if val.SaveToPipeWriter != nil {
+			val.SaveToPipeWriter.Close()
+		}
+		if t.responBuf != nil {
+			t.Respon = t.responBuf.Bytes()
+		}
+		t.cancel.Done()
+		t.running.Done()
 	}()
-	s.Wait()
+	if !val.Async {
+		t.Wait()
+	}
 	// if _, e := io.Copy(w, resp.Body); e != nil {
 	// 	err = e
 	// }
 	return
+}
+
+func (t *Req) Wait() {
+	t.running.Wait()
 }
 
 func (t *Req) Cancel() { t.Close() }
