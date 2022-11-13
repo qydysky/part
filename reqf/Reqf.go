@@ -220,7 +220,11 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		ws = append(ws, val.SaveToPipeWriter)
 	}
 	if !val.NoResponse {
-		t.responBuf = new(bytes.Buffer)
+		if t.responBuf == nil {
+			t.responBuf = new(bytes.Buffer)
+		} else {
+			t.responBuf.Reset()
+		}
 		ws = append(ws, t.responBuf)
 	}
 
