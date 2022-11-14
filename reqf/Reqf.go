@@ -52,6 +52,7 @@ type Req struct {
 	running    *signal.Signal
 	responBuf  *bytes.Buffer
 	responFile *os.File
+	asyncErr   error
 }
 
 func New() *Req {
@@ -69,6 +70,7 @@ func New() *Req {
 // }
 
 func (t *Req) Reqf(val Rval) error {
+
 	if val.SaveToChan != nil && len(val.SaveToChan) == 1 && !val.Async {
 		panic("must make sure chan size larger then 1 or use Async true")
 	}
@@ -79,6 +81,8 @@ func (t *Req) Reqf(val Rval) error {
 	t.Respon = []byte{}
 	t.Response = nil
 	t.UsedTime = 0
+	t.cancel = signal.Init()
+	t.running = signal.Init()
 
 	var returnErr error
 
@@ -97,6 +101,23 @@ func (t *Req) Reqf(val Rval) error {
 		time.Sleep(time.Duration(SleepTime) * time.Millisecond)
 	}
 
+	if !val.Async || returnErr != nil {
+		t.asyncErr = returnErr
+		if val.SaveToChan != nil {
+			close(val.SaveToChan)
+		}
+		if t.responFile != nil {
+			t.responFile.Close()
+		}
+		if val.SaveToPipeWriter != nil {
+			val.SaveToPipeWriter.Close()
+		}
+		if t.responBuf != nil {
+			t.Respon = t.responBuf.Bytes()
+		}
+		t.running.Done()
+		t.cancel.Done()
+	}
 	return returnErr
 }
 
@@ -145,21 +166,20 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	if val.Timeout > 0 {
 		cx, cancel = context.WithTimeout(cx, time.Duration(val.Timeout)*time.Millisecond)
 	}
+
+	go func() {
+		select {
+		case <-t.cancel.WaitC():
+			cancel()
+		case <-t.running.WaitC():
+		}
+	}()
+
 	req, e := http.NewRequest(Method, val.Url, body)
 	if e != nil {
 		panic(e)
 	}
 	req = req.WithContext(cx)
-
-	var done = make(chan struct{})
-	defer close(done)
-	go func() {
-		select {
-		case <-t.cancel.WaitC():
-			cancel()
-		case <-done:
-		}
-	}()
 
 	for _, v := range val.Cookies {
 		req.AddCookie(v)
@@ -246,10 +266,9 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		resReader = resp.Body
 	}
 
-	t.running = signal.Init()
-	t.cancel = signal.Init()
 	go func() {
 		buf := make([]byte, 512)
+
 		for {
 			if n, e := resReader.Read(buf); n != 0 {
 				w.Write(buf[:n])
@@ -269,6 +288,10 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 				break
 			}
 		}
+
+		if val.Async {
+			t.asyncErr = err
+		}
 		resp.Body.Close()
 		if val.SaveToChan != nil {
 			close(val.SaveToChan)
@@ -282,7 +305,6 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		if t.responBuf != nil {
 			t.Respon = t.responBuf.Bytes()
 		}
-		t.cancel.Done()
 		t.running.Done()
 	}()
 	if !val.Async {
@@ -294,8 +316,9 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	return
 }
 
-func (t *Req) Wait() {
+func (t *Req) Wait() error {
 	t.running.Wait()
+	return t.asyncErr
 }
 
 func (t *Req) Cancel() { t.Close() }

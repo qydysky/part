@@ -68,6 +68,43 @@ func Test_req(t *testing.T) {
 		t.Error("flate fail")
 	}
 	{
+		e := r.Reqf(Rval{
+			Url:     "http://" + addr + "/to",
+			Timeout: 1000,
+		})
+		if !IsTimeout(e) {
+			t.Error("Timeout fail")
+		}
+	}
+	{
+		r.Reqf(Rval{
+			Url:     "http://" + addr + "/to",
+			Timeout: 1000,
+			Async:   true,
+		})
+		if !IsTimeout(r.Wait()) {
+			t.Error("Async Timeout fail")
+		}
+	}
+	{
+		c := make(chan []byte)
+		r.Reqf(Rval{
+			Url:        "http://" + addr + "/to",
+			Timeout:    1000,
+			Async:      true,
+			SaveToChan: c,
+		})
+		for {
+			buf := <-c
+			if len(buf) == 0 {
+				break
+			}
+		}
+		if !IsTimeout(r.Wait()) {
+			t.Error("async cancel fail")
+		}
+	}
+	{
 		c := make(chan []byte)
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/no",
@@ -84,15 +121,6 @@ func Test_req(t *testing.T) {
 		}
 		if !bytes.Equal(b, []byte("abc强强强强")) {
 			t.Error("chan fail")
-		}
-	}
-	{
-		e := r.Reqf(Rval{
-			Url:     "http://" + addr + "/to",
-			Timeout: 1000,
-		})
-		if !IsTimeout(e) {
-			t.Error("Timeout fail")
 		}
 	}
 	{
