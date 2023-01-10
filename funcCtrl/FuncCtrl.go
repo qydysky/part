@@ -111,8 +111,11 @@ func (t *BlockFuncN) Plan(n int64) {
 	}
 }
 
-func (t *BlockFuncN) PlanDone() {
+func (t *BlockFuncN) PlanDone(switchFuncs ...func()) {
 	for atomic.LoadInt64(&t.plan) > 0 {
+		for i := 0; i < len(switchFuncs); i++ {
+			switchFuncs[i]()
+		}
 		runtime.Gosched()
 	}
 }

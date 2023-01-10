@@ -94,6 +94,8 @@ func Test_BlockFuncNPlan(t *testing.T) {
 	go a(1)
 	go a(2)
 	go a(3)
-	b.PlanDone()
+	b.PlanDone(func() {
+		time.Sleep(time.Microsecond * 10)
+	})
 	t.Log(`fin`)
 }
