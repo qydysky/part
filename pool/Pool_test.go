@@ -25,7 +25,11 @@ func TestXxx(t *testing.T) {
 		return t
 	}
 
-	var b = New(newf, validf, reusef, 10)
+	var poolf = func(t *a) *a {
+		return t
+	}
+
+	var b = New(newf, validf, reusef, poolf, 10)
 
 	var c1 = b.Get()
 	c1.d = append(c1.d, []byte("1")...)

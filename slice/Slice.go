@@ -138,14 +138,14 @@ func (t *Buf[T]) GetModified() Modified {
 	return t.modified
 }
 
-func (t *Buf[T]) HadModified(mt Modified) (same bool, err error) {
+func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 	t.RLock()
 	defer t.RUnlock()
 
 	if t.modified.p != mt.p {
 		err = errors.New("不能对比不同buf")
 	}
-	same = t.modified.t != mt.t
+	modified = t.modified.t != mt.t
 	return
 }
 

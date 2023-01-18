@@ -9,15 +9,28 @@ type Buf[T any] struct {
 	newF    func() *T
 	validF  func(*T) bool
 	reuseF  func(*T) *T
+	poolF   func(*T) *T
 	buf     []*T
 	sync.RWMutex
 }
 
-func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, maxsize int) *Buf[T] {
+// 创建池
+//
+// NewF: func() *T 新值
+//
+// ValidF func(*T) bool 是否可重用（是否还在使用）
+//
+// ReuseF func(*T) *T 重用前处理
+//
+// PoolF func(*T) *T 入池前处理
+//
+// maxsize int 池最大数量
+func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, PoolF func(*T) *T, maxsize int) *Buf[T] {
 	t := new(Buf[T])
 	t.newF = NewF
 	t.validF = ValidF
 	t.reuseF = ReuseF
+	t.poolF = PoolF
 	t.maxsize = maxsize
 	return t
 }
@@ -59,7 +72,7 @@ func (t *Buf[T]) Put(item ...*T) {
 	var cu = 0
 	for i := 0; i < len(t.buf); i++ {
 		if !t.validF(t.buf[i]) {
-			t.buf[i] = item[cu]
+			t.buf[i] = t.poolF(item[cu])
 			cu++
 			if cu >= len(item) {
 				return
@@ -68,6 +81,6 @@ func (t *Buf[T]) Put(item ...*T) {
 	}
 
 	for i := cu; i < len(item) && t.maxsize > len(t.buf); i++ {
-		t.buf = append(t.buf, item[i])
+		t.buf = append(t.buf, t.poolF(item[i]))
 	}
 }
