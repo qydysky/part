@@ -8,7 +8,7 @@ import (
 )
 
 type Map struct {
-	size *atomic.Int64
+	size atomic.Int64
 	m    sync.Map
 }
 
