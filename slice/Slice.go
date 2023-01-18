@@ -1,0 +1,167 @@
+package part
+
+import (
+	"errors"
+	"sync"
+	"unsafe"
+)
+
+type buf[T any] struct {
+	maxsize  int
+	bufsize  int
+	modified Modified
+	buf      []T
+	sync.RWMutex
+}
+
+type Modified struct {
+	p uintptr
+	t uint64
+}
+
+func New[T any](maxsize ...int) *buf[T] {
+	t := new(buf[T])
+	if len(maxsize) > 0 {
+		t.maxsize = maxsize[0]
+	}
+	t.modified.p = uintptr(unsafe.Pointer(t))
+	return t
+}
+
+func (t *buf[T]) Clear() {
+	t.Lock()
+	defer t.Unlock()
+	t.buf = nil
+	t.bufsize = 0
+	t.modified.t += 1
+}
+
+func (t *buf[T]) Size() int {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.bufsize
+}
+
+func (t *buf[T]) IsEmpty() bool {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.bufsize == 0
+}
+
+func (t *buf[T]) Reset() {
+	t.Lock()
+	defer t.Unlock()
+
+	t.bufsize = 0
+	t.modified.t += 1
+}
+
+func (t *buf[T]) Append(data []T) error {
+	t.Lock()
+	defer t.Unlock()
+
+	if len(t.buf)+len(data) > t.maxsize {
+		return errors.New("超出设定maxsize")
+	} else if len(t.buf) == 0 {
+		if t.maxsize == 0 {
+			t.buf = make([]T, len(data))
+		} else {
+			t.buf = make([]T, len(data), t.maxsize)
+		}
+	} else {
+		diff := len(t.buf) - t.bufsize - len(data)
+		if diff < 0 {
+			t.buf = append(t.buf, make([]T, -diff)...)
+		} else {
+			t.buf = t.buf[:t.bufsize+len(data)]
+		}
+	}
+	t.bufsize += copy(t.buf[t.bufsize:], data)
+	t.modified.t += 1
+	return nil
+}
+
+func (t *buf[T]) RemoveFront(n int) error {
+	if n <= 0 {
+		return nil
+	}
+
+	t.Lock()
+	defer t.Unlock()
+
+	if t.bufsize < n {
+		return errors.New("尝试移除的数值大于长度")
+	} else if t.bufsize == n {
+		t.bufsize = 0
+	} else {
+		t.bufsize = copy(t.buf, t.buf[n:t.bufsize])
+	}
+
+	t.modified.t += 1
+	return nil
+}
+
+func (t *buf[T]) RemoveBack(n int) error {
+	if n <= 0 {
+		return nil
+	}
+
+	t.Lock()
+	defer t.Unlock()
+
+	if t.bufsize < n {
+		return errors.New("尝试移除的数值大于长度")
+	} else if t.bufsize == n {
+		t.bufsize = 0
+	} else {
+		t.bufsize -= n
+	}
+
+	t.modified.t += 1
+	return nil
+}
+
+// unsafe
+func (t *buf[T]) SetModified() {
+	t.Lock()
+	defer t.Unlock()
+
+	t.modified.t += 1
+}
+
+func (t *buf[T]) GetModified() Modified {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.modified
+}
+
+func (t *buf[T]) HadModified(mt Modified) (same bool, err error) {
+	t.RLock()
+	defer t.RUnlock()
+
+	if t.modified.p != mt.p {
+		err = errors.New("不能对比不同buf")
+	}
+	same = t.modified.t != mt.t
+	return
+}
+
+// unsafe
+func (t *buf[T]) GetPureBuf() (buf []T) {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.buf[:t.bufsize]
+}
+
+func (t *buf[T]) GetCopyBuf() (buf []T) {
+	t.RLock()
+	defer t.RUnlock()
+
+	buf = make([]T, t.bufsize)
+	copy(buf, t.buf[:t.bufsize])
+	return
+}
