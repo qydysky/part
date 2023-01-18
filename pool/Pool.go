@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-type buf[T any] struct {
+type Buf[T any] struct {
 	maxsize int
 	newF    func() *T
 	validF  func(*T) bool
@@ -13,8 +13,8 @@ type buf[T any] struct {
 	sync.RWMutex
 }
 
-func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, maxsize int) *buf[T] {
-	t := new(buf[T])
+func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, maxsize int) *Buf[T] {
+	t := new(Buf[T])
 	t.newF = NewF
 	t.validF = ValidF
 	t.reuseF = ReuseF
@@ -22,7 +22,7 @@ func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, maxsiz
 	return t
 }
 
-func (t *buf[T]) Trim() {
+func (t *Buf[T]) Trim() {
 	t.Lock()
 	defer t.Unlock()
 
@@ -35,7 +35,7 @@ func (t *buf[T]) Trim() {
 	}
 }
 
-func (t *buf[T]) Get() *T {
+func (t *Buf[T]) Get() *T {
 	t.Lock()
 	defer t.Unlock()
 
@@ -48,7 +48,7 @@ func (t *buf[T]) Get() *T {
 	return t.newF()
 }
 
-func (t *buf[T]) Put(item ...*T) {
+func (t *Buf[T]) Put(item ...*T) {
 	if len(item) == 0 {
 		return
 	}

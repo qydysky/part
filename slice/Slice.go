@@ -6,7 +6,7 @@ import (
 	"unsafe"
 )
 
-type buf[T any] struct {
+type Buf[T any] struct {
 	maxsize  int
 	bufsize  int
 	modified Modified
@@ -19,8 +19,8 @@ type Modified struct {
 	t uint64
 }
 
-func New[T any](maxsize ...int) *buf[T] {
-	t := new(buf[T])
+func New[T any](maxsize ...int) *Buf[T] {
+	t := new(Buf[T])
 	if len(maxsize) > 0 {
 		t.maxsize = maxsize[0]
 	}
@@ -28,7 +28,7 @@ func New[T any](maxsize ...int) *buf[T] {
 	return t
 }
 
-func (t *buf[T]) Clear() {
+func (t *Buf[T]) Clear() {
 	t.Lock()
 	defer t.Unlock()
 	t.buf = nil
@@ -36,21 +36,21 @@ func (t *buf[T]) Clear() {
 	t.modified.t += 1
 }
 
-func (t *buf[T]) Size() int {
+func (t *Buf[T]) Size() int {
 	t.RLock()
 	defer t.RUnlock()
 
 	return t.bufsize
 }
 
-func (t *buf[T]) IsEmpty() bool {
+func (t *Buf[T]) IsEmpty() bool {
 	t.RLock()
 	defer t.RUnlock()
 
 	return t.bufsize == 0
 }
 
-func (t *buf[T]) Reset() {
+func (t *Buf[T]) Reset() {
 	t.Lock()
 	defer t.Unlock()
 
@@ -58,7 +58,7 @@ func (t *buf[T]) Reset() {
 	t.modified.t += 1
 }
 
-func (t *buf[T]) Append(data []T) error {
+func (t *Buf[T]) Append(data []T) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -83,7 +83,7 @@ func (t *buf[T]) Append(data []T) error {
 	return nil
 }
 
-func (t *buf[T]) RemoveFront(n int) error {
+func (t *Buf[T]) RemoveFront(n int) error {
 	if n <= 0 {
 		return nil
 	}
@@ -103,7 +103,7 @@ func (t *buf[T]) RemoveFront(n int) error {
 	return nil
 }
 
-func (t *buf[T]) RemoveBack(n int) error {
+func (t *Buf[T]) RemoveBack(n int) error {
 	if n <= 0 {
 		return nil
 	}
@@ -124,21 +124,21 @@ func (t *buf[T]) RemoveBack(n int) error {
 }
 
 // unsafe
-func (t *buf[T]) SetModified() {
+func (t *Buf[T]) SetModified() {
 	t.Lock()
 	defer t.Unlock()
 
 	t.modified.t += 1
 }
 
-func (t *buf[T]) GetModified() Modified {
+func (t *Buf[T]) GetModified() Modified {
 	t.RLock()
 	defer t.RUnlock()
 
 	return t.modified
 }
 
-func (t *buf[T]) HadModified(mt Modified) (same bool, err error) {
+func (t *Buf[T]) HadModified(mt Modified) (same bool, err error) {
 	t.RLock()
 	defer t.RUnlock()
 
@@ -150,14 +150,14 @@ func (t *buf[T]) HadModified(mt Modified) (same bool, err error) {
 }
 
 // unsafe
-func (t *buf[T]) GetPureBuf() (buf []T) {
+func (t *Buf[T]) GetPureBuf() (buf []T) {
 	t.RLock()
 	defer t.RUnlock()
 
 	return t.buf[:t.bufsize]
 }
 
-func (t *buf[T]) GetCopyBuf() (buf []T) {
+func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	t.RLock()
 	defer t.RUnlock()
 
