@@ -29,7 +29,7 @@ func (t *buf[T]) Trim() {
 	for i := 0; i < len(t.buf); i++ {
 		if !t.validF(t.buf[i]) {
 			t.buf[i] = nil
-			t.buf = append(t.buf[:i], t.buf[i:]...)
+			t.buf = append(t.buf[:i], t.buf[i+1:]...)
 			i--
 		}
 	}
