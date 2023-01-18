@@ -18,14 +18,14 @@ type Buf[T any] struct {
 //
 // NewF: func() *T 新值
 //
-// ValidF func(*T) bool 是否可重用（是否还在使用）
+// ValidF func(*T) (inUse bool) 是否可重用（是否还在使用）
 //
 // ReuseF func(*T) *T 重用前处理
 //
 // PoolF func(*T) *T 入池前处理
 //
 // maxsize int 池最大数量
-func New[T any](NewF func() *T, ValidF func(*T) bool, ReuseF func(*T) *T, PoolF func(*T) *T, maxsize int) *Buf[T] {
+func New[T any](NewF func() *T, ValidF func(*T) (inUse bool), ReuseF func(*T) *T, PoolF func(*T) *T, maxsize int) *Buf[T] {
 	t := new(Buf[T])
 	t.newF = NewF
 	t.validF = ValidF
