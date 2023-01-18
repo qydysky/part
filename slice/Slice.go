@@ -33,6 +33,7 @@ func (t *Buf[T]) Clear() {
 	defer t.Unlock()
 	t.buf = nil
 	t.bufsize = 0
+	t.modified.t += 1
 }
 
 func (t *Buf[T]) Size() int {
@@ -54,13 +55,14 @@ func (t *Buf[T]) Reset() {
 	defer t.Unlock()
 
 	t.bufsize = 0
+	t.modified.t += 1
 }
 
 func (t *Buf[T]) Append(data []T) error {
 	t.Lock()
 	defer t.Unlock()
 
-	if len(t.buf)+len(data) > t.maxsize {
+	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
 		return errors.New("超出设定maxsize")
 	} else if len(t.buf) == 0 {
 		if t.maxsize == 0 {

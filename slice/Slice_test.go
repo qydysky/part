@@ -49,4 +49,8 @@ func TestXxx(t *testing.T) {
 	if b.IsEmpty() || b.Size() != 3 {
 		t.Fatal()
 	}
+	c.Append([]byte("abc"))
+	if c.IsEmpty() || c.Size() != 3 {
+		t.Fatal()
+	}
 }
