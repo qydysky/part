@@ -10,6 +10,8 @@ type Msgq struct {
 	sync.RWMutex
 }
 
+type FuncMap map[string]func(any) (disable bool)
+
 func New() *Msgq {
 	m := new(Msgq)
 	m.funcs = list.New()
