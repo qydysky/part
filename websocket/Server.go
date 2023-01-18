@@ -27,7 +27,7 @@ type uinterface struct { //内部消息
 
 func New_server() *Server {
 	return &Server{
-		ws_mq:    mq.New(200),                                             //收发通道
+		ws_mq:    mq.New(),                                                //收发通道
 		userpool: idpool.New(func() interface{} { return new(struct{}) }), //浏览器标签页池
 	}
 }
@@ -129,23 +129,23 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 // 				return false
 // 			}
 
-// 			ws_mq.Push_tag(`send`,Uinterface{//just reply
-// 				Id:tmp.Id,
-// 				Data:tmp.Data,
-// 			})
-// 			//or
-// 			ws_mq.Push_tag(`send`,Uinterface{//just reply
-// 				Id:0,//send to all
-// 				Data:tmp.Data,
-// 			})
-// 		}
-// 		return false
-// 	},
-// 	`error`:func(data interface{})(bool){
-// 		log.Println(data)
-// 		return false
-// 	},
-// })
+//				ws_mq.Push_tag(`send`,Uinterface{//just reply
+//					Id:tmp.Id,
+//					Data:tmp.Data,
+//				})
+//				//or
+//				ws_mq.Push_tag(`send`,Uinterface{//just reply
+//					Id:0,//send to all
+//					Data:tmp.Data,
+//				})
+//			}
+//			return false
+//		},
+//		`error`:func(data interface{})(bool){
+//			log.Println(data)
+//			return false
+//		},
+//	})
 func (t *Server) Interface() *mq.Msgq {
 	return t.ws_mq
 }

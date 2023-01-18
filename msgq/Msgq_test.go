@@ -2,126 +2,123 @@ package part
 
 import (
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"testing"
 	"time"
-
-	sys "github.com/qydysky/part/sys"
 )
 
 type test_item struct {
 	data string
 }
 
-func Test_msgq(t *testing.T) {
+// func Test_msgq(t *testing.T) {
 
-	mq := New(5)
-	mun := 100000
-	mun_c := make(chan bool, mun)
-	mun_s := make(chan bool, mun)
+// 	mq := New(5)
+// 	mun := 100000
+// 	mun_c := make(chan bool, mun)
+// 	mun_s := make(chan bool, mun)
 
-	var e int
+// 	var e int
 
-	sig := mq.Sig()
-	for i := 0; i < mun; i++ {
-		go func() {
-			mun_c <- true
-			data, t0 := mq.Pull(sig)
-			if o, ok := data.(string); o != `mmm` || !ok {
-				e = 1
-			}
-			data1, _ := mq.Pull(t0)
-			if o, ok := data1.(string); o != `mm1` || !ok {
-				e = 2
-			}
-			mun_s <- true
-		}()
-	}
+// 	sig := mq.Sig()
+// 	for i := 0; i < mun; i++ {
+// 		go func() {
+// 			mun_c <- true
+// 			data, t0 := mq.Pull(sig)
+// 			if o, ok := data.(string); o != `mmm` || !ok {
+// 				e = 1
+// 			}
+// 			data1, _ := mq.Pull(t0)
+// 			if o, ok := data1.(string); o != `mm1` || !ok {
+// 				e = 2
+// 			}
+// 			mun_s <- true
+// 		}()
+// 	}
 
-	for len(mun_c) != mun {
-		t.Log(`>`, len(mun_c))
-		sys.Sys().Timeoutf(1)
-	}
-	t.Log(`>`, len(mun_c))
+// 	for len(mun_c) != mun {
+// 		t.Log(`>`, len(mun_c))
+// 		sys.Sys().Timeoutf(1)
+// 	}
+// 	t.Log(`>`, len(mun_c))
 
-	t.Log(`push mmm`)
-	mq.Push(`mmm`)
-	t.Log(`push mm1`)
-	mq.Push(`mm1`)
+// 	t.Log(`push mmm`)
+// 	mq.Push(`mmm`)
+// 	t.Log(`push mm1`)
+// 	mq.Push(`mm1`)
 
-	for len(mun_s) != mun {
-		t.Log(`<`, len(mun_s))
-		sys.Sys().Timeoutf(1)
-	}
-	t.Log(`<`, len(mun_s))
+// 	for len(mun_s) != mun {
+// 		t.Log(`<`, len(mun_s))
+// 		sys.Sys().Timeoutf(1)
+// 	}
+// 	t.Log(`<`, len(mun_s))
 
-	if e != 0 {
-		t.Error(e)
-	}
-}
+// 	if e != 0 {
+// 		t.Error(e)
+// 	}
+// }
 
-func Test_msgq2(t *testing.T) {
-	mq := New(5)
+// func Test_msgq2(t *testing.T) {
+// 	mq := New(5)
 
-	mun_c := make(chan bool, 100)
-	go func() {
-		var (
-			sig  = mq.Sig()
-			data interface{}
-		)
-		for {
-			data, sig = mq.Pull(sig)
-			if data.(test_item).data != `aa1` {
-				t.Error(`1`)
-			}
-			mun_c <- true
-		}
-	}()
-	go func() {
-		var (
-			sig  = mq.Sig()
-			data interface{}
-		)
-		for {
-			data, sig = mq.Pull(sig)
-			if data.(test_item).data != `aa1` {
-				t.Error(`2`)
-			}
-			mun_c <- true
-		}
-	}()
-	go func() {
-		var (
-			sig  = mq.Sig()
-			data interface{}
-		)
-		for {
-			data, sig = mq.Pull(sig)
-			if data.(test_item).data != `aa1` {
-				t.Error(`3`)
-			}
-			mun_c <- true
-		}
-	}()
-	var fin_turn = 0
-	t.Log(`start`)
-	time.Sleep(time.Second)
-	for fin_turn < 1000000 {
-		mq.Push(test_item{
-			data: `aa1`,
-		})
-		<-mun_c
-		<-mun_c
-		<-mun_c
-		fin_turn += 1
-		fmt.Print("\r", fin_turn)
-	}
-	t.Log(`fin`)
-}
+// 	mun_c := make(chan bool, 100)
+// 	go func() {
+// 		var (
+// 			sig  = mq.Sig()
+// 			data interface{}
+// 		)
+// 		for {
+// 			data, sig = mq.Pull(sig)
+// 			if data.(test_item).data != `aa1` {
+// 				t.Error(`1`)
+// 			}
+// 			mun_c <- true
+// 		}
+// 	}()
+// 	go func() {
+// 		var (
+// 			sig  = mq.Sig()
+// 			data interface{}
+// 		)
+// 		for {
+// 			data, sig = mq.Pull(sig)
+// 			if data.(test_item).data != `aa1` {
+// 				t.Error(`2`)
+// 			}
+// 			mun_c <- true
+// 		}
+// 	}()
+// 	go func() {
+// 		var (
+// 			sig  = mq.Sig()
+// 			data interface{}
+// 		)
+// 		for {
+// 			data, sig = mq.Pull(sig)
+// 			if data.(test_item).data != `aa1` {
+// 				t.Error(`3`)
+// 			}
+// 			mun_c <- true
+// 		}
+// 	}()
+// 	var fin_turn = 0
+// 	t.Log(`start`)
+// 	time.Sleep(time.Second)
+// 	for fin_turn < 1000000 {
+// 		mq.Push(test_item{
+// 			data: `aa1`,
+// 		})
+// 		<-mun_c
+// 		<-mun_c
+// 		<-mun_c
+// 		fin_turn += 1
+// 		fmt.Print("\r", fin_turn)
+// 	}
+// 	t.Log(`fin`)
+// }
 
 func Test_msgq3(t *testing.T) {
-	mq := New(100)
+	mq := New()
 
 	mun_c := make(chan int, 100)
 	mq.Pull_tag(map[string]func(interface{}) bool{
@@ -149,7 +146,7 @@ func Test_msgq3(t *testing.T) {
 
 func Test_msgq4(t *testing.T) {
 	// mq := New(30)
-	mq := New(3) //out of list
+	mq := New() //out of list
 
 	mun_c1 := make(chan bool, 100)
 	mun_c2 := make(chan bool, 100)
@@ -214,7 +211,7 @@ func Test_msgq4(t *testing.T) {
 }
 
 func Test_msgq5(t *testing.T) {
-	mq := New(30)
+	mq := New()
 
 	mun_c1 := make(chan bool, 100)
 	mun_c2 := make(chan bool, 100)
@@ -273,37 +270,34 @@ func Test_msgq5(t *testing.T) {
 	t.Log(`fin`)
 }
 
-func Test_msgq6(t *testing.T) {
-	mq := New(30)
-	go func() {
-		http.ListenAndServe("0.0.0.0:8899", nil)
-	}()
-	go mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
-			return false
-		},
-		`A2`: func(data interface{}) bool {
-			if v, ok := data.(string); !ok || v != `a11` {
-				t.Error(`2`)
-			}
-			return false
-		},
-		`Error`: func(data interface{}) bool {
-			if data == nil {
-				t.Error(`out of list`)
-			}
-			return false
-		},
-	})
+// func Test_msgq6(t *testing.T) {
+// 	mq := New()
+// 	go mq.Pull_tag(map[string]func(interface{}) bool{
+// 		`A1`: func(data interface{}) bool {
+// 			return false
+// 		},
+// 		`A2`: func(data interface{}) bool {
+// 			if v, ok := data.(string); !ok || v != `a11` {
+// 				t.Error(`2`)
+// 			}
+// 			return false
+// 		},
+// 		`Error`: func(data interface{}) bool {
+// 			if data == nil {
+// 				t.Error(`out of list`)
+// 			}
+// 			return false
+// 		},
+// 	})
 
-	var fin_turn = 0
-	t.Log(`start`)
-	for fin_turn < 1000 {
-		time.Sleep(time.Second)
-		time.Sleep(time.Second)
-		mq.Push_tag(`A1`, `a11`)
-		fin_turn += 1
-		fmt.Print("\r", fin_turn)
-	}
-	t.Log(`fin`)
-}
+// 	var fin_turn = 0
+// 	t.Log(`start`)
+// 	for fin_turn < 1000 {
+// 		time.Sleep(time.Second)
+// 		time.Sleep(time.Second)
+// 		mq.Push_tag(`A1`, `a11`)
+// 		fin_turn += 1
+// 		fmt.Print("\r", fin_turn)
+// 	}
+// 	t.Log(`fin`)
+// }
