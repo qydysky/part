@@ -117,6 +117,69 @@ type test_item struct {
 // 	t.Log(`fin`)
 // }
 
+func BenchmarkXxx(b *testing.B) {
+	mq := New()
+	mq.Pull_tag(map[string]func(any) bool{
+		`1`: func(_ any) bool {
+			return false
+		},
+	})
+	mq.Pull_tag(map[string]func(any) bool{
+		`2`: func(_ any) bool {
+			return false
+		},
+	})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mq.Push_tag(`1`, nil)
+		if i == b.N/2 {
+			mq.Push_tag(`2`, nil)
+		}
+	}
+}
+
+func Test_msgq2(t *testing.T) {
+	mq := New()
+
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
+			if v, ok := data.(bool); ok {
+				return v
+			}
+			return false
+		},
+		`A3`: func(data any) bool {
+			if v, ok := data.(int); ok && v > 50 {
+				t.Fatal()
+			}
+			return false
+		},
+	})
+
+	mq.Pull_tag(map[string]func(any) bool{
+		`A2`: func(data any) bool {
+			if v, ok := data.(bool); ok {
+				return v
+			}
+			return false
+		},
+		`A3`: func(data any) bool {
+			// if v, ok := data.(int); ok {
+			// 	fmt.Println(`A2A3`, v)
+			// }
+			return false
+		},
+	})
+
+	for i := 0; i < 1000; i++ {
+		if i == 50 {
+			mq.Push_tag(`A1`, true)
+		}
+		mq.Push_tag(`A3`, i)
+	}
+	t.Log(`fin`)
+}
+
 func Test_msgq3(t *testing.T) {
 	mq := New()
 

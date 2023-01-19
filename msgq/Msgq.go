@@ -2,11 +2,15 @@ package part
 
 import (
 	"container/list"
+	"runtime"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Msgq struct {
-	funcs *list.List
+	funcs          *list.List
+	someNeedRemove atomic.Int32
 	sync.RWMutex
 }
 
@@ -25,21 +29,39 @@ func (m *Msgq) Register(f func(any) (disable bool)) {
 }
 
 func (m *Msgq) Push(msg any) {
+	for m.someNeedRemove.Load() != 0 {
+		time.Sleep(time.Millisecond)
+		runtime.Gosched()
+	}
+
+	var removes []*list.Element
+
 	m.RLock()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
-			m.funcs.Remove(el)
+			m.someNeedRemove.Add(1)
+			removes = append(removes, el)
 		}
 	}
 	m.RUnlock()
+
+	if len(removes) != 0 {
+		m.Lock()
+		m.someNeedRemove.Add(-int32(len(removes)))
+		for i := 0; i < len(removes); i++ {
+			m.funcs.Remove(removes[i])
+		}
+		m.Unlock()
+		removes = nil
+	}
 }
 
 type Msgq_tag_data struct {
 	Tag  string
-	Data interface{}
+	Data any
 }
 
-func (m *Msgq) Push_tag(Tag string, Data interface{}) {
+func (m *Msgq) Push_tag(Tag string, Data any) {
 	m.Push(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
@@ -48,11 +70,7 @@ func (m *Msgq) Push_tag(Tag string, Data interface{}) {
 
 func (m *Msgq) Pull_tag(func_map map[string]func(any) (disable bool)) {
 	m.Register(func(data any) (disable bool) {
-		if d, ok := data.(Msgq_tag_data); !ok {
-			if f, ok := func_map[`Error`]; ok {
-				return f(d.Data)
-			}
-		} else {
+		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {
 				return f(d.Data)
 			}
