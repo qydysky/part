@@ -72,30 +72,7 @@ func Test_BlockFuncN(t *testing.T) {
 	go a(1)
 	go a(2)
 	go a(3)
-	b.None()
-	b.UnNone()
-	t.Log(`fin`)
-}
-
-func Test_BlockFuncNPlan(t *testing.T) {
-	var b = &BlockFuncN{
-		Max: 2,
-	}
-	var a = func(i int) {
-		defer b.UnBlock()
-		b.Block()
-		t.Log(i, `.`)
-		time.Sleep(time.Second)
-		t.Log(i, `.`)
-	}
-	t.Log(`show two . at one time`)
-	b.Plan(4)
-	go a(0)
-	go a(1)
-	go a(2)
-	go a(3)
-	b.PlanDone(func() {
-		time.Sleep(time.Microsecond * 10)
-	})
+	b.BlockAll()
+	b.UnBlockAll()
 	t.Log(`fin`)
 }

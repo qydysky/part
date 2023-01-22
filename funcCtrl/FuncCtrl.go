@@ -63,59 +63,49 @@ func (t *BlockFunc) UnBlock() {
 }
 
 type BlockFuncN struct { //新的等待旧的 个数
-	plan int64
-	n    int64
-	Max  int64
+	n   atomic.Int64
+	Max int64
 }
 
-func (t *BlockFuncN) Block() {
+func (t *BlockFuncN) Block(failF ...func()) {
 	for {
-		now := atomic.LoadInt64(&t.n)
+		now := t.n.Load()
 		if now < t.Max && now >= 0 {
 			break
 		}
+		for i := 0; i < len(failF); i++ {
+			failF[i]()
+		}
 		runtime.Gosched()
 	}
-	atomic.AddInt64(&t.n, 1)
+	t.n.Add(1)
 }
 
-func (t *BlockFuncN) UnBlock() {
+func (t *BlockFuncN) UnBlock(failF ...func()) {
 	for {
-		now := atomic.LoadInt64(&t.n)
+		now := t.n.Load()
 		if now > 0 {
 			break
 		}
-		runtime.Gosched()
-	}
-	atomic.AddInt64(&t.n, -1)
-	if atomic.LoadInt64(&t.plan) > 0 {
-		atomic.AddInt64(&t.plan, -1)
-	}
-}
-
-func (t *BlockFuncN) None() {
-	for !atomic.CompareAndSwapInt64(&t.n, 0, -1) {
-		runtime.Gosched()
-	}
-}
-
-func (t *BlockFuncN) UnNone() {
-	for !atomic.CompareAndSwapInt64(&t.n, -1, 0) {
-		runtime.Gosched()
-	}
-}
-
-func (t *BlockFuncN) Plan(n int64) {
-	for !atomic.CompareAndSwapInt64(&t.plan, 0, n) {
-		runtime.Gosched()
-	}
-}
-
-func (t *BlockFuncN) PlanDone(switchFuncs ...func()) {
-	for atomic.LoadInt64(&t.plan) > 0 {
-		for i := 0; i < len(switchFuncs); i++ {
-			switchFuncs[i]()
+		for i := 0; i < len(failF); i++ {
+			failF[i]()
 		}
 		runtime.Gosched()
+	}
+	t.n.Add(-1)
+}
+
+func (t *BlockFuncN) BlockAll(failF ...func()) {
+	for !t.n.CompareAndSwap(0, -1) {
+		for i := 0; i < len(failF); i++ {
+			failF[i]()
+		}
+		runtime.Gosched()
+	}
+}
+
+func (t *BlockFuncN) UnBlockAll() {
+	if !t.n.CompareAndSwap(-1, 0) {
+		panic("must BlockAll First")
 	}
 }
