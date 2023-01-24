@@ -17,6 +17,7 @@ var (
 	ErrSerIsNil  = errors.New("ErrSerIsNil")
 	ErrFileNoSet = errors.New("ErrFileNoSet")
 	ErrhadStart  = errors.New("ErrhadStart")
+	ErrIsExist   = errors.New("ErrIsExist")
 )
 
 type Recorder struct {
@@ -36,8 +37,12 @@ func (t *Recorder) Start(filePath string) error {
 		return ErrhadStart
 	}
 
+	f := file.New(filePath, 0, false)
+	if f.IsExist() {
+		return ErrIsExist
+	}
+
 	go func() {
-		f := file.New(filePath, 0, false)
 		defer f.Close()
 
 		var startTimeStamp time.Time
