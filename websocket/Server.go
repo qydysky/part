@@ -3,6 +3,7 @@ package part
 import (
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,6 +14,7 @@ import (
 type Server struct {
 	ws_mq    *mq.Msgq
 	userpool *idpool.Idpool
+	m        sync.Mutex
 }
 
 type Uinterface struct {
@@ -50,6 +52,8 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 	t.ws_mq.Pull_tag(map[string]func(interface{}) bool{
 		`send`: func(data interface{}) bool {
 			if u, ok := data.(Uinterface); ok && u.Id == 0 || u.Id == User.Id {
+				t.m.Lock()
+				defer t.m.Unlock()
 				if err := ws.WriteMessage(websocket.TextMessage, u.Data); err != nil {
 					t.ws_mq.Push_tag(`error`, err)
 					return true
