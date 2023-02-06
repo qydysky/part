@@ -36,7 +36,9 @@ func Test_ServerSyncMap(t *testing.T) {
 	}, &m)
 	for i := 0; i < 20; i++ {
 		time.Sleep(time.Second)
-		m.Store("/", func(w http.ResponseWriter, r *http.Request) {
+		m.Store("/1", func(w http.ResponseWriter, r *http.Request) {
+			t.Log(r.URL.Path)
+			t.Log(r.URL.EscapedPath())
 			w.Write([]byte(strconv.Itoa(i)))
 		})
 	}
