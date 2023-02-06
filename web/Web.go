@@ -59,6 +59,31 @@ func NewSync(conf *http.Server) (o *Web) {
 	return
 }
 
+func NewSyncMap(conf *http.Server, m *sync.Map) (o *Web) {
+
+	o = new(Web)
+
+	o.mode = "syncmap"
+	o.Server = conf
+
+	if o.Server.Handler == nil {
+		o.mux = http.NewServeMux()
+		o.Server.Handler = o.mux
+	}
+
+	go o.Server.ListenAndServe()
+
+	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if wr, ok := m.Load(r.URL.Path); ok {
+			if f, ok := wr.(func(http.ResponseWriter, *http.Request)); ok {
+				f(w, r)
+			}
+		}
+	})
+
+	return
+}
+
 func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Request)) {
 	if t.mode != "simple" {
 		panic("必须是New创建的")
