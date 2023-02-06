@@ -76,7 +76,6 @@ func NewSyncMap(conf *http.Server, m *sync.Map) (o *Web) {
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if wr, ok := m.Load(r.URL.Path); ok {
 			if f, ok := wr.(func(http.ResponseWriter, *http.Request)); ok {
-				r.URL.Path = "/"
 				f(w, r)
 			}
 		}
