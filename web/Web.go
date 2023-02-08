@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -13,15 +14,131 @@ import (
 type Web struct {
 	Server *http.Server
 	mux    *http.ServeMux
-	wrs    sync.Map
-	mode   string
+}
+
+type WebSync struct {
+	Server *http.Server
+	mux    *http.ServeMux
+	wrs    *WebPath
+}
+
+type WebPath struct {
+	path  string
+	f     func(w http.ResponseWriter, r *http.Request)
+	sameP *WebPath
+	next  *WebPath
+	l     sync.RWMutex
+}
+
+func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
+	fmt.Println("l", t.path, path)
+	t.l.RLock()
+	if t.path == "" {
+		t.l.RUnlock()
+		return nil, false
+	} else if t.path == path {
+		t.l.RUnlock()
+		return t.f, true
+	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
+		if t.path == "/" || path[len(t.path)] == '/' {
+			fmt.Println("-")
+			if t.sameP != nil {
+				if f, ok := t.sameP.Load(path); ok {
+					t.l.RUnlock()
+					return f, true
+				} else {
+					t.l.RUnlock()
+					return t.f, true
+				}
+			} else {
+				t.l.RUnlock()
+				return t.f, true
+			}
+		} else {
+			if t.next != nil {
+				t.l.RUnlock()
+				return t.next.Load(path)
+			} else {
+				t.l.RUnlock()
+				return nil, false
+			}
+		}
+	} else if t.next != nil {
+		t.l.RUnlock()
+		return t.next.Load(path)
+	} else {
+		t.l.RUnlock()
+		return nil, false
+	}
+}
+
+func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
+	t.l.RLock()
+	if t.path == path || t.path == "" {
+		t.l.RUnlock()
+		t.l.Lock()
+		t.path = path
+		t.f = f
+		t.l.Unlock()
+	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
+		if path[len(t.path)-1] == '/' {
+			if t.sameP != nil {
+				t.l.RUnlock()
+				t.sameP.Store(path, f)
+			} else {
+				t.l.RUnlock()
+				t.l.Lock()
+				t.sameP = &WebPath{
+					path: path,
+					f:    f,
+				}
+				t.l.Unlock()
+			}
+		} else {
+			if t.next != nil {
+				t.l.RUnlock()
+				t.l.Lock()
+				tmp := WebPath{path: t.path, f: t.f, sameP: t.sameP, next: t.next}
+				t.path = path
+				t.f = f
+				t.next = &tmp
+				t.l.Unlock()
+			} else {
+				t.l.RUnlock()
+				t.l.Lock()
+				t.next = &WebPath{
+					path: path,
+					f:    f,
+				}
+				t.l.Unlock()
+			}
+		}
+	} else if len(path) < len(t.path) && t.path[:len(path)] == path {
+		t.l.RUnlock()
+		t.l.Lock()
+		tmp := WebPath{path: t.path, f: t.f, sameP: t.sameP, next: t.next}
+		t.path = path
+		t.f = f
+		t.sameP = &tmp
+		t.l.Unlock()
+	} else if t.next != nil {
+		t.l.RUnlock()
+		t.next.Store(path, f)
+	} else {
+		t.l.RUnlock()
+		t.l.Lock()
+		t.next = &WebPath{
+			path: path,
+			f:    f,
+		}
+		t.l.Unlock()
+	}
 }
 
 func New(conf *http.Server) (o *Web) {
 
 	o = new(Web)
 
-	o.mode = "simple"
 	o.Server = conf
 
 	if o.Server.Handler == nil {
@@ -34,12 +151,12 @@ func New(conf *http.Server) (o *Web) {
 	return
 }
 
-func NewSync(conf *http.Server) (o *Web) {
+func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
 
-	o = new(Web)
+	o = new(WebSync)
 
-	o.mode = "sync"
 	o.Server = conf
+	o.wrs = m
 
 	if o.Server.Handler == nil {
 		o.mux = http.NewServeMux()
@@ -49,35 +166,8 @@ func NewSync(conf *http.Server) (o *Web) {
 	go o.Server.ListenAndServe()
 
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if wr, ok := o.wrs.Load(r.URL.Path); ok {
-			if f, ok := wr.(func(http.ResponseWriter, *http.Request)); ok {
-				f(w, r)
-			}
-		}
-	})
-
-	return
-}
-
-func NewSyncMap(conf *http.Server, m *sync.Map) (o *Web) {
-
-	o = new(Web)
-
-	o.mode = "syncmap"
-	o.Server = conf
-
-	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
-	}
-
-	go o.Server.ListenAndServe()
-
-	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if wr, ok := m.Load(r.URL.Path); ok {
-			if f, ok := wr.(func(http.ResponseWriter, *http.Request)); ok {
-				f(w, r)
-			}
+		if f, ok := o.wrs.Load(r.URL.Path); ok {
+			f(w, r)
 		}
 	})
 
@@ -85,19 +175,9 @@ func NewSyncMap(conf *http.Server, m *sync.Map) (o *Web) {
 }
 
 func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Request)) {
-	if t.mode != "simple" {
-		panic("必须是New创建的")
-	}
 	for k, v := range path_func {
 		t.mux.HandleFunc(k, v)
 	}
-}
-
-func (t *Web) HandleSync(path string, path_func func(http.ResponseWriter, *http.Request)) {
-	if t.mode != "sync" {
-		panic("必须是NewSync创建的")
-	}
-	t.wrs.Store(path, path_func)
 }
 
 func Easy_boot() *Web {

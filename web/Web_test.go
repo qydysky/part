@@ -1,9 +1,9 @@
 package part
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 )
@@ -14,20 +14,8 @@ func Test_Server(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(100))
 }
 
-func Test_ServerSync(t *testing.T) {
-	s := NewSync(&http.Server{
-		Addr: "127.0.0.1:9090",
-	})
-	for i := 0; i < 20; i++ {
-		time.Sleep(time.Second)
-		s.HandleSync("/1", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(strconv.Itoa(i)))
-		})
-	}
-}
-
 func Test_ServerSyncMap(t *testing.T) {
-	var m sync.Map
+	var m WebPath
 	m.Store("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1"))
 	})
@@ -37,9 +25,69 @@ func Test_ServerSyncMap(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		time.Sleep(time.Second)
 		m.Store("/1", func(w http.ResponseWriter, r *http.Request) {
-			t.Log(r.URL.Path)
-			t.Log(r.URL.EscapedPath())
-			w.Write([]byte(strconv.Itoa(i)))
+
+			type d struct {
+				A string         `json:"a"`
+				B []string       `json:"b"`
+				C map[string]int `json:"c"`
+			}
+
+			t := strconv.Itoa(i)
+
+			ResStruct{0, "ok", d{t, []string{t}, map[string]int{t: 1}}}.Write(w)
 		})
 	}
+}
+
+func BenchmarkXxx(b *testing.B) {
+	var m WebPath
+	type d struct {
+		A string `json:"path"`
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.Store("/", func(w http.ResponseWriter, r *http.Request) {
+			ResStruct{0, "ok", d{"/"}}.Write(w)
+		})
+	}
+}
+
+func Test_ServerSyncMapP(t *testing.T) {
+	var m WebPath
+	type d struct {
+		A string `json:"path"`
+	}
+	m.Store("/", func(w http.ResponseWriter, r *http.Request) {
+		ResStruct{0, "ok", d{"/"}}.Write(w)
+	})
+	m.Store("/1", func(w http.ResponseWriter, r *http.Request) {
+		ResStruct{0, "ok", d{"/1"}}.Write(w)
+	})
+	m.Store("/2", func(w http.ResponseWriter, r *http.Request) {
+		ResStruct{0, "ok", d{"/2"}}.Write(w)
+	})
+
+	NewSyncMap(&http.Server{
+		Addr: "127.0.0.1:9090",
+	}, &m)
+
+	time.Sleep(time.Second * time.Duration(23))
+}
+
+type ResStruct struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
+}
+
+func (t ResStruct) Write(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	data, e := json.Marshal(t)
+	if e != nil {
+		t.Code = -1
+		t.Data = nil
+		t.Message = e.Error()
+		data, _ = json.Marshal(t)
+	}
+	w.Write(data)
 }
