@@ -57,8 +57,15 @@ func Test_ServerSyncMapP(t *testing.T) {
 	type d struct {
 		A string `json:"path"`
 	}
+
+	NewSyncMap(&http.Server{
+		Addr: "127.0.0.1:9090",
+	}, &m)
 	m.Store("/", func(w http.ResponseWriter, r *http.Request) {
 		ResStruct{0, "ok", d{"/"}}.Write(w)
+	})
+	m.Store("/1/2", func(w http.ResponseWriter, r *http.Request) {
+		ResStruct{0, "ok", d{"/1/2"}}.Write(w)
 	})
 	m.Store("/1", func(w http.ResponseWriter, r *http.Request) {
 		ResStruct{0, "ok", d{"/1"}}.Write(w)
@@ -66,10 +73,6 @@ func Test_ServerSyncMapP(t *testing.T) {
 	m.Store("/2", func(w http.ResponseWriter, r *http.Request) {
 		ResStruct{0, "ok", d{"/2"}}.Write(w)
 	})
-
-	NewSyncMap(&http.Server{
-		Addr: "127.0.0.1:9090",
-	}, &m)
 
 	time.Sleep(time.Second * time.Duration(23))
 }

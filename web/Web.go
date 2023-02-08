@@ -2,7 +2,6 @@ package part
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -31,7 +30,6 @@ type WebPath struct {
 }
 
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
-	fmt.Println("l", t.path, path)
 	t.l.RLock()
 	if t.path == "" {
 		t.l.RUnlock()
@@ -41,7 +39,6 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 		return t.f, true
 	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
 		if t.path == "/" || path[len(t.path)] == '/' {
-			fmt.Println("-")
 			if t.sameP != nil {
 				if f, ok := t.sameP.Load(path); ok {
 					t.l.RUnlock()
@@ -81,7 +78,7 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 		t.f = f
 		t.l.Unlock()
 	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
-		if path[len(t.path)-1] == '/' {
+		if t.path == "/" || path[len(t.path)] == '/' {
 			if t.sameP != nil {
 				t.l.RUnlock()
 				t.sameP.Store(path, f)
