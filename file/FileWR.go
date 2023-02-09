@@ -277,6 +277,25 @@ func (t *File) IsExist() bool {
 	return true
 }
 
+func (t *File) IsDir() bool {
+	if len(t.Config.FilePath) > 4096 {
+		panic(ErrFilePathTooLong)
+	}
+
+	info, err := os.Stat(t.Config.FilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		} else {
+			if !strings.Contains(err.Error(), "file name too long") {
+				panic(ErrFilePathTooLong)
+			}
+			return false
+		}
+	}
+	return info.IsDir()
+}
+
 func (t *File) File() *os.File {
 	t.getRWCloser()
 	return t.file
