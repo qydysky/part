@@ -26,109 +26,75 @@ type WebPath struct {
 	f     func(w http.ResponseWriter, r *http.Request)
 	sameP *WebPath
 	next  *WebPath
-	l     sync.RWMutex
+	sync.RWMutex
 }
 
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
-	t.l.RLock()
-	if t.path == "" {
-		t.l.RUnlock()
-		return nil, false
-	} else if t.path == path {
-		t.l.RUnlock()
+	t.RLock()
+	defer t.RUnlock()
+	if t.path == path || t.f == nil {
+		// 操作本节点
 		return t.f, true
-	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
-		if t.path == "/" || path[len(t.path)] == '/' {
-			if t.sameP != nil {
-				if f, ok := t.sameP.Load(path); ok {
-					t.l.RUnlock()
-					return f, true
-				} else {
-					t.l.RUnlock()
-					return t.f, true
-				}
-			} else {
-				t.l.RUnlock()
-				return t.f, true
-			}
-		} else {
-			if t.next != nil {
-				t.l.RUnlock()
-				return t.next.Load(path)
-			} else {
-				t.l.RUnlock()
-				return nil, false
+	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && (path[ltp] == '/' || t.path[ltp-1] == '/') {
+		// 操作sameP节点
+		if t.sameP != nil {
+			if f, ok := t.sameP.Load(path); ok {
+				return f, true
 			}
 		}
-	} else if t.next != nil {
-		t.l.RUnlock()
-		return t.next.Load(path)
+		if t.path[ltp-1] == '/' {
+			return t.f, true
+		} else {
+			return nil, false
+		}
+	} else if lp < ltp && t.path[:lp] == path && (path[lp-1] == '/' || t.path[lp] == '/') {
+		// 操作sameP节点
+		return nil, false
 	} else {
-		t.l.RUnlock()
+		// 操作next节点
+		if t.next != nil {
+			if f, ok := t.next.Load(path); ok {
+				return f, true
+			}
+		}
 		return nil, false
 	}
 }
 
 func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
-	t.l.RLock()
-	if t.path == path || t.path == "" {
-		t.l.RUnlock()
-		t.l.Lock()
+	t.Lock()
+	defer t.Unlock()
+	if t.path == path || t.f == nil {
+		// 操作本节点
 		t.path = path
 		t.f = f
-		t.l.Unlock()
-	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path {
-		if t.path == "/" || path[len(t.path)] == '/' {
-			if t.sameP != nil {
-				t.l.RUnlock()
-				t.sameP.Store(path, f)
-			} else {
-				t.l.RUnlock()
-				t.l.Lock()
-				t.sameP = &WebPath{
-					path: path,
-					f:    f,
-				}
-				t.l.Unlock()
-			}
+	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path && (path[len(t.path)-1] == '/' || t.path[len(t.path)-1] == '/') {
+		// 操作sameP节点
+		if t.sameP != nil {
+			t.sameP.Store(path, f)
 		} else {
-			if t.next != nil {
-				t.l.RUnlock()
-				t.l.Lock()
-				tmp := WebPath{path: t.path, f: t.f, sameP: t.sameP, next: t.next}
-				t.path = path
-				t.f = f
-				t.next = &tmp
-				t.l.Unlock()
-			} else {
-				t.l.RUnlock()
-				t.l.Lock()
-				t.next = &WebPath{
-					path: path,
-					f:    f,
-				}
-				t.l.Unlock()
+			t.sameP = &WebPath{
+				path: path,
+				f:    f,
 			}
 		}
-	} else if len(path) < len(t.path) && t.path[:len(path)] == path {
-		t.l.RUnlock()
-		t.l.Lock()
+	} else if len(path) < len(t.path) && t.path[:len(path)] == path && (path[len(path)-1] == '/' || t.path[len(path)-1] == '/') {
+		// 操作sameP节点
 		tmp := WebPath{path: t.path, f: t.f, sameP: t.sameP, next: t.next}
 		t.path = path
 		t.f = f
 		t.sameP = &tmp
-		t.l.Unlock()
-	} else if t.next != nil {
-		t.l.RUnlock()
-		t.next.Store(path, f)
+		t.next = nil
 	} else {
-		t.l.RUnlock()
-		t.l.Lock()
-		t.next = &WebPath{
-			path: path,
-			f:    f,
+		// 操作next节点
+		if t.next != nil {
+			t.next.Store(path, f)
+		} else {
+			t.next = &WebPath{
+				path: path,
+				f:    f,
+			}
 		}
-		t.l.Unlock()
 	}
 }
 
@@ -190,7 +156,7 @@ func Easy_boot() *Web {
 			}
 			http.ServeFile(w, r, path)
 		},
-		`/exit`: func(w http.ResponseWriter, r *http.Request) {
+		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
 	})
