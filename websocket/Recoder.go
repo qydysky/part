@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"time"
 
@@ -116,7 +117,7 @@ func Play(filePath string) (s *Server, close func()) {
 			cu += 1
 
 			for sg.Islive() {
-				if data, e := f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil {
+				if data, e := f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 					panic(e)
 				} else {
 					tIndex := bytes.Index(data, []byte{','})
