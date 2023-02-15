@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"time"
 
@@ -95,7 +96,7 @@ func Play(filePath string) (s *Server, close func()) {
 		timer := time.NewTicker(time.Second)
 		defer timer.Stop()
 
-		if data, e := f.ReadAll(humanize.KByte, humanize.MByte); e != nil {
+		if data, e := f.ReadAll(humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 			panic(e)
 		} else {
 			var (
