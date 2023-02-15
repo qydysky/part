@@ -114,20 +114,6 @@ func Play(filePath string) (s *Server, close func()) {
 							timer.Stop()
 						case "play":
 							timer.Reset(time.Second)
-						default:
-							tmp, _ := strconv.ParseFloat(string(d.Data), 64)
-							if tmp < cu {
-								for index > 0 && index < len(sdata) {
-									tIndex := bytes.Index(sdata[index], []byte{','})
-									if d, _ := strconv.ParseFloat(string(sdata[index][:tIndex]), 64); d > cu {
-										index -= 1
-										continue
-									} else if d < cu {
-										break
-									}
-								}
-							}
-							cu = tmp
 						}
 					}
 					return false
