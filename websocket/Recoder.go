@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
 	signal "github.com/qydysky/part/signal"
@@ -96,7 +95,11 @@ func Play(filePath string) (s *Server, close func()) {
 		timer := time.NewTicker(time.Second)
 		defer timer.Stop()
 
-		var cu float64
+		var (
+			cu   float64
+			data []byte
+			e    error
+		)
 
 		s.Interface().Pull_tag(map[string]func(any) (disable bool){
 			`recv`: func(a any) (disable bool) {
@@ -117,20 +120,24 @@ func Play(filePath string) (s *Server, close func()) {
 			cu += 1
 
 			for sg.Islive() {
-				if data, e := f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
-					panic(e)
-				} else {
-					tIndex := bytes.Index(data, []byte{','})
-					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu+1 {
-						break
+				if data == nil {
+					if data, e = f.ReadUntil('\n', 70, 1000); e != nil && !errors.Is(e, io.EOF) {
+						panic(e)
 					}
-
-					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
-					s.Interface().Push_tag(`send`, Uinterface{
-						Id:   0, //send to all
-						Data: data[danmuIndex:],
-					})
 				}
+
+				tIndex := bytes.Index(data, []byte{','})
+				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
+					break
+				}
+
+				danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
+				s.Interface().Push_tag(`send`, Uinterface{
+					Id:   0, //send to all
+					Data: data[danmuIndex:],
+				})
+
+				data = nil
 			}
 
 		}
