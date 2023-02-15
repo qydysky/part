@@ -244,6 +244,10 @@ func (t *File) Delete() error {
 	}
 	defer t.Unlock()
 
+	if t.IsDir() {
+		return os.RemoveAll(t.Config.FilePath)
+	}
+
 	return os.Remove(t.Config.FilePath)
 }
 

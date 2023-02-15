@@ -92,15 +92,34 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 		f := file.New(filePath, 0, false)
 		defer f.Close()
 
-		startT := time.Now()
 		timer := time.NewTicker(time.Second)
+		defer timer.Stop()
+
 		var (
+			cu   float64
 			data []byte
 			err  error
 		)
 
+		s.Interface().Pull_tag(map[string]func(any) (disable bool){
+			`recv`: func(a any) (disable bool) {
+				if d, ok := a.(Uinterface); ok {
+					switch string(d.Data) {
+					case "pause":
+						timer.Stop()
+					case "play":
+						timer.Reset(time.Second)
+					default:
+						cu, _ = strconv.ParseFloat(string(d.Data), 64)
+					}
+				}
+				return false
+			},
+		})
+
 		for sg.Islive() {
-			cu := (<-timer.C).Sub(startT).Seconds()
+			<-timer.C
+			cu += 1
 
 			for sg.Islive() {
 				if data == nil {
@@ -112,6 +131,8 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 					tIndex := bytes.Index(data, []byte{','})
 					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
 						break
+					} else if d-cu > 2 {
+						continue
 					}
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{

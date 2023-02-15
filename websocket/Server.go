@@ -116,40 +116,41 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 	return
 }
 
-//how to use
-// ws_mq.Pull_tag(map[string]func(interface{})(bool){
-// 	`recv`:func(data interface{})(bool){
-// 		if tmp,ok := data.(Uinterface);ok {
-// 			log.Println(tmp.Id,string(tmp.Data))
-
-// 			if string(tmp.Data) == `close` {
-// 				ws_mq.Push_tag(`close`,Uinterface{//close
-// 					Id:0,//close all connect
-// 				})
-// 				//or
-// 				// ws_mq.Push_tag(`close`,Uinterface{//close
-// 				// 	Id:tmp.Id,//close this connect
-// 				// })
-// 				return false
-// 			}
-
-//				ws_mq.Push_tag(`send`,Uinterface{//just reply
-//					Id:tmp.Id,
-//					Data:tmp.Data,
-//				})
-//				//or
-//				ws_mq.Push_tag(`send`,Uinterface{//just reply
-//					Id:0,//send to all
-//					Data:tmp.Data,
-//				})
-//			}
-//			return false
-//		},
-//		`error`:func(data interface{})(bool){
-//			log.Println(data)
-//			return false
-//		},
-//	})
+// how to use
+//
+//	ws_mq.Pull_tag(map[string]func(interface{})(bool){
+//		`recv`:func(data interface{})(bool){
+//			if tmp,ok := data.(Uinterface);ok {
+//				log.Println(tmp.Id,string(tmp.Data))
+//
+//				if string(tmp.Data) == `close` {
+//					ws_mq.Push_tag(`close`,Uinterface{//close
+//						Id:0,//close all connect
+//					})
+//					//or
+//					// ws_mq.Push_tag(`close`,Uinterface{//close
+//					// 	Id:tmp.Id,//close this connect
+//					// })
+//					return false
+//				}
+//
+//					ws_mq.Push_tag(`send`,Uinterface{//just reply
+//						Id:tmp.Id,
+//						Data:tmp.Data,
+//					})
+//					//or
+//					ws_mq.Push_tag(`send`,Uinterface{//just reply
+//						Id:0,//send to all
+//						Data:tmp.Data,
+//					})
+//				}
+//				return false
+//			},
+//			`error`:func(data interface{})(bool){
+//				log.Println(data)
+//				return false
+//			},
+//		})
 func (t *Server) Interface() *mq.Msgq {
 	return t.ws_mq
 }
