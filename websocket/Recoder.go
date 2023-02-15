@@ -122,8 +122,6 @@ func Play(filePath string) (s *Server, close func()) {
 					tIndex := bytes.Index(data, []byte{','})
 					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu+1 {
 						break
-					} else if d < cu {
-						continue
 					}
 
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
