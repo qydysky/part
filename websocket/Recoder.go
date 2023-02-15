@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"time"
 
@@ -96,52 +95,45 @@ func Play(filePath string) (s *Server, close func()) {
 		timer := time.NewTicker(time.Second)
 		defer timer.Stop()
 
-		if data, e := f.ReadAll(humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
-			panic(e)
-		} else {
-			var (
-				cu    float64
-				index int
-			)
+		var cu float64
 
-			sdata := bytes.Split(data, []byte{'\n'})
-
-			s.Interface().Pull_tag(map[string]func(any) (disable bool){
-				`recv`: func(a any) (disable bool) {
-					if d, ok := a.(Uinterface); ok {
-						switch string(d.Data) {
-						case "pause":
-							timer.Stop()
-						case "play":
-							timer.Reset(time.Second)
-						}
+		s.Interface().Pull_tag(map[string]func(any) (disable bool){
+			`recv`: func(a any) (disable bool) {
+				if d, ok := a.(Uinterface); ok {
+					switch string(d.Data) {
+					case "pause":
+						timer.Stop()
+					case "play":
+						timer.Reset(time.Second)
 					}
-					return false
-				},
-			})
+				}
+				return false
+			},
+		})
+
+		for sg.Islive() {
+			<-timer.C
+			cu += 1
 
 			for sg.Islive() {
-				<-timer.C
-				cu += 1
-
-				for index > 0 && index < len(sdata) {
-					tIndex := bytes.Index(sdata[index], []byte{','})
-					if d, _ := strconv.ParseFloat(string(sdata[index][:tIndex]), 64); d > cu+1 {
+				if data, e := f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil {
+					panic(e)
+				} else {
+					tIndex := bytes.Index(data, []byte{','})
+					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu+1 {
 						break
 					} else if d < cu {
-						index += 1
 						continue
 					}
-					index += 1
 
-					danmuIndex := tIndex + bytes.Index(sdata[index][tIndex+2:], []byte{','}) + 3
+					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
-						Data: sdata[index][danmuIndex:],
+						Data: data[danmuIndex:],
 					})
 				}
-
 			}
+
 		}
 	}()
 
