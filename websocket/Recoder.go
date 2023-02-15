@@ -124,6 +124,9 @@ func Play(filePath string) (s *Server, close func()) {
 					if data, e = f.ReadUntil('\n', 70, 1000); e != nil && !errors.Is(e, io.EOF) {
 						panic(e)
 					}
+					if len(data) == 0 {
+						return
+					}
 				}
 
 				tIndex := bytes.Index(data, []byte{','})
