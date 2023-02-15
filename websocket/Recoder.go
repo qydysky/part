@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
 	signal "github.com/qydysky/part/signal"
@@ -75,7 +75,7 @@ func (t *Recorder) Stop() {
 	t.onlyOnce.UnSet()
 }
 
-func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close func()) {
+func Play(filePath string) (s *Server, close func()) {
 	sg := signal.Init()
 
 	s = New_server()
@@ -95,56 +95,66 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 		timer := time.NewTicker(time.Second)
 		defer timer.Stop()
 
-		var (
-			cu   float64
-			data []byte
-			err  error
-		)
+		if data, e := f.ReadAll(humanize.KByte, humanize.MByte); e != nil {
+			panic(e)
+		} else {
+			var (
+				cu    float64
+				index int
+			)
 
-		s.Interface().Pull_tag(map[string]func(any) (disable bool){
-			`recv`: func(a any) (disable bool) {
-				if d, ok := a.(Uinterface); ok {
-					switch string(d.Data) {
-					case "%Cpause":
-						timer.Stop()
-					case "%Cplay":
-						timer.Reset(time.Second)
-					default:
-						cu, _ = strconv.ParseFloat(string(d.Data[2:]), 64)
+			sdata := bytes.Split(data, []byte{'\n'})
+
+			s.Interface().Pull_tag(map[string]func(any) (disable bool){
+				`recv`: func(a any) (disable bool) {
+					if d, ok := a.(Uinterface); ok {
+						switch string(d.Data) {
+						case "pause":
+							timer.Stop()
+						case "play":
+							timer.Reset(time.Second)
+						default:
+							tmp, _ := strconv.ParseFloat(string(d.Data), 64)
+							if tmp < cu {
+								for index > 0 && index < len(sdata) {
+									tIndex := bytes.Index(sdata[index], []byte{','})
+									if d, _ := strconv.ParseFloat(string(sdata[index][:tIndex]), 64); d > cu {
+										index -= 1
+										continue
+									} else if d < cu {
+										break
+									}
+								}
+							}
+							cu = tmp
+						}
 					}
-				}
-				return false
-			},
-		})
-
-		for sg.Islive() {
-			<-timer.C
-			cu += 1
+					return false
+				},
+			})
 
 			for sg.Islive() {
-				if data == nil {
-					if data, err = f.ReadUntil('\n', perReadSize, maxReadSize); err != nil && !errors.Is(err, io.EOF) {
-						panic(err)
-					}
-				}
-				if len(data) != 0 {
-					tIndex := bytes.Index(data, []byte{','})
-					if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
+				<-timer.C
+				cu += 1
+
+				for index > 0 && index < len(sdata) {
+					tIndex := bytes.Index(sdata[index], []byte{','})
+					if d, _ := strconv.ParseFloat(string(sdata[index][:tIndex]), 64); d > cu+1 {
 						break
-					} else if d-cu > 2 {
+					} else if d < cu {
+						index += 1
 						continue
 					}
-					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
+					index += 1
+
+					danmuIndex := tIndex + bytes.Index(sdata[index][tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
-						Data: data[danmuIndex:],
+						Data: sdata[index][danmuIndex:],
 					})
-					data = nil
-				} else {
-					break
 				}
-			}
 
+			}
 		}
 	}()
 
