@@ -105,12 +105,12 @@ func Play(filePath string, perReadSize int, maxReadSize int) (s *Server, close f
 			`recv`: func(a any) (disable bool) {
 				if d, ok := a.(Uinterface); ok {
 					switch string(d.Data) {
-					case "pause":
+					case "%Cpause":
 						timer.Stop()
-					case "play":
+					case "%Cplay":
 						timer.Reset(time.Second)
 					default:
-						cu, _ = strconv.ParseFloat(string(d.Data), 64)
+						cu, _ = strconv.ParseFloat(string(d.Data[2:]), 64)
 					}
 				}
 				return false
