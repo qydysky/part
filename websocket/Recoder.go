@@ -105,7 +105,7 @@ func Play(filePath string) (s *Server, close func()) {
 		s.Interface().Pull_tag(map[string]func(any) (disable bool){
 			`recv`: func(a any) (disable bool) {
 				if d, ok := a.(Uinterface); ok {
-					switch string(d.Data) {
+					switch data := string(d.Data); data {
 					case "pause":
 						timer.Stop()
 					case "play":
@@ -122,7 +122,7 @@ func Play(filePath string) (s *Server, close func()) {
 
 			for sg.Islive() {
 				if data == nil {
-					if data, e = f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
+					if data, e = f.ReadUntil('\n', 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 						panic(e)
 					}
 					if len(data) == 0 {
@@ -131,17 +131,16 @@ func Play(filePath string) (s *Server, close func()) {
 				}
 
 				tIndex := bytes.Index(data, []byte{','})
-				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d > cu {
-					break
+				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < cu {
+					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
+					s.Interface().Push_tag(`send`, Uinterface{
+						Id:   0, //send to all
+						Data: data[danmuIndex:],
+					})
+					data = nil
 				}
 
-				danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
-				s.Interface().Push_tag(`send`, Uinterface{
-					Id:   0, //send to all
-					Data: data[danmuIndex:],
-				})
-
-				data = nil
+				break
 			}
 
 		}
