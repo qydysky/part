@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
 	signal "github.com/qydysky/part/signal"
@@ -121,7 +122,7 @@ func Play(filePath string) (s *Server, close func()) {
 
 			for sg.Islive() {
 				if data == nil {
-					if data, e = f.ReadUntil('\n', 70, 1000); e != nil && !errors.Is(e, io.EOF) {
+					if data, e = f.ReadUntil('\n', humanize.KByte, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 						panic(e)
 					}
 					if len(data) == 0 {

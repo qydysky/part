@@ -65,7 +65,7 @@ func Test_Server(t *testing.T) {
 }
 
 func Test_Recoder(t *testing.T) {
-	s, cf := Play("l.csv", 50, 5000)
+	s, cf := Play("l.csv")
 	defer cf()
 
 	w := web.Easy_boot()
