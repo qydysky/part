@@ -83,10 +83,13 @@ type MsgType[T any] struct {
 	m *Msgq
 }
 
-func (m *MsgType[T]) Push_tag(Tag string, Data T) {
-	if m.m == nil {
-		m.m = New()
+func NewType[T any]() *MsgType[T] {
+	return &MsgType[T]{
+		m: New(),
 	}
+}
+
+func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 	m.m.Push(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
@@ -94,9 +97,6 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 }
 
 func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) {
-	if m.m == nil {
-		m.m = New()
-	}
 	m.m.Register(func(data any) (disable bool) {
 		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {

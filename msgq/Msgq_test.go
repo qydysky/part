@@ -334,7 +334,7 @@ func Test_msgq5(t *testing.T) {
 }
 
 func Test_msgq6(t *testing.T) {
-	msg := MsgType[int]{}
+	msg := NewType[int]()
 	msg.Pull_tag(map[string]func(int) (disable bool){
 		`1`: func(b int) (disable bool) {
 			if b != 0 {
