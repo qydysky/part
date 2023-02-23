@@ -333,6 +333,21 @@ func Test_msgq5(t *testing.T) {
 	t.Log(`fin`)
 }
 
+func Test_msgq6(t *testing.T) {
+	msg := MsgType[int]{}
+	msg.Pull_tag(map[string]func(int) (disable bool){
+		`1`: func(b int) (disable bool) {
+			if b != 0 {
+				t.Fatal()
+			}
+			t.Log(b)
+			return false
+		},
+	})
+	msg.Push_tag(`1`, 0)
+	time.Sleep(time.Second)
+}
+
 // func Test_msgq6(t *testing.T) {
 // 	mq := New()
 // 	go mq.Pull_tag(map[string]func(interface{}) bool{
