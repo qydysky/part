@@ -28,6 +28,12 @@ func (m *Msgq) Register(f func(any) (disable bool)) {
 	m.lock.Unlock()
 }
 
+func (m *Msgq) Register_front(f func(any) (disable bool)) {
+	m.lock.Lock()
+	m.funcs.PushFront(f)
+	m.lock.Unlock()
+}
+
 func (m *Msgq) Push(msg any) {
 	for m.someNeedRemove.Load() != 0 {
 		time.Sleep(time.Millisecond)
@@ -68,11 +74,54 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 	})
 }
 
+func (m *Msgq) Pull_tag_only(key string, f func(any) (disable bool)) {
+	m.Register(func(data any) (disable bool) {
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			return f(d.Data)
+		}
+		return false
+	})
+}
+
 func (m *Msgq) Pull_tag(func_map map[string]func(any) (disable bool)) {
 	m.Register(func(data any) (disable bool) {
 		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {
 				return f(d.Data)
+			}
+		}
+		return false
+	})
+}
+
+func (m *Msgq) Pull_tag_async_only(key string, f func(any) (disable bool)) {
+	var disable = false
+
+	m.Register_front(func(data any) bool {
+		if disable {
+			return true
+		}
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			go func(t *bool) {
+				*t = f(d.Data)
+			}(&disable)
+		}
+		return false
+	})
+}
+
+func (m *Msgq) Pull_tag_async(func_map map[string]func(any) (disable bool)) {
+	var disable = false
+
+	m.Register_front(func(data any) bool {
+		if disable {
+			return true
+		}
+		if d, ok := data.(Msgq_tag_data); ok {
+			if f, ok := func_map[d.Tag]; ok {
+				go func(t *bool) {
+					*t = f(d.Data)
+				}(&disable)
 			}
 		}
 		return false
@@ -96,11 +145,54 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 	})
 }
 
+func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) {
+	m.m.Register(func(data any) (disable bool) {
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			return f(d.Data.(T))
+		}
+		return false
+	})
+}
+
 func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) {
 	m.m.Register(func(data any) (disable bool) {
 		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {
 				return f(d.Data.(T))
+			}
+		}
+		return false
+	})
+}
+
+func (m *MsgType[T]) Pull_tag_async_only(key string, f func(T) (disable bool)) {
+	var disable = false
+
+	m.m.Register_front(func(data any) bool {
+		if disable {
+			return true
+		}
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			go func(t *bool) {
+				*t = f(d.Data.(T))
+			}(&disable)
+		}
+		return false
+	})
+}
+
+func (m *MsgType[T]) Pull_tag_async(func_map map[string]func(T) (disable bool)) {
+	var disable = false
+
+	m.m.Register_front(func(data any) bool {
+		if disable {
+			return true
+		}
+		if d, ok := data.(Msgq_tag_data); ok {
+			if f, ok := func_map[d.Tag]; ok {
+				go func(t *bool) {
+					*t = f(d.Data.(T))
+				}(&disable)
 			}
 		}
 		return false

@@ -348,6 +348,50 @@ func Test_msgq6(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
+func Test_msgq7(t *testing.T) {
+	msg := NewType[int]()
+	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second)
+		t.Log(`async1`)
+		return i > 10
+	})
+	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second * 2)
+		t.Log(`async2`)
+		return i > 10
+	})
+	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second * 2)
+		t.Log(`sync1`)
+		return i > 10
+	})
+	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second * 2)
+		t.Log(`sync2`)
+		return i > 10
+	})
+	msg.Push_tag(`1`, 0)
+	time.Sleep(time.Second * 10)
+}
+
+func Test_msgq8(t *testing.T) {
+	msg := NewType[int]()
+	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second)
+		t.Logf("async %d", i)
+		return i > 3
+	})
+	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
+		time.Sleep(time.Second)
+		t.Logf("sync %d", i)
+		return i > 5
+	})
+	for i := 0; i < 20; i++ {
+		msg.Push_tag(`1`, i)
+	}
+	time.Sleep(time.Second * 10)
+}
+
 // func Test_msgq6(t *testing.T) {
 // 	mq := New()
 // 	go mq.Pull_tag(map[string]func(interface{}) bool{
