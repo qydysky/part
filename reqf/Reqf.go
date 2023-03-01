@@ -52,6 +52,7 @@ type Req struct {
 	cancelF func()
 	cancel  *signal.Signal
 	running *signal.Signal
+	isLive  *signal.Signal
 
 	responFile *os.File
 	err        error
@@ -72,6 +73,7 @@ func (t *Req) Reqf(val Rval) error {
 	t.cancelF = nil
 	t.cancel = signal.Init()
 	t.running = signal.Init()
+	t.isLive = signal.Init()
 	t.responFile = nil
 	t.err = nil
 
@@ -113,6 +115,7 @@ func (t *Req) Reqf(val Rval) error {
 		}
 		t.cancel.Done()
 		t.l.Unlock()
+		t.isLive.Done()
 	} else {
 		go func() {
 			t.Wait()
@@ -127,6 +130,7 @@ func (t *Req) Reqf(val Rval) error {
 			}
 			t.cancel.Done()
 			t.l.Unlock()
+			t.isLive.Done()
 		}()
 	}
 	return t.err
@@ -315,6 +319,10 @@ func (t *Req) Close() {
 		return
 	}
 	t.cancel.Done()
+}
+
+func (t *Req) IsLive() bool {
+	return t.isLive.Islive()
 }
 
 func IsTimeout(e error) bool {
