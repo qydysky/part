@@ -12,8 +12,9 @@ import (
 	web "github.com/qydysky/part/web"
 )
 
-func Test_req(t *testing.T) {
-	addr := "127.0.0.1:10001"
+var addr = "127.0.0.1:10001"
+
+func init() {
 	s := web.New(&http.Server{
 		Addr:         addr,
 		WriteTimeout: time.Second * time.Duration(10),
@@ -47,13 +48,27 @@ func Test_req(t *testing.T) {
 			s.Server.Shutdown(context.Background())
 		},
 	})
+}
 
+func Test_req7(t *testing.T) {
+	r := New()
+	r.Reqf(Rval{
+		Url:   "http://" + addr + "/to",
+		Async: true,
+	})
+	r.Cancel()
+	if !IsCancel(r.Wait()) {
+		t.Error("async Cancel fail")
+	}
+}
+
+func Test_req(t *testing.T) {
 	r := New()
 	r.Reqf(Rval{
 		Url: "http://" + addr + "/br",
 	})
 	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-		t.Error("br fail")
+		t.Error("br fail", r.Respon)
 	}
 	r.Reqf(Rval{
 		Url: "http://" + addr + "/gzip",
@@ -67,6 +82,10 @@ func Test_req(t *testing.T) {
 	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
 		t.Error("flate fail")
 	}
+}
+
+func Test_req2(t *testing.T) {
+	r := New()
 	{
 		e := r.Reqf(Rval{
 			Url:     "http://" + addr + "/to",
@@ -76,16 +95,24 @@ func Test_req(t *testing.T) {
 			t.Error("Timeout fail")
 		}
 	}
+}
+
+func Test_req4(t *testing.T) {
+	r := New()
 	{
 		r.Reqf(Rval{
 			Url:     "http://" + addr + "/to",
 			Timeout: 1000,
 			Async:   true,
 		})
-		if !IsTimeout(r.Wait()) {
-			t.Error("Async Timeout fail")
+		if e := r.Wait(); !IsTimeout(e) {
+			t.Error("Async Timeout fail", e)
 		}
 	}
+}
+
+func Test_req5(t *testing.T) {
+	r := New()
 	{
 		c := make(chan []byte)
 		r.Reqf(Rval{
@@ -101,9 +128,13 @@ func Test_req(t *testing.T) {
 			}
 		}
 		if !IsTimeout(r.Wait()) {
-			t.Error("async cancel fail")
+			t.Error("async IsTimeout fail")
 		}
 	}
+}
+
+func Test_req6(t *testing.T) {
+	r := New()
 	{
 		c := make(chan []byte)
 		r.Reqf(Rval{
@@ -136,6 +167,10 @@ func Test_req(t *testing.T) {
 			t.Error("Cancel fail")
 		}
 	}
+}
+
+func Test_req3(t *testing.T) {
+	r := New()
 	{
 		rc, wc := io.Pipe()
 		c := make(chan struct{})
@@ -183,6 +218,25 @@ func Test_req(t *testing.T) {
 		r.Reqf(Rval{
 			Url:              "http://" + addr + "/flate",
 			SaveToPipeWriter: wc,
+		})
+		<-c
+	}
+	{
+		rc, wc := io.Pipe()
+		c := make(chan struct{})
+		go func() {
+			var buf []byte = make([]byte, 1<<16)
+			n, _ := rc.Read(buf)
+			d := buf[:n]
+			// d, _ := io.ReadAll(rc)
+			if !bytes.Equal(d, []byte("abc强强强强")) {
+				t.Error("flate fail")
+			}
+			close(c)
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/flate",
+			SaveToPipeWriter: wc,
 			Async:            true,
 		})
 		<-c
@@ -192,12 +246,9 @@ func Test_req(t *testing.T) {
 			Url:   "http://" + addr + "/flate",
 			Async: true,
 		})
-		if len(r.Respon) != 0 {
-			t.Error("async fail")
-		}
 		r.Wait()
 		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Error("async fail")
+			t.Error("async fail", r.Respon)
 		}
 	}
 	{
@@ -211,12 +262,11 @@ func Test_req(t *testing.T) {
 		if len(r.Respon) != 0 {
 			t.Error("io async fail")
 		}
-		d, _ := io.ReadAll(rc)
+		var buf []byte = make([]byte, 1<<16)
+		n, _ := rc.Read(buf)
+		d := buf[:n]
 		if !bytes.Equal(d, []byte("abc强强强强")) {
-			t.Error("io async fail")
-		}
-		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Error("io async fail")
+			t.Error("io async fail", d)
 		}
 	}
 }

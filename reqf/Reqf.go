@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	flate "compress/flate"
@@ -48,61 +49,59 @@ type Req struct {
 	Response *http.Response
 	UsedTime time.Duration
 
-	cancel     *signal.Signal
-	running    *signal.Signal
-	responBuf  *bytes.Buffer
+	cancelF func()
+	cancel  *signal.Signal
+	running *signal.Signal
+
 	responFile *os.File
-	asyncErr   error
+	err        error
+
+	l sync.Mutex
 }
 
 func New() *Req {
 	return new(Req)
 }
 
-// func main(){
-//     var _ReqfVal = ReqfVal{
-//         Url:url,
-//         Proxy:proxy,
-// 		Timeout:10,
-// 		Retry:2,
-//     }
-//     Reqf(_ReqfVal)
-// }
-
 func (t *Req) Reqf(val Rval) error {
-
-	if val.SaveToChan != nil && len(val.SaveToChan) == 1 && !val.Async {
-		panic("must make sure chan size larger then 1 or use Async true")
-	}
-	if val.SaveToPipeWriter != nil && !val.Async {
-		panic("SaveToPipeWriter must use Async true")
-	}
+	t.l.Lock()
 
 	t.Respon = []byte{}
 	t.Response = nil
 	t.UsedTime = 0
+	t.cancelF = nil
 	t.cancel = signal.Init()
 	t.running = signal.Init()
+	t.responFile = nil
+	t.err = nil
 
-	var returnErr error
-
-	_val := val
-
-	for SleepTime, Retry := _val.SleepTime, _val.Retry; Retry >= 0; Retry -= 1 {
-		returnErr = t.Reqf_1(_val)
+	go func() {
 		select {
-		case <-t.cancel.WaitC(): //cancel
-			return returnErr
-		default:
-			if returnErr == nil {
-				return nil
+		case <-t.cancel.Chan:
+			if t.cancelF != nil {
+				t.cancelF()
 			}
+		case <-t.running.Chan:
 		}
-		time.Sleep(time.Duration(SleepTime) * time.Millisecond)
-	}
+	}()
+	go func() {
+		beginTime := time.Now()
+		_val := val
 
-	if !val.Async || returnErr != nil {
-		t.asyncErr = returnErr
+		for SleepTime, Retry := _val.SleepTime, _val.Retry; Retry >= 0; Retry -= 1 {
+			t.err = t.Reqf_1(_val)
+			if t.err == nil || IsCancel(t.err) {
+				break
+			}
+			time.Sleep(time.Duration(SleepTime) * time.Millisecond)
+		}
+
+		t.UsedTime = time.Since(beginTime)
+		t.running.Done()
+	}()
+
+	if !val.Async {
+		t.Wait()
 		if val.SaveToChan != nil {
 			close(val.SaveToChan)
 		}
@@ -112,21 +111,31 @@ func (t *Req) Reqf(val Rval) error {
 		if val.SaveToPipeWriter != nil {
 			val.SaveToPipeWriter.Close()
 		}
-		if t.responBuf != nil {
-			t.Respon = t.responBuf.Bytes()
-		}
-		t.running.Done()
 		t.cancel.Done()
+		t.l.Unlock()
+	} else {
+		go func() {
+			t.Wait()
+			if val.SaveToChan != nil {
+				close(val.SaveToChan)
+			}
+			if t.responFile != nil {
+				t.responFile.Close()
+			}
+			if val.SaveToPipeWriter != nil {
+				val.SaveToPipeWriter.Close()
+			}
+			t.cancel.Done()
+			t.l.Unlock()
+		}()
 	}
-	return returnErr
+	return t.err
 }
 
 func (t *Req) Reqf_1(val Rval) (err error) {
 	var (
 		Header map[string]string = val.Header
 	)
-
-	var beginTime time.Time = time.Now()
 
 	var client http.Client
 
@@ -166,14 +175,7 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	if val.Timeout > 0 {
 		cx, cancel = context.WithTimeout(cx, time.Duration(val.Timeout)*time.Millisecond)
 	}
-
-	go func() {
-		select {
-		case <-t.cancel.WaitC():
-			cancel()
-		case <-t.running.WaitC():
-		}
-	}()
+	t.cancelF = cancel
 
 	req, e := http.NewRequest(Method, val.Url, body)
 	if e != nil {
@@ -205,19 +207,23 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		req.Header.Set(k, v)
 	}
 
-	resp, err := client.Do(req)
+	if !t.cancel.Islive() {
+		err = context.Canceled
+		return
+	}
+
+	resp, e := client.Do(req)
+
+	if e != nil {
+		err = e
+		return
+	}
+
 	if v, ok := Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
 		defer client.CloseIdleConnections()
 	}
 
-	if err != nil {
-		return err
-	}
-
 	t.Response = resp
-	defer func() {
-		t.UsedTime = time.Since(beginTime)
-	}()
 
 	if val.JustResponseCode {
 		return
@@ -227,12 +233,14 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		err = errors.New(strconv.Itoa(resp.StatusCode))
 	}
 
+	var responBuf *bytes.Buffer
 	var ws []io.Writer
 	if val.SaveToPath != "" {
-		t.responFile, err = os.Create(val.SaveToPath)
+		t.responFile, e = os.Create(val.SaveToPath)
 		if err != nil {
 			t.responFile.Close()
-			return err
+			err = e
+			return
 		}
 		ws = append(ws, t.responFile)
 	}
@@ -240,12 +248,10 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		ws = append(ws, val.SaveToPipeWriter)
 	}
 	if !val.NoResponse {
-		if t.responBuf == nil {
-			t.responBuf = new(bytes.Buffer)
-		} else {
-			t.responBuf.Reset()
+		if responBuf == nil {
+			responBuf = new(bytes.Buffer)
 		}
-		ws = append(ws, t.responBuf)
+		ws = append(ws, responBuf)
 	}
 
 	w := io.MultiWriter(ws...)
@@ -266,59 +272,40 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		resReader = resp.Body
 	}
 
-	go func() {
-		buf := make([]byte, 512)
+	buf := make([]byte, 512)
 
-		for {
-			if n, e := resReader.Read(buf); n != 0 {
-				w.Write(buf[:n])
-				select {
-				case val.SaveToChan <- buf[:n]:
-				default:
-				}
-			} else if e != nil {
-				if !errors.Is(e, io.EOF) {
-					err = e
-				}
-				break
+	for {
+		if n, e := resReader.Read(buf); n != 0 {
+			w.Write(buf[:n])
+			select {
+			case val.SaveToChan <- buf[:n]:
+			default:
 			}
-
-			if !t.cancel.Islive() {
-				err = context.Canceled
-				break
+		} else if e != nil {
+			if !errors.Is(e, io.EOF) {
+				err = e
 			}
+			break
 		}
 
-		if val.Async {
-			t.asyncErr = err
+		if !t.cancel.Islive() {
+			err = context.Canceled
+			break
 		}
-		resp.Body.Close()
-		if val.SaveToChan != nil {
-			close(val.SaveToChan)
-		}
-		if t.responFile != nil {
-			t.responFile.Close()
-		}
-		if val.SaveToPipeWriter != nil {
-			val.SaveToPipeWriter.Close()
-		}
-		if t.responBuf != nil {
-			t.Respon = t.responBuf.Bytes()
-		}
-		t.running.Done()
-	}()
-	if !val.Async {
-		t.Wait()
 	}
-	// if _, e := io.Copy(w, resp.Body); e != nil {
-	// 	err = e
-	// }
+
+	resp.Body.Close()
+
+	if responBuf != nil {
+		t.Respon = responBuf.Bytes()
+	}
+
 	return
 }
 
 func (t *Req) Wait() error {
 	t.running.Wait()
-	return t.asyncErr
+	return t.err
 }
 
 func (t *Req) Cancel() { t.Close() }
