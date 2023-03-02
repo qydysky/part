@@ -44,6 +44,20 @@ func init() {
 			w.Header().Set("Content-Encoding", "gzip")
 			w.Write(d)
 		},
+		`/1min`: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(200)
+			flusher, flushSupport := w.(http.Flusher)
+			if flushSupport {
+				flusher.Flush()
+			}
+			for i := 0; i < 3; i++ {
+				w.Write([]byte("0"))
+				if flushSupport {
+					flusher.Flush()
+				}
+				time.Sleep(time.Second)
+			}
+		},
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
@@ -154,6 +168,10 @@ func Test_req6(t *testing.T) {
 			t.Error("chan fail")
 		}
 	}
+}
+
+func Test_req11(t *testing.T) {
+	r := New()
 	{
 		timer := time.NewTimer(time.Second)
 		go func() {
@@ -165,6 +183,70 @@ func Test_req6(t *testing.T) {
 		})
 		if !IsCancel(e) {
 			t.Error("Cancel fail")
+		}
+	}
+}
+
+func Test_req9(t *testing.T) {
+	r := New()
+	{
+		rc, wc := io.Pipe()
+		go func() {
+			var buf []byte = make([]byte, 1<<16)
+			for {
+				n, _ := rc.Read(buf)
+				if n == 0 {
+					break
+				}
+			}
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/1min",
+			SaveToPipeWriter: wc,
+			Async:            true,
+		})
+		if r.Wait() != nil {
+			t.Fatal()
+		}
+	}
+}
+
+func Test_req8(t *testing.T) {
+	r := New()
+	{
+		rc, wc := io.Pipe()
+		go func() {
+			var buf []byte = make([]byte, 1<<16)
+			rc.Read(buf)
+			time.Sleep(time.Millisecond * 500)
+			r.Cancel()
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/1min",
+			SaveToPipeWriter: wc,
+			Async:            true,
+		})
+		if !IsCancel(r.Wait()) {
+			t.Fatal("read from block response")
+		}
+	}
+}
+
+func Test_req10(t *testing.T) {
+	r := New()
+	{
+		_, wc := io.Pipe()
+		go func() {
+			time.Sleep(time.Millisecond * 500)
+			r.Cancel()
+		}()
+		r.Reqf(Rval{
+			Url:              "http://" + addr + "/1min",
+			SaveToPipeWriter: wc,
+			Async:            true,
+		})
+		if !IsCancel(r.Wait()) {
+			t.Fatal("write to block io.pipe")
 		}
 	}
 }

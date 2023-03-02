@@ -27,8 +27,6 @@ type Rval struct {
 	Url              string
 	PostStr          string
 	Timeout          int
-	ReadTimeout      int // deprecated
-	ConnectTimeout   int //	deprecated
 	Proxy            string
 	Retry            int
 	SleepTime        int
@@ -49,10 +47,10 @@ type Req struct {
 	Response *http.Response
 	UsedTime time.Duration
 
-	cancelF func()
-	cancel  *signal.Signal
-	running *signal.Signal
-	isLive  *signal.Signal
+	cancelFs []func()
+	cancel   *signal.Signal
+	running  *signal.Signal
+	isLive   *signal.Signal
 
 	responFile *os.File
 	err        error
@@ -70,7 +68,7 @@ func (t *Req) Reqf(val Rval) error {
 	t.Respon = []byte{}
 	t.Response = nil
 	t.UsedTime = 0
-	t.cancelF = nil
+	t.cancelFs = []func(){}
 	t.cancel = signal.Init()
 	t.running = signal.Init()
 	t.isLive = signal.Init()
@@ -80,8 +78,8 @@ func (t *Req) Reqf(val Rval) error {
 	go func() {
 		select {
 		case <-t.cancel.Chan:
-			if t.cancelF != nil {
-				t.cancelF()
+			for i := 0; i < len(t.cancelFs); i++ {
+				t.cancelFs[i]()
 			}
 		case <-t.running.Chan:
 		}
@@ -113,6 +111,7 @@ func (t *Req) Reqf(val Rval) error {
 		if val.SaveToPipeWriter != nil {
 			val.SaveToPipeWriter.Close()
 		}
+		t.running.Done()
 		t.cancel.Done()
 		t.l.Unlock()
 		t.isLive.Done()
@@ -128,6 +127,7 @@ func (t *Req) Reqf(val Rval) error {
 			if val.SaveToPipeWriter != nil {
 				val.SaveToPipeWriter.Close()
 			}
+			t.running.Done()
 			t.cancel.Done()
 			t.l.Unlock()
 			t.isLive.Done()
@@ -179,7 +179,7 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	if val.Timeout > 0 {
 		cx, cancel = context.WithTimeout(cx, time.Duration(val.Timeout)*time.Millisecond)
 	}
-	t.cancelF = cancel
+	t.cancelFs = append(t.cancelFs, cancel)
 
 	req, e := http.NewRequest(Method, val.Url, body)
 	if e != nil {
@@ -247,9 +247,11 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 			return
 		}
 		ws = append(ws, t.responFile)
+		t.cancelFs = append(t.cancelFs, func() { t.responFile.Close() })
 	}
 	if val.SaveToPipeWriter != nil {
 		ws = append(ws, val.SaveToPipeWriter)
+		t.cancelFs = append(t.cancelFs, func() { val.SaveToPipeWriter.Close() })
 	}
 	if !val.NoResponse {
 		if responBuf == nil {
@@ -275,15 +277,15 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	} else {
 		resReader = resp.Body
 	}
+	t.cancelFs = append(t.cancelFs, func() { resp.Body.Close() })
 
 	buf := make([]byte, 512)
 
 	for {
 		if n, e := resReader.Read(buf); n != 0 {
 			w.Write(buf[:n])
-			select {
-			case val.SaveToChan <- buf[:n]:
-			default:
+			if val.SaveToChan != nil {
+				val.SaveToChan <- buf[:n]
 			}
 		} else if e != nil {
 			if !errors.Is(e, io.EOF) {
