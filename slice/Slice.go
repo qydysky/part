@@ -71,7 +71,7 @@ func (t *Buf[T]) Append(data []T) error {
 			t.buf = make([]T, len(data), t.maxsize)
 		}
 	} else {
-		diff := len(t.buf) - t.bufsize - len(data)
+		diff := cap(t.buf) - t.bufsize - len(data)
 		if diff < 0 {
 			t.buf = append(t.buf, make([]T, -diff)...)
 		} else {
