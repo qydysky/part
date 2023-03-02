@@ -65,17 +65,11 @@ func (t *Buf[T]) Append(data []T) error {
 	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
 		return errors.New("超出设定maxsize")
 	} else if len(t.buf) == 0 {
-		if t.maxsize == 0 {
-			t.buf = make([]T, len(data))
-		} else {
-			t.buf = make([]T, len(data), t.maxsize)
-		}
+		t.buf = make([]T, len(data))
 	} else {
 		diff := len(t.buf) - t.bufsize - len(data)
 		if diff < 0 {
 			t.buf = append(t.buf, make([]T, -diff)...)
-		} else {
-			t.buf = t.buf[:t.bufsize+len(data)]
 		}
 	}
 	t.bufsize += copy(t.buf[t.bufsize:], data)
