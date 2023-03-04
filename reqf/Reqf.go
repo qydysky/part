@@ -43,9 +43,10 @@ type Rval struct {
 }
 
 type Req struct {
-	Respon   []byte
-	Response *http.Response
-	UsedTime time.Duration
+	Respon    []byte
+	responBuf *bytes.Buffer
+	Response  *http.Response
+	UsedTime  time.Duration
 
 	cancelFs []func()
 	cancel   *signal.Signal
@@ -65,7 +66,10 @@ func New() *Req {
 func (t *Req) Reqf(val Rval) error {
 	t.l.Lock()
 
-	t.Respon = []byte{}
+	t.Respon = t.Respon[:0]
+	if t.responBuf == nil {
+		t.responBuf = new(bytes.Buffer)
+	}
 	t.Response = nil
 	t.UsedTime = 0
 	t.cancelFs = []func(){}
@@ -237,7 +241,6 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		err = errors.New(strconv.Itoa(resp.StatusCode))
 	}
 
-	var responBuf *bytes.Buffer
 	var ws []io.Writer
 	if val.SaveToPath != "" {
 		t.responFile, e = os.Create(val.SaveToPath)
@@ -254,10 +257,8 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		t.cancelFs = append(t.cancelFs, func() { val.SaveToPipeWriter.Close() })
 	}
 	if !val.NoResponse {
-		if responBuf == nil {
-			responBuf = new(bytes.Buffer)
-		}
-		ws = append(ws, responBuf)
+		t.responBuf.Reset()
+		ws = append(ws, t.responBuf)
 	}
 
 	w := io.MultiWriter(ws...)
@@ -302,8 +303,8 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 
 	resp.Body.Close()
 
-	if responBuf != nil {
-		t.Respon = responBuf.Bytes()
+	if t.responBuf != nil {
+		t.Respon = t.responBuf.Bytes()
 	}
 
 	return
