@@ -45,7 +45,7 @@ func TestWriteReadDel(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0); e != nil {
+	if e := f.Seed(0, 0); e != nil {
 		t.Fatal(e)
 	}
 
@@ -77,7 +77,7 @@ func TestSeed(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(1); e != nil {
+	if e := f.Seed(1, 0); e != nil {
 		t.Fatal(e)
 	}
 
@@ -90,7 +90,7 @@ func TestSeed(t *testing.T) {
 		}
 	}
 
-	if e := f.Seed(-1); e != nil {
+	if e := f.Seed(-1, 2); e != nil {
 		t.Fatal(e)
 	}
 
@@ -136,7 +136,7 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0); e != nil {
+	if e := f.Seed(0, 0); e != nil {
 		t.Fatal(e)
 	}
 
@@ -202,5 +202,18 @@ func TestReadAll(t *testing.T) {
 
 	if data, e := sf.ReadAll(10, 1000); (e != nil && !errors.Is(e, io.EOF)) || !bytes.Equal(data, []byte("测1试s啊是3大家看s法$和")) {
 		t.Fatal(e, string(data))
+	}
+}
+
+func TestCreate(t *testing.T) {
+	sf := New("t.txt", 0, true)
+	defer sf.Delete()
+
+	if sf.IsExist() {
+		t.Fatal()
+	}
+	sf.Create(false)
+	if !sf.IsExist() {
+		t.Fatal()
 	}
 }

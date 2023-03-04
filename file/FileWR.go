@@ -25,7 +25,7 @@ type File struct {
 	wr     io.Writer
 	rr     io.Reader
 	cu     int64
-	sync.RWMutex
+	l      sync.RWMutex
 }
 
 type Config struct {
@@ -54,10 +54,10 @@ func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	to.getRWCloser()
 	if t.Config.AutoClose {
@@ -65,13 +65,13 @@ func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
 	}
 
 	if tryLock {
-		if !to.TryLock() {
+		if !to.l.TryLock() {
 			return ErrFailToLock
 		}
 	} else {
-		to.Lock()
+		to.l.Lock()
 	}
-	defer to.Unlock()
+	defer to.l.Unlock()
 
 	return transferIO(t.read(), to.write(), byteInSec)
 }
@@ -82,10 +82,10 @@ func (t *File) CopyToIoWriter(to io.Writer, byteInSec int64, tryLock bool) error
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	return transferIO(t.read(), to, byteInSec)
 }
@@ -97,13 +97,13 @@ func (t *File) Write(data []byte, tryLock bool) (int, error) {
 	}
 
 	if tryLock {
-		if !t.TryLock() {
+		if !t.l.TryLock() {
 			return 0, ErrFailToLock
 		}
 	} else {
-		t.Lock()
+		t.l.Lock()
 	}
-	defer t.Unlock()
+	defer t.l.Unlock()
 
 	return t.write().Write(data)
 }
@@ -114,10 +114,10 @@ func (t *File) Read(data []byte) (int, error) {
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return 0, ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	return t.read().Read(data)
 }
@@ -128,10 +128,10 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return nil, ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	var (
 		tmpArea = make([]byte, perReadSize)
@@ -174,10 +174,10 @@ func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) 
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return nil, ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	var (
 		tmpArea = make([]byte, perReadSize)
@@ -204,22 +204,19 @@ func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) 
 	return
 }
 
-func (t *File) Seed(index int64) (e error) {
+// Seek sets the offset for the next Read or Write on file to offset, interpreted according to whence: 0 means relative to the origin of the file, 1 means relative to the current offset, and 2 means relative to the end. It returns the new offset and an error, if any. The behavior of Seek on a file opened with O_APPEND is not specified.
+func (t *File) Seed(index int64, whence int) (e error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
 
-	if !t.TryLock() {
+	if !t.l.TryLock() {
 		return ErrFailToLock
 	}
-	defer t.Unlock()
+	defer t.l.Unlock()
 
-	whenc := 0
-	if index < 0 {
-		whenc = 2
-	}
-	t.cu, e = t.file.Seek(index, whenc)
+	t.cu, e = t.file.Seek(index, whence)
 
 	return nil
 }
@@ -230,19 +227,26 @@ func (t *File) Sync() (e error) {
 		defer t.Close()
 	}
 
-	if !t.TryRLock() {
+	if !t.l.TryRLock() {
 		return ErrFailToLock
 	}
-	defer t.RUnlock()
+	defer t.l.RUnlock()
 
 	return t.file.Sync()
 }
 
+func (t *File) Create(tryLock bool) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+}
+
 func (t *File) Delete() error {
-	if !t.TryLock() {
+	if !t.l.TryLock() {
 		return ErrFailToLock
 	}
-	defer t.Unlock()
+	defer t.l.Unlock()
 
 	if t.IsDir() {
 		return os.RemoveAll(t.Config.FilePath)
