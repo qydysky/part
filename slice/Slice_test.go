@@ -79,3 +79,29 @@ func TestXxx2(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestXxx3(t *testing.T) {
+	var c = New[byte]()
+	var b = []byte{}
+	c.Append([]byte("12345"))
+	c.Append([]byte("67890"))
+	c.GetBufCopy(&b)
+	c.Reset()
+	if !bytes.Equal(b, []byte("1234567890")) {
+		t.Fatal(string(b))
+	}
+	c.Append([]byte("abc"))
+	c.Append([]byte("defg"))
+	c.GetBufCopy(&b)
+	c.Reset()
+	if !bytes.Equal(b, []byte("abcdefg")) {
+		t.Fatal()
+	}
+	c.Append([]byte("akjsdhfaksdjhf"))
+	c.Append([]byte("9834719203857"))
+	c.GetBufCopy(&b)
+	c.Reset()
+	if !bytes.Equal(b, []byte("akjsdhfaksdjhf9834719203857")) {
+		t.Fatal()
+	}
+}

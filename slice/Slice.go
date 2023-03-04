@@ -159,3 +159,18 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	copy(buf, t.buf[:t.bufsize])
 	return
 }
+
+// Need to lock when processing buf or Make sure buf only processing by GetBufCopy
+func (t *Buf[T]) GetBufCopy(buf *[]T) {
+	t.RLock()
+	defer t.RUnlock()
+
+	if len(*buf) == 0 {
+		*buf = make([]T, t.bufsize)
+	} else if len(*buf) < t.bufsize {
+		*buf = append(*buf, make([]T, t.bufsize-len(*buf))...)
+	} else {
+		*buf = (*buf)[:t.bufsize]
+	}
+	copy(*buf, t.buf[:t.bufsize])
+}
