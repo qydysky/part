@@ -11,7 +11,7 @@ type Buf[T any] struct {
 	reuseF  func(*T) *T
 	poolF   func(*T) *T
 	buf     []*T
-	sync.RWMutex
+	l       sync.RWMutex
 }
 
 // 创建池
@@ -35,9 +35,29 @@ func New[T any](NewF func() *T, InUse func(*T) bool, ReuseF func(*T) *T, PoolF f
 	return t
 }
 
+func (t *Buf[T]) PoolInUse() (inUse int) {
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	for i := 0; i < len(t.buf); i++ {
+		if t.inUse(t.buf[i]) {
+			inUse++
+		}
+	}
+
+	return
+}
+
+func (t *Buf[T]) PoolSum() int {
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	return len(t.buf)
+}
+
 func (t *Buf[T]) Trim() {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	for i := 0; i < len(t.buf); i++ {
 		if !t.inUse(t.buf[i]) {
@@ -49,8 +69,8 @@ func (t *Buf[T]) Trim() {
 }
 
 func (t *Buf[T]) Get() *T {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	for i := 0; i < len(t.buf); i++ {
 		if !t.inUse(t.buf[i]) {
@@ -66,8 +86,8 @@ func (t *Buf[T]) Put(item ...*T) {
 		return
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	var cu = 0
 	for i := 0; i < len(t.buf); i++ {

@@ -52,5 +52,4 @@ func TestXxx(t *testing.T) {
 	var c3 = b.Get()
 
 	t.Log(unsafe.Pointer(c3), c3)
-
 }
