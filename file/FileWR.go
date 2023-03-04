@@ -235,7 +235,7 @@ func (t *File) Sync() (e error) {
 	return t.file.Sync()
 }
 
-func (t *File) Create(tryLock bool) {
+func (t *File) Create() {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()

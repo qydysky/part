@@ -42,6 +42,7 @@ func (t *Recorder) Start(filePath string) error {
 	if f.IsExist() {
 		return ErrIsExist
 	}
+	f.Create()
 
 	go func() {
 		defer f.Close()
