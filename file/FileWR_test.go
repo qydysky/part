@@ -212,7 +212,7 @@ func TestCreate(t *testing.T) {
 	if sf.IsExist() {
 		t.Fatal()
 	}
-	sf.Create(false)
+	sf.Create()
 	if !sf.IsExist() {
 		t.Fatal()
 	}

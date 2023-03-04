@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-//go:embed data.txt
 var data []byte
 
 func Test_Br(t *testing.T) {
