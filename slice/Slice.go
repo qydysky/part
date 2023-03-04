@@ -11,7 +11,7 @@ type Buf[T any] struct {
 	bufsize  int
 	modified Modified
 	buf      []T
-	sync.RWMutex
+	l        sync.RWMutex
 }
 
 type Modified struct {
@@ -29,38 +29,38 @@ func New[T any](maxsize ...int) *Buf[T] {
 }
 
 func (t *Buf[T]) Clear() {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 	t.buf = nil
 	t.bufsize = 0
 	t.modified.t += 1
 }
 
 func (t *Buf[T]) Size() int {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	return t.bufsize
 }
 
 func (t *Buf[T]) IsEmpty() bool {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	return t.bufsize == 0
 }
 
 func (t *Buf[T]) Reset() {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	t.bufsize = 0
 	t.modified.t += 1
 }
 
 func (t *Buf[T]) Append(data []T) error {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
 		return errors.New("超出设定maxsize")
@@ -82,8 +82,8 @@ func (t *Buf[T]) RemoveFront(n int) error {
 		return nil
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	if t.bufsize < n {
 		return errors.New("尝试移除的数值大于长度")
@@ -102,8 +102,8 @@ func (t *Buf[T]) RemoveBack(n int) error {
 		return nil
 	}
 
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	if t.bufsize < n {
 		return errors.New("尝试移除的数值大于长度")
@@ -119,22 +119,22 @@ func (t *Buf[T]) RemoveBack(n int) error {
 
 // unsafe
 func (t *Buf[T]) SetModified() {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 
 	t.modified.t += 1
 }
 
 func (t *Buf[T]) GetModified() Modified {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	return t.modified
 }
 
 func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	if t.modified.p != mt.p {
 		err = errors.New("不能对比不同buf")
@@ -145,15 +145,15 @@ func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 
 // unsafe
 func (t *Buf[T]) GetPureBuf() (buf []T) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	return t.buf[:t.bufsize]
 }
 
 func (t *Buf[T]) GetCopyBuf() (buf []T) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	buf = make([]T, t.bufsize)
 	copy(buf, t.buf[:t.bufsize])
@@ -164,8 +164,8 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 //
 // *Not use b = make() to avoid pointer change
 func (t *Buf[T]) AppendBufCopy(buf *[]T) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 
 	origin := len(*buf)
 	if origin == 0 {
