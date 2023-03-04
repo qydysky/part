@@ -3,6 +3,7 @@ package part
 import (
 	"bytes"
 	"testing"
+	"unsafe"
 )
 
 func TestXxx(t *testing.T) {
@@ -82,26 +83,29 @@ func TestXxx2(t *testing.T) {
 
 func TestXxx3(t *testing.T) {
 	var c = New[byte]()
-	var b = []byte{}
+	var b []byte
+	var bp = unsafe.Pointer(&b)
 	c.Append([]byte("12345"))
 	c.Append([]byte("67890"))
-	c.GetBufCopy(&b)
+	c.AppendBufCopy(&b)
 	c.Reset()
 	if !bytes.Equal(b, []byte("1234567890")) {
 		t.Fatal(string(b))
 	}
+	b = []byte{}
 	c.Append([]byte("abc"))
 	c.Append([]byte("defg"))
-	c.GetBufCopy(&b)
+	c.AppendBufCopy(&b)
 	c.Reset()
-	if !bytes.Equal(b, []byte("abcdefg")) {
+	if !bytes.Equal(b, []byte("abcdefg")) || unsafe.Pointer(&b) != bp {
 		t.Fatal()
 	}
+	b = b[:0]
 	c.Append([]byte("akjsdhfaksdjhf"))
 	c.Append([]byte("9834719203857"))
-	c.GetBufCopy(&b)
+	c.AppendBufCopy(&b)
 	c.Reset()
-	if !bytes.Equal(b, []byte("akjsdhfaksdjhf9834719203857")) {
+	if !bytes.Equal(b, []byte("akjsdhfaksdjhf9834719203857")) || unsafe.Pointer(&b) != bp {
 		t.Fatal()
 	}
 }
