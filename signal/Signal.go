@@ -1,33 +1,56 @@
 package part
 
-type Signal struct{
-	Chan chan struct{}
+import (
+	"runtime"
+	"sync/atomic"
+)
+
+type Signal struct {
+	c         chan struct{}
+	waitCount atomic.Int32
 }
 
-func Init() (*Signal) {
-	return &Signal{Chan:make(chan struct{})}
+func Init() *Signal {
+	return &Signal{c: make(chan struct{})}
 }
 
 func (i *Signal) Wait() {
-	if i.Islive() {<-i.Chan}
+	if i.Islive() {
+		i.waitCount.Add(1)
+		<-i.c
+		i.waitCount.Add(-1)
+	}
 }
 
-func (i *Signal) WaitC() (<-chan struct{}) {
-	if i.Islive() {return i.Chan}
-	return nil
+// unsafe. fin() need
+func (i *Signal) WaitC() (c chan struct{}, fin func()) {
+	if i.Islive() {
+		i.waitCount.Add(1)
+		return i.c, func() { i.waitCount.Add(-1) }
+	}
+	return nil, func() {}
 }
 
 func (i *Signal) Done() {
-	if i.Islive() {close(i.Chan)}
+	if i.Islive() {
+		close(i.c)
+		for !i.waitCount.CompareAndSwap(0, -1) {
+			runtime.Gosched()
+		}
+	}
 }
 
 func (i *Signal) Islive() (islive bool) {
-	if i == nil {return}
+	if i == nil {
+		return
+	}
 	select {
-	case <-i.Chan:;//close
-	default://still alive
-		if i.Chan == nil {break}//not make yet
-		islive = true//has made
+	case <-i.c: //close
+	default: //still alive
+		if i.c == nil {
+			break
+		} //not make yet
+		islive = true //has made
 	}
 	return
 }
