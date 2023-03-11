@@ -167,9 +167,14 @@ func (i *Client) Handle() (o *Client) {
 			}
 		}()
 
+		donec, donecF := done.WaitC()
+		defer donecF()
+		osignal, osignalF := o.signal.WaitC()
+		defer osignalF()
+
 		for {
 			select {
-			case <-done.WaitC():
+			case <-donec:
 				return
 			case t := <-o.SendChan:
 				if !done.Islive() {
@@ -188,7 +193,7 @@ func (i *Client) Handle() (o *Client) {
 					return
 				}
 				c.SetWriteDeadline(time.Now().Add(time.Millisecond * time.Duration(o.TO)))
-			case <-o.signal.WaitC():
+			case <-osignal:
 				if !done.Islive() {
 					return
 				}
@@ -198,7 +203,7 @@ func (i *Client) Handle() (o *Client) {
 					o.err = err
 				}
 				select {
-				case <-done.WaitC():
+				case <-donec:
 				case <-time.After(time.Second):
 				}
 				return
@@ -227,11 +232,14 @@ func (o *Client) Heartbeat() (err error) {
 
 	go func(ticker_ping *time.Ticker) {
 		defer ticker_ping.Stop()
+
+		osignal, osignalF := o.signal.WaitC()
+		defer osignalF()
 		for {
 			select {
 			case <-ticker_ping.C:
 				if !o.Ping.had_pong {
-					o.err = errors.New(`Pong fail!`)
+					o.err = errors.New("PongFail")
 					o.Close()
 					return
 				}
@@ -240,7 +248,7 @@ func (o *Client) Heartbeat() (err error) {
 					Msg:  o.Ping.Msg,
 				}
 				o.Ping.had_pong = false
-			case <-o.signal.Chan:
+			case <-osignal:
 				return
 			}
 		}
