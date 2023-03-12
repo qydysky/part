@@ -45,3 +45,11 @@ func (t *Map) Copy() (m Map) {
 	})
 	return
 }
+
+func Copy[T comparable, S any](s map[T]S) map[T]S {
+	t := make(map[T]S)
+	for k, v := range s {
+		t[k] = v
+	}
+	return t
+}

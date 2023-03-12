@@ -177,6 +177,16 @@ func Test_1(t *testing.T) {
 	}
 }
 
+func Test_2(t *testing.T) {
+	var c = make(map[string]int)
+	c["1"] = 1
+	cc := Copy(c)
+	c["1"] = 2
+	if cc["1"] != 1 {
+		t.Fatal()
+	}
+}
+
 func Benchmark_customMap_Range(b *testing.B) {
 	var c Map
 	var w = &sync.WaitGroup{}
