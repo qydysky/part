@@ -1,16 +1,14 @@
 package part
 
 import (
-	"container/list"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-
-	idpool "github.com/qydysky/part/idpool"
 )
 
-type SkipFunc struct { //新的跳过
+// 新的跳过
+type SkipFunc struct {
 	c unsafe.Pointer
 }
 
@@ -22,35 +20,25 @@ func (t *SkipFunc) UnSet() {
 	atomic.CompareAndSwapPointer(&t.c, atomic.LoadPointer(&t.c), nil)
 }
 
-type FlashFunc struct { //新的替换旧的
-	b    *list.List
-	pool *idpool.Idpool
+// 新的替换旧的
+type FlashFunc struct {
+	b atomic.Uintptr
 }
 
 func (t *FlashFunc) Flash() (current uintptr) {
-	if t.pool == nil {
-		t.pool = idpool.New(func() interface{} { return new(struct{}) })
-	}
-	if t.b == nil {
-		t.b = list.New()
-	}
-
-	e := t.pool.Get()
-	current = e.Id
-	t.b.PushFront(e)
-
+	current = uintptr(unsafe.Pointer(&struct{}{}))
+	t.b.Store(current)
 	return
 }
 
-func (t *FlashFunc) UnFlash() {
-	t.b.Remove(t.b.Back())
-}
+func (t *FlashFunc) UnFlash() {}
 
 func (t *FlashFunc) NeedExit(current uintptr) bool {
-	return current != t.b.Front().Value.(*idpool.Id).Id
+	return t.b.Load() != current
 }
 
-type BlockFunc struct { //新的等待旧的
+// 新的等待旧的
+type BlockFunc struct {
 	sync.Mutex
 }
 

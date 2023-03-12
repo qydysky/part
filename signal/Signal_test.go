@@ -5,31 +5,20 @@ import (
 )
 
 func Test_signal(t *testing.T) {
-	var s *Signal
-	s.Wait()
-	t.Log(s.Islive())
+	var s *Signal = Init()
+	if !s.Islive() {
+		t.Fatal()
+	}
 	s.Done()
-	t.Log(s.Islive())
-	s = Init()
-	t.Log(s.Islive())
-	s.Done()
-	t.Log(s.Islive())
+	if s.Islive() {
+		t.Fatal()
+	}
 }
 
 func Test_signal2(t *testing.T) {
 	s := Init()
 	go s.Done()
 	s.Wait()
-}
-
-func Test_signal3(t *testing.T) {
-	var s *Signal
-	go func() {
-		if s != nil {
-			s.Islive()
-		}
-	}()
-	s = Init()
 }
 
 func BenchmarkXxx(b *testing.B) {

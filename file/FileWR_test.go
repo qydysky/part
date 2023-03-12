@@ -11,7 +11,7 @@ import (
 )
 
 func TestWriteReadDelSync(t *testing.T) {
-	f := New("test/rwd.txt", -6, true)
+	f := New("rwd.txt", -6, true)
 	if i, e := f.Write([]byte("sssa\n"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
@@ -146,18 +146,14 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(string(data))
 	}
 
-	t.Log(f.Config.CurIndex)
-
 	if data, e := f.ReadUntil('\n', 5, 20); e != nil {
 		t.Fatal(e)
 	} else if !bytes.Equal(data, []byte("s99s9")) {
 		t.Fatal(string(data))
 	}
 
-	if data, e := f.ReadUntil('\n', 5, 20); e == nil || !errors.Is(e, io.EOF) {
+	if data, e := f.ReadUntil('\n', 5, 20); e == nil || !errors.Is(e, io.EOF) || len(data) != 0 {
 		t.Fatal(e)
-	} else {
-		t.Log(string(data))
 	}
 
 	if e := f.Close(); e != nil {

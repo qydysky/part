@@ -381,7 +381,7 @@ func (t *File) newPath() error {
 
 func transferIO(r io.Reader, w io.Writer, byteInSec int64) (e error) {
 	if byteInSec > 0 {
-		limit := l.New(1, 1000, -1)
+		limit := l.New(1, "1s", "-1s")
 		defer limit.Close()
 
 		buf := make([]byte, byteInSec)

@@ -1,6 +1,7 @@
 package part
 
 import (
+	"bytes"
 	"testing"
 	"unsafe"
 )
@@ -32,24 +33,23 @@ func TestXxx(t *testing.T) {
 	var b = New(newf, validf, reusef, poolf, 10)
 
 	var c1 = b.Get()
+	var c1p = uintptr(unsafe.Pointer(c1))
 	c1.d = append(c1.d, []byte("1")...)
 
-	t.Log(unsafe.Pointer(c1), c1)
-
 	var c2 = b.Get()
+	var c2p = uintptr(unsafe.Pointer(c2))
 	c2.d = append(c2.d, []byte("2")...)
 
-	t.Log(unsafe.Pointer(c2), c2)
+	if c1p == c2p || bytes.Equal(c1.d, c2.d) || b.PoolInUse() != 0 || b.PoolSum() != 0 {
+		t.Fatal()
+	}
 
 	b.Put(c1)
-
-	t.Log(unsafe.Pointer(c1), c1)
-
 	c1.v = false
-
-	t.Log(unsafe.Pointer(c1), c1)
-
 	var c3 = b.Get()
+	var c3p = uintptr(unsafe.Pointer(c3))
 
-	t.Log(unsafe.Pointer(c3), c3)
+	if c1p != c3p || len(c1.d) != 0 || b.PoolInUse() != 1 || b.PoolSum() != 1 {
+		t.Fatal()
+	}
 }

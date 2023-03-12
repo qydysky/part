@@ -26,9 +26,13 @@ func (i *Signal) Wait() {
 func (i *Signal) WaitC() (c chan struct{}, fin func()) {
 	if i.Islive() {
 		i.waitCount.Add(1)
-		return i.c, func() { i.waitCount.Add(-1) }
+		return i.c, i.fin
 	}
 	return nil, func() {}
+}
+
+func (i *Signal) fin() {
+	i.waitCount.Add(-1)
 }
 
 func (i *Signal) Done() {

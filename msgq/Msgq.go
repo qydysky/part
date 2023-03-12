@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	signal "github.com/qydysky/part/signal"
 )
 
 type Msgq struct {
@@ -166,16 +168,18 @@ func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) {
 }
 
 func (m *MsgType[T]) Pull_tag_async_only(key string, f func(T) (disable bool)) {
-	var disable = false
+	var disable = signal.Init()
 
 	m.m.Register_front(func(data any) bool {
-		if disable {
+		if !disable.Islive() {
 			return true
 		}
 		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
-			go func(t *bool) {
-				*t = f(d.Data.(T))
-			}(&disable)
+			go func() {
+				if f(d.Data.(T)) {
+					disable.Done()
+				}
+			}()
 		}
 		return false
 	})

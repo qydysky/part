@@ -6,73 +6,99 @@ import (
 )
 
 func Test_SkipFunc(t *testing.T) {
+	var c = make(chan int, 2)
 	var b SkipFunc
 	var a = func(i int) {
 		if b.NeedSkip() {
 			return
 		}
 		defer b.UnSet()
-		t.Log(i, `.`)
+		c <- i
 		time.Sleep(time.Second)
-		t.Log(i, `..`)
+		c <- i
 	}
-	t.Log(`just show 1 or 2 twice`)
 	go a(1)
 	go a(2)
-	time.Sleep(5 * time.Second)
+	if i0 := <-c; i0 != <-c {
+		t.Fatal()
+	}
 }
 
 func Test_FlashFunc(t *testing.T) {
+	var c = make(chan int, 2)
 	var b FlashFunc
 	var a = func(i int) {
 		id := b.Flash()
 		defer b.UnFlash()
-
-		t.Log(i, `.`)
+		c <- i
 		time.Sleep(time.Second)
 		if b.NeedExit(id) {
 			return
 		}
-		t.Log(i, `.`)
+		c <- i
 	}
-	t.Log(`show 1 or 2, then show the other twice`)
 	go a(1)
 	go a(2)
-	time.Sleep(5 * time.Second)
+	if i0 := <-c; i0 == <-c {
+		t.Fatal()
+	}
 }
 
 func Test_BlockFunc(t *testing.T) {
+	var c = make(chan int, 2)
 	var b BlockFunc
 	var a = func(i int) {
 		b.Block()
 		defer b.UnBlock()
-		t.Log(i, `.`)
+		c <- i
 		time.Sleep(time.Second)
-		t.Log(i, `.`)
+		c <- i
 	}
-	t.Log(`show 1 and 2 twice`)
 	go a(1)
 	go a(2)
-	time.Sleep(5 * time.Second)
+	if i0 := <-c; i0 != <-c {
+		t.Fatal()
+	}
+	if i0 := <-c; i0 != <-c {
+		t.Fatal()
+	}
 }
 
 func Test_BlockFuncN(t *testing.T) {
+	var c = make(chan string, 8)
+	var cc string
+
 	var b = &BlockFuncN{
 		Max: 2,
 	}
-	var a = func(i int) {
-		defer b.UnBlock()
+	var a = func(i string) {
 		b.Block()
-		t.Log(i, `.`)
+		defer b.UnBlock()
+		c <- i
 		time.Sleep(time.Second)
-		t.Log(i, `.`)
+		c <- i
 	}
-	t.Log(`show two . at one time`)
-	go a(0)
-	go a(1)
-	go a(2)
-	go a(3)
+	go a("0")
+	time.Sleep(time.Millisecond * 20)
+	go a("1")
+	time.Sleep(time.Millisecond * 20)
+	go a("2")
+
+	for len(c) > 0 {
+		cc += <-c
+	}
+	if cc != "01" {
+		t.Fatal()
+	}
+
 	b.BlockAll()
 	b.UnBlockAll()
-	t.Log(`fin`)
+
+	for len(c) > 0 {
+		cc += <-c
+	}
+	if cc != "010212" {
+		t.Fatal()
+	}
+	// t.Log(cc)
 }
