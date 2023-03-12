@@ -97,33 +97,37 @@ func (m *Msgq) Pull_tag(func_map map[string]func(any) (disable bool)) {
 }
 
 func (m *Msgq) Pull_tag_async_only(key string, f func(any) (disable bool)) {
-	var disable = false
+	var disable = signal.Init()
 
 	m.Register_front(func(data any) bool {
-		if disable {
+		if !disable.Islive() {
 			return true
 		}
 		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
-			go func(t *bool) {
-				*t = f(d.Data)
-			}(&disable)
+			go func() {
+				if f(d.Data) {
+					disable.Done()
+				}
+			}()
 		}
 		return false
 	})
 }
 
 func (m *Msgq) Pull_tag_async(func_map map[string]func(any) (disable bool)) {
-	var disable = false
+	var disable = signal.Init()
 
 	m.Register_front(func(data any) bool {
-		if disable {
+		if !disable.Islive() {
 			return true
 		}
 		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {
-				go func(t *bool) {
-					*t = f(d.Data)
-				}(&disable)
+				go func() {
+					if f(d.Data) {
+						disable.Done()
+					}
+				}()
 			}
 		}
 		return false
@@ -186,17 +190,19 @@ func (m *MsgType[T]) Pull_tag_async_only(key string, f func(T) (disable bool)) {
 }
 
 func (m *MsgType[T]) Pull_tag_async(func_map map[string]func(T) (disable bool)) {
-	var disable = false
+	var disable = signal.Init()
 
 	m.m.Register_front(func(data any) bool {
-		if disable {
+		if !disable.Islive() {
 			return true
 		}
 		if d, ok := data.(Msgq_tag_data); ok {
 			if f, ok := func_map[d.Tag]; ok {
-				go func(t *bool) {
-					*t = f(d.Data.(T))
-				}(&disable)
+				go func() {
+					if f(d.Data.(T)) {
+						disable.Done()
+					}
+				}()
 			}
 		}
 		return false

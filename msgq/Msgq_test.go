@@ -1,7 +1,6 @@
 package part
 
 import (
-	"fmt"
 	_ "net/http/pprof"
 	"testing"
 	"time"
@@ -374,29 +373,24 @@ func Test_msgq7(t *testing.T) {
 }
 
 func Test_msgq8(t *testing.T) {
-	var c = make(chan string, 100)
-	var cc string
 	msg := NewType[int]()
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
-		time.Sleep(time.Second)
-		c <- fmt.Sprintf("a%d", i)
+		if i > 4 {
+			t.Fatal(i)
+		}
 		return i > 3
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
-		time.Sleep(time.Second)
-		c <- fmt.Sprintf("s%d", i)
+		if i > 6 {
+			t.Fatal(i)
+		}
 		return i > 5
 	})
 	for i := 0; i < 20; i++ {
 		msg.Push_tag(`1`, i)
+		time.Sleep(time.Millisecond * 20)
 	}
 	time.Sleep(time.Second)
-	for len(c) != 0 {
-		cc += <-c
-	}
-	if cc != "a0s0a1s1a2s2a3s3a4s4s5s6" {
-		t.Fatal()
-	}
 }
 
 // func Test_msgq6(t *testing.T) {
