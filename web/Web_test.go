@@ -22,6 +22,8 @@ func Test_Server(t *testing.T) {
 		},
 	})
 
+	time.Sleep(time.Second)
+
 	r := reqf.New()
 	{
 		r.Reqf(reqf.Rval{
@@ -52,6 +54,8 @@ func Test_ServerSyncMap(t *testing.T) {
 
 		ResStruct{0, "ok", d{"0", []string{"0"}, map[string]int{"0": 1}}}.Write(w)
 	})
+
+	time.Sleep(time.Second)
 
 	r := reqf.New()
 	{
