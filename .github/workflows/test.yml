@@ -23,11 +23,11 @@ jobs:
 
     - name: Test
       run: |
-        go test -v .
-        go test -v -race github.com/qydysky/part/signal
-        go test -v -race github.com/qydysky/part/reqf
-        go test -v -race github.com/qydysky/part/limit
-        go test -v -race github.com/qydysky/part/file
-        go test -v -race github.com/qydysky/part/pool
-        go test -v -race github.com/qydysky/part/funcCtrl
-        go test -v -race github.com/qydysky/part/msgq
+        go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/funcCtrl
+        go test -count 1 -timeout 30s -v -race github.com/qydysky/part/msgq

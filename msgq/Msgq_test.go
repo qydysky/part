@@ -177,7 +177,6 @@ func Test_msgq2(t *testing.T) {
 		}
 		mq.Push_tag(`A3`, i)
 	}
-	t.Log(`fin`)
 }
 
 func Test_msgq3(t *testing.T) {
@@ -193,18 +192,13 @@ func Test_msgq3(t *testing.T) {
 		},
 	})
 
-	var fin_turn = 0
-	t.Log(`start`)
 	time.Sleep(time.Second)
-	for fin_turn < 1000000 {
+	for fin_turn := 0; fin_turn < 1000000; fin_turn += 1 {
 		mq.Push_tag(`A1`, fin_turn)
 		if fin_turn != <-mun_c {
-			t.Error(fin_turn)
+			t.Fatal(fin_turn)
 		}
-		fin_turn += 1
-		fmt.Print("\r", fin_turn)
 	}
-	t.Log(`fin`)
 }
 
 func Test_msgq4(t *testing.T) {
@@ -253,7 +247,6 @@ func Test_msgq4(t *testing.T) {
 	})
 
 	var fin_turn = 0
-	t.Log(`start`)
 	time.Sleep(time.Second)
 	for fin_turn < 5 {
 		go mq.Push_tag(`A1`, `a11`)
@@ -268,9 +261,7 @@ func Test_msgq4(t *testing.T) {
 		<-mun_c1
 		// <-mun_c3
 		fin_turn += 1
-		fmt.Print("\r", fin_turn)
 	}
-	t.Log(`fin`)
 }
 
 func Test_msgq5(t *testing.T) {
@@ -320,7 +311,6 @@ func Test_msgq5(t *testing.T) {
 	})
 
 	var fin_turn = 0
-	t.Log(`start`)
 	time.Sleep(time.Second)
 	for fin_turn < 10 {
 		mq.Push_tag(`A1`, `a11`)
@@ -328,9 +318,7 @@ func Test_msgq5(t *testing.T) {
 		<-mun_c1
 		<-mun_c2
 		fin_turn += 1
-		fmt.Print("\r", fin_turn)
 	}
-	t.Log(`fin`)
 }
 
 func Test_msgq6(t *testing.T) {
@@ -340,7 +328,6 @@ func Test_msgq6(t *testing.T) {
 			if b != 0 {
 				t.Fatal()
 			}
-			t.Log(b)
 			return false
 		},
 	})
@@ -349,47 +336,67 @@ func Test_msgq6(t *testing.T) {
 }
 
 func Test_msgq7(t *testing.T) {
+	var c = make(chan string, 100)
 	msg := NewType[int]()
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second)
-		t.Log(`async1`)
+		c <- "1"
 		return i > 10
 	})
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second * 2)
-		t.Log(`async2`)
+		c <- "2"
 		return i > 10
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second * 2)
-		t.Log(`sync1`)
+		c <- "3"
 		return i > 10
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second * 2)
-		t.Log(`sync2`)
+		c <- "4"
 		return i > 10
 	})
 	msg.Push_tag(`1`, 0)
-	time.Sleep(time.Second * 10)
+	if <-c != "1" {
+		t.Fatal()
+	}
+	if <-c != "2" {
+		t.Fatal()
+	}
+	if <-c != "3" {
+		t.Fatal()
+	}
+	if <-c != "4" {
+		t.Fatal()
+	}
 }
 
 func Test_msgq8(t *testing.T) {
+	var c = make(chan string, 100)
+	var cc string
 	msg := NewType[int]()
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second)
-		t.Logf("async %d", i)
+		c <- fmt.Sprintf("a%d", i)
 		return i > 3
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
 		time.Sleep(time.Second)
-		t.Logf("sync %d", i)
+		c <- fmt.Sprintf("s%d", i)
 		return i > 5
 	})
 	for i := 0; i < 20; i++ {
 		msg.Push_tag(`1`, i)
 	}
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second)
+	for len(c) != 0 {
+		cc += <-c
+	}
+	if cc != "a0s0a1s1a2s2a3s3a4s4s5s6" {
+		t.Fatal()
+	}
 }
 
 // func Test_msgq6(t *testing.T) {
