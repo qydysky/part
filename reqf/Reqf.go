@@ -81,9 +81,6 @@ func (t *Req) Reqf(val Rval) error {
 	t.running = signal.Init()
 	t.responFile = nil
 	t.err = nil
-
-	t.init.Unlock()
-
 	go func() {
 		cancel, cancelFin := t.cancel.WaitC()
 		defer cancelFin()
@@ -98,6 +95,9 @@ func (t *Req) Reqf(val Rval) error {
 		case <-running:
 		}
 	}()
+
+	t.init.Unlock()
+
 	go func() {
 		beginTime := time.Now()
 		_val := val
