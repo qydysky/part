@@ -348,12 +348,12 @@ func Test_msgq7(t *testing.T) {
 		return i > 10
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 3)
 		c <- "3"
 		return i > 10
 	})
 	msg.Pull_tag_only(`1`, func(i int) (disable bool) {
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 3)
 		c <- "4"
 		return i > 10
 	})
