@@ -1,9 +1,9 @@
 package part
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"testing"
 	"time"
 
@@ -11,9 +11,26 @@ import (
 )
 
 func Test_Server(t *testing.T) {
-	s := Easy_boot()
-	t.Log(`http://` + s.Server.Addr)
-	time.Sleep(time.Second * time.Duration(100))
+	s := New(&http.Server{
+		Addr:         "127.0.0.1:10000",
+		WriteTimeout: time.Second * time.Duration(10),
+	})
+	defer s.Shutdown()
+	s.Handle(map[string]func(http.ResponseWriter, *http.Request){
+		`/no`: func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("abc强强强强"))
+		},
+	})
+
+	r := reqf.New()
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:10000/no",
+		})
+		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+			t.Error()
+		}
+	}
 }
 
 func Test_ServerSyncMap(t *testing.T) {
@@ -21,23 +38,29 @@ func Test_ServerSyncMap(t *testing.T) {
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("1"))
 	})
-	NewSyncMap(&http.Server{
-		Addr: "127.0.0.1:9090",
+	s := NewSyncMap(&http.Server{
+		Addr: "127.0.0.1:10000",
 	}, &m)
-	for i := 0; i < 20; i++ {
-		time.Sleep(time.Second)
-		m.Store("/1", func(w http.ResponseWriter, _ *http.Request) {
+	defer s.Shutdown()
+	m.Store("/1", func(w http.ResponseWriter, _ *http.Request) {
 
-			type d struct {
-				A string         `json:"a"`
-				B []string       `json:"b"`
-				C map[string]int `json:"c"`
-			}
+		type d struct {
+			A string         `json:"a"`
+			B []string       `json:"b"`
+			C map[string]int `json:"c"`
+		}
 
-			t := strconv.Itoa(i)
+		ResStruct{0, "ok", d{"0", []string{"0"}, map[string]int{"0": 1}}}.Write(w)
+	})
 
-			ResStruct{0, "ok", d{t, []string{t}, map[string]int{t: 1}}}.Write(w)
+	r := reqf.New()
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:10000/1",
 		})
+		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
+			t.Error(string(r.Respon))
+		}
 	}
 }
 

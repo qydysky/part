@@ -143,6 +143,14 @@ func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Reques
 	}
 }
 
+func (t *Web) Shutdown() {
+	t.Server.Shutdown(context.Background())
+}
+
+func (t *WebSync) Shutdown() {
+	t.Server.Shutdown(context.Background())
+}
+
 func Easy_boot() *Web {
 	s := New(&http.Server{
 		Addr:         "127.0.0.1:" + strconv.Itoa(sys.Sys().GetFreePort()),

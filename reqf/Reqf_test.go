@@ -79,6 +79,7 @@ func init() {
 			s.Server.Shutdown(context.Background())
 		},
 	})
+	time.Sleep(time.Second)
 }
 
 func Test_req7(t *testing.T) {
