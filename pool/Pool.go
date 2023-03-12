@@ -10,8 +10,13 @@ type Buf[T any] struct {
 	inUse   func(*T) bool
 	reuseF  func(*T) *T
 	poolF   func(*T) *T
-	buf     []*T
+	buf     []poolItem[T]
 	l       sync.RWMutex
+}
+
+type poolItem[T any] struct {
+	i      *T
+	pooled bool
 }
 
 // 创建池
@@ -40,7 +45,7 @@ func (t *Buf[T]) PoolInUse() (inUse int) {
 	defer t.l.RUnlock()
 
 	for i := 0; i < len(t.buf); i++ {
-		if t.inUse(t.buf[i]) {
+		if !t.buf[i].pooled && t.inUse(t.buf[i].i) {
 			inUse++
 		}
 	}
@@ -60,8 +65,7 @@ func (t *Buf[T]) Trim() {
 	defer t.l.Unlock()
 
 	for i := 0; i < len(t.buf); i++ {
-		if !t.inUse(t.buf[i]) {
-			t.buf[i] = nil
+		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
 			t.buf = append(t.buf[:i], t.buf[i+1:]...)
 			i--
 		}
@@ -73,8 +77,9 @@ func (t *Buf[T]) Get() *T {
 	defer t.l.Unlock()
 
 	for i := 0; i < len(t.buf); i++ {
-		if !t.inUse(t.buf[i]) {
-			return t.reuseF(t.buf[i])
+		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
+			t.buf[i].pooled = false
+			return t.reuseF(t.buf[i].i)
 		}
 	}
 
@@ -91,8 +96,9 @@ func (t *Buf[T]) Put(item ...*T) {
 
 	var cu = 0
 	for i := 0; i < len(t.buf); i++ {
-		if !t.inUse(t.buf[i]) {
-			t.buf[i] = t.poolF(item[cu])
+		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
+			t.buf[i].i = t.poolF(item[cu])
+			t.buf[i].pooled = true
 			cu++
 			if cu >= len(item) {
 				return
@@ -101,6 +107,6 @@ func (t *Buf[T]) Put(item ...*T) {
 	}
 
 	for i := cu; i < len(item) && t.maxsize > len(t.buf); i++ {
-		t.buf = append(t.buf, t.poolF(item[i]))
+		t.buf = append(t.buf, poolItem[T]{t.poolF(item[i]), true})
 	}
 }

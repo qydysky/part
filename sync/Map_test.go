@@ -26,7 +26,6 @@ func Test_customMap(t *testing.T) {
 	//range
 	c.Store(1, 1)
 	c.Range(func(key, value interface{}) bool {
-		t.Log(key, value)
 		if key.(int) != value.(int) {
 			t.Error(`3`)
 		}
@@ -37,12 +36,10 @@ func Test_customMap(t *testing.T) {
 	if v, ok := c.Load(0); ok && v != nil {
 		t.Error(`4`)
 	}
-	t.Log(c.Len())
 	c.Delete(1)
 	if v, ok := c.Load(1); ok && v != nil {
 		t.Error(`6`)
 	}
-	t.Log(c.Len())
 }
 
 func Benchmark_customMap_Set(b *testing.B) {
@@ -164,6 +161,19 @@ func Test_Range(t *testing.T) {
 	})
 	if c.Len() != 1 {
 		t.Error("Delete 无效", c.Len())
+	}
+}
+
+func Test_1(t *testing.T) {
+	var c Map
+	c.Store("o", []string{"111", "222"})
+	m := c.Copy()
+	if v, ok := m.LoadV("o").([]string); !ok || len(v) != 2 || v[0] != "111" || v[1] != "222" {
+		t.Fatal()
+	}
+	c.Delete("o")
+	if v, ok := m.LoadV("o").([]string); !ok || len(v) != 2 || v[0] != "111" || v[1] != "222" {
+		t.Fatal()
 	}
 }
 

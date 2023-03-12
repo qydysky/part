@@ -3,6 +3,7 @@ package part
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -58,6 +59,22 @@ func init() {
 				time.Sleep(time.Second)
 			}
 		},
+		`/json`: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(200)
+			flusher, flushSupport := w.(http.Flusher)
+			if flushSupport {
+				flusher.Flush()
+			}
+			w.Write([]byte("{\"a\":"))
+			if flushSupport {
+				flusher.Flush()
+			}
+			time.Sleep(time.Millisecond * 20)
+			w.Write([]byte("123}"))
+			if flushSupport {
+				flusher.Flush()
+			}
+		},
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
@@ -96,6 +113,21 @@ func Test_req(t *testing.T) {
 	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
 		t.Error("flate fail")
 	}
+}
+
+type J struct {
+	A int `json:"a"`
+}
+
+func Test_req12(t *testing.T) {
+	r := New()
+	r.Reqf(Rval{
+		Url:     "http://" + addr + "/json",
+		Timeout: 10 * 1000,
+		Retry:   2,
+	})
+	var j J
+	json.Unmarshal(r.Respon, &j)
 }
 
 func Test_req2(t *testing.T) {

@@ -44,12 +44,18 @@ func TestXxx(t *testing.T) {
 		t.Fatal()
 	}
 
-	b.Put(c1)
 	c1.v = false
+
 	var c3 = b.Get()
 	var c3p = uintptr(unsafe.Pointer(c3))
 
-	if c1p != c3p || len(c1.d) != 0 || b.PoolInUse() != 1 || b.PoolSum() != 1 {
+	if c1p == c3p || len(c1.d) == 0 || b.PoolInUse() != 0 || b.PoolSum() != 0 {
 		t.Fatal()
+	}
+
+	b.Put(c1)
+
+	if len(c1.d) == 0 || b.PoolInUse() != 0 || b.PoolSum() != 1 {
+		t.Fatal(len(c1.d) != 0, b.PoolInUse() != 0, b.PoolSum() != 1)
 	}
 }
