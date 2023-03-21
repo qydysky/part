@@ -2,13 +2,14 @@ package part
 
 import (
 	_ "net/http/pprof"
+	"sync"
 	"testing"
 	"time"
 )
 
-type test_item struct {
-	data string
-}
+// type test_item struct {
+// 	data string
+// }
 
 // func Test_msgq(t *testing.T) {
 
@@ -64,7 +65,7 @@ type test_item struct {
 // 	go func() {
 // 		var (
 // 			sig  = mq.Sig()
-// 			data interface{}
+// 			data any
 // 		)
 // 		for {
 // 			data, sig = mq.Pull(sig)
@@ -77,7 +78,7 @@ type test_item struct {
 // 	go func() {
 // 		var (
 // 			sig  = mq.Sig()
-// 			data interface{}
+// 			data any
 // 		)
 // 		for {
 // 			data, sig = mq.Pull(sig)
@@ -90,7 +91,7 @@ type test_item struct {
 // 	go func() {
 // 		var (
 // 			sig  = mq.Sig()
-// 			data interface{}
+// 			data any
 // 		)
 // 		for {
 // 			data, sig = mq.Pull(sig)
@@ -133,6 +134,62 @@ func BenchmarkXxx(b *testing.B) {
 		mq.Push_tag(`1`, nil)
 		if i == b.N/2 {
 			mq.Push_tag(`2`, nil)
+		}
+	}
+}
+
+func Test_msgq1(t *testing.T) {
+	mq := New()
+	c := make(chan time.Time, 10)
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
+			if v, ok := data.(time.Time); ok {
+				c <- v
+				time.Sleep(time.Second)
+			}
+			return false
+		},
+	})
+
+	{
+		var w sync.WaitGroup
+		w.Add(2)
+		go func() {
+			mq.Push_tag(`A1`, time.Now())
+			w.Done()
+		}()
+		go func() {
+			time.Sleep(time.Millisecond * 100)
+			mq.Push_tag(`A1`, time.Now())
+			w.Done()
+		}()
+		w.Wait()
+		if t1 := time.Now().Add(-time.Second).Add(-time.Millisecond * 100).Sub(<-c).Milliseconds(); t1 > 50 {
+			t.Fatal(t1)
+		}
+		if t1 := time.Now().Add(-time.Second).Sub(<-c).Milliseconds(); t1 > 50 {
+			t.Fatal(t1)
+		}
+	}
+
+	{
+		var w sync.WaitGroup
+		w.Add(2)
+		go func() {
+			mq.PushLock_tag(`A1`, time.Now())
+			w.Done()
+		}()
+		go func() {
+			time.Sleep(time.Millisecond * 100)
+			mq.PushLock_tag(`A1`, time.Now())
+			w.Done()
+		}()
+		w.Wait()
+		if t1 := time.Now().Add(-2 * time.Second).Sub(<-c).Milliseconds(); t1 > 50 {
+			t.Fatal(t1)
+		}
+		if t1 := time.Now().Add(-2 * time.Second).Add(-time.Millisecond * 100).Sub(<-c).Milliseconds(); t1 > 50 {
+			t.Fatal(t1)
 		}
 	}
 }
@@ -182,8 +239,8 @@ func Test_msgq3(t *testing.T) {
 	mq := New()
 
 	mun_c := make(chan int, 100)
-	mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
 			if v, ok := data.(int); ok {
 				mun_c <- v
 			}
@@ -207,37 +264,37 @@ func Test_msgq4(t *testing.T) {
 	mun_c1 := make(chan bool, 100)
 	mun_c2 := make(chan bool, 100)
 	mun_c3 := make(chan bool, 100)
-	mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`1`)
 			}
 			mun_c1 <- true
 			return false
 		},
-		`A2`: func(data interface{}) bool {
+		`A2`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
 			mun_c2 <- true
 			return false
 		},
-		`Error`: func(data interface{}) bool {
+		`Error`: func(data any) bool {
 			if data == nil {
 				t.Error(`out of list`)
 			}
 			return false
 		},
 	})
-	mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
 			mun_c3 <- true
 			return false
 		},
-		`Error`: func(data interface{}) bool {
+		`Error`: func(data any) bool {
 			if data == nil {
 				t.Error(`out of list`)
 			}
@@ -268,40 +325,40 @@ func Test_msgq5(t *testing.T) {
 
 	mun_c1 := make(chan bool, 100)
 	mun_c2 := make(chan bool, 100)
-	go mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
+	go mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(_ any) bool {
 			time.Sleep(time.Second) //will block
 			return false
 		},
-		`A2`: func(data interface{}) bool {
+		`A2`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
 			mun_c2 <- true
 			return false
 		},
-		`Error`: func(data interface{}) bool {
+		`Error`: func(data any) bool {
 			if data == nil {
 				t.Error(`out of list`)
 			}
 			return false
 		},
 	})
-	mq.Pull_tag(map[string]func(interface{}) bool{
-		`A1`: func(data interface{}) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`A1`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`1`)
 			}
 			mun_c1 <- true
 			return false
 		},
-		`A2`: func(data interface{}) bool {
+		`A2`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
 			return false
 		},
-		`Error`: func(data interface{}) bool {
+		`Error`: func(data any) bool {
 			if data == nil {
 				t.Error(`out of list`)
 			}
@@ -395,17 +452,17 @@ func Test_msgq8(t *testing.T) {
 
 // func Test_msgq6(t *testing.T) {
 // 	mq := New()
-// 	go mq.Pull_tag(map[string]func(interface{}) bool{
-// 		`A1`: func(data interface{}) bool {
+// 	go mq.Pull_tag(map[string]func(any) bool{
+// 		`A1`: func(data any) bool {
 // 			return false
 // 		},
-// 		`A2`: func(data interface{}) bool {
+// 		`A2`: func(data any) bool {
 // 			if v, ok := data.(string); !ok || v != `a11` {
 // 				t.Error(`2`)
 // 			}
 // 			return false
 // 		},
-// 		`Error`: func(data interface{}) bool {
+// 		`Error`: func(data any) bool {
 // 			if data == nil {
 // 				t.Error(`out of list`)
 // 			}

@@ -64,6 +64,33 @@ func (m *Msgq) Push(msg any) {
 	}
 }
 
+func (m *Msgq) PushLock(msg any) {
+	for m.someNeedRemove.Load() != 0 {
+		time.Sleep(time.Millisecond)
+		runtime.Gosched()
+	}
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	var removes []*list.Element
+
+	for el := m.funcs.Front(); el != nil; el = el.Next() {
+		if disable := el.Value.(func(any) bool)(msg); disable {
+			m.someNeedRemove.Add(1)
+			removes = append(removes, el)
+		}
+	}
+
+	if len(removes) != 0 {
+		m.someNeedRemove.Add(-int32(len(removes)))
+		for i := 0; i < len(removes); i++ {
+			m.funcs.Remove(removes[i])
+		}
+		removes = nil
+	}
+}
+
 type Msgq_tag_data struct {
 	Tag  string
 	Data any
@@ -71,6 +98,13 @@ type Msgq_tag_data struct {
 
 func (m *Msgq) Push_tag(Tag string, Data any) {
 	m.Push(Msgq_tag_data{
+		Tag:  Tag,
+		Data: Data,
+	})
+}
+
+func (m *Msgq) PushLock_tag(Tag string, Data any) {
+	m.PushLock(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
 	})
@@ -145,6 +179,13 @@ func NewType[T any]() *MsgType[T] {
 }
 
 func (m *MsgType[T]) Push_tag(Tag string, Data T) {
+	m.m.Push(Msgq_tag_data{
+		Tag:  Tag,
+		Data: Data,
+	})
+}
+
+func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 	m.m.Push(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
