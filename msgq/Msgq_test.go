@@ -194,6 +194,39 @@ func Test_msgq1(t *testing.T) {
 	}
 }
 
+func Test_msgq9(t *testing.T) {
+	var mq = NewType[int]()
+	var c = make(chan int, 10)
+	mq.Pull_tag_only(`c`, func(i int) (disable bool) {
+		c <- i
+		return false
+	})
+	mq.PushLock_tag(`c`, 1)
+	mq.ClearAll()
+	mq.PushLock_tag(`c`, 2)
+	if len(c) != 1 || <-c != 1 {
+		t.Fatal()
+	}
+
+	mq.Pull_tag(map[string]func(int) (disable bool){
+		`c`: func(i int) (disable bool) {
+			c <- i
+			return false
+		},
+		`s`: func(_ int) (disable bool) {
+			mq.ClearAll()
+			return false
+		},
+	})
+
+	mq.PushLock_tag(`c`, 1)
+	mq.ClearAll()
+	mq.PushLock_tag(`c`, 2)
+	if len(c) != 1 || <-c != 1 {
+		t.Fatal()
+	}
+}
+
 func Test_msgq2(t *testing.T) {
 	mq := New()
 

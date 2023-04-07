@@ -91,6 +91,31 @@ func (m *Msgq) PushLock(msg any) {
 	}
 }
 
+func (m *Msgq) ClearAll() {
+	for m.someNeedRemove.Load() != 0 {
+		time.Sleep(time.Millisecond)
+		runtime.Gosched()
+	}
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	var removes []*list.Element
+
+	for el := m.funcs.Front(); el != nil; el = el.Next() {
+		m.someNeedRemove.Add(1)
+		removes = append(removes, el)
+	}
+
+	if len(removes) != 0 {
+		m.someNeedRemove.Add(-int32(len(removes)))
+		for i := 0; i < len(removes); i++ {
+			m.funcs.Remove(removes[i])
+		}
+		removes = nil
+	}
+}
+
 type Msgq_tag_data struct {
 	Tag  string
 	Data any
@@ -190,6 +215,10 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 		Tag:  Tag,
 		Data: Data,
 	})
+}
+
+func (m *MsgType[T]) ClearAll() {
+	m.m.ClearAll()
 }
 
 func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) {
