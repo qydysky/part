@@ -61,6 +61,23 @@ func Test_FlashFunc2(t *testing.T) {
 	}
 }
 
+func Test_FlashFunc3(t *testing.T) {
+	var cc = make(chan int, 2)
+	var b FlashFunc
+	var a = func(i int) {
+		b.FlashWithCallback(func() {
+			cc <- i
+		})
+	}
+	go a(1)
+	go a(2)
+	go a(3)
+	time.Sleep(time.Second)
+	if len(cc) != 2 && <-cc != 1 && <-cc != 2 {
+		t.Fatal(len(cc))
+	}
+}
+
 func Test_BlockFunc(t *testing.T) {
 	var c = make(chan int, 2)
 	var b BlockFunc

@@ -26,6 +26,7 @@ type FlashFunc struct {
 	b atomic.Uintptr
 	l sync.Mutex
 	c *context.CancelFunc
+	f *func()
 }
 
 func (t *FlashFunc) Flash() (current uintptr) {
@@ -51,6 +52,17 @@ func (t *FlashFunc) FlashWithContext() (c context.Context) {
 	c, cancle := context.WithCancel(context.Background())
 	t.c = &cancle
 	return
+}
+
+func (t *FlashFunc) FlashWithCallback(f func()) {
+	t.l.Lock()
+	defer t.l.Unlock()
+
+	if t.f != nil {
+		(*t.f)()
+		t.f = nil
+	}
+	t.f = &f
 }
 
 // 新的等待旧的
