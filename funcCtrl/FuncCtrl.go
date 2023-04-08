@@ -1,6 +1,7 @@
 package part
 
 import (
+	"context"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -23,11 +24,16 @@ func (t *SkipFunc) UnSet() {
 // 新的替换旧的
 type FlashFunc struct {
 	b atomic.Uintptr
+	c *context.CancelFunc
 }
 
 func (t *FlashFunc) Flash() (current uintptr) {
 	current = uintptr(unsafe.Pointer(&struct{}{}))
 	t.b.Store(current)
+	if t.c != nil {
+		(*t.c)()
+		t.c = nil
+	}
 	return
 }
 
@@ -35,6 +41,18 @@ func (t *FlashFunc) UnFlash() {}
 
 func (t *FlashFunc) NeedExit(current uintptr) bool {
 	return t.b.Load() != current
+}
+
+func (t *FlashFunc) FlashWithContext() (current uintptr, c context.Context) {
+	current = uintptr(unsafe.Pointer(&struct{}{}))
+	t.b.Store(current)
+	if t.c != nil {
+		(*t.c)()
+		t.c = nil
+	}
+	c, cancle := context.WithCancel(context.Background())
+	t.c = &cancle
+	return
 }
 
 // 新的等待旧的
