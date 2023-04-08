@@ -24,16 +24,13 @@ func (t *SkipFunc) UnSet() {
 // 新的替换旧的
 type FlashFunc struct {
 	b atomic.Uintptr
+	l sync.Mutex
 	c *context.CancelFunc
 }
 
 func (t *FlashFunc) Flash() (current uintptr) {
 	current = uintptr(unsafe.Pointer(&struct{}{}))
 	t.b.Store(current)
-	if t.c != nil {
-		(*t.c)()
-		t.c = nil
-	}
 	return
 }
 
@@ -43,9 +40,10 @@ func (t *FlashFunc) NeedExit(current uintptr) bool {
 	return t.b.Load() != current
 }
 
-func (t *FlashFunc) FlashWithContext() (current uintptr, c context.Context) {
-	current = uintptr(unsafe.Pointer(&struct{}{}))
-	t.b.Store(current)
+func (t *FlashFunc) FlashWithContext() (c context.Context) {
+	t.l.Lock()
+	defer t.l.Unlock()
+
 	if t.c != nil {
 		(*t.c)()
 		t.c = nil

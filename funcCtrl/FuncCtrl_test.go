@@ -48,7 +48,7 @@ func Test_FlashFunc2(t *testing.T) {
 	var cc = make(chan int, 2)
 	var b FlashFunc
 	var a = func(i int) {
-		_, c := b.FlashWithContext()
+		c := b.FlashWithContext()
 		<-c.Done()
 		cc <- i
 	}
