@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -350,7 +351,6 @@ func (t *File) getRWCloser() {
 }
 
 func (t *File) newPath() error {
-
 	/*
 		如果filename路径不存在，就新建它
 	*/
@@ -359,17 +359,22 @@ func (t *File) newPath() error {
 		return err == nil || os.IsExist(err)
 	}
 
-	for i := 0; true; {
-		a := strings.Index(t.Config.FilePath[i:], "/")
-		if a == -1 {
+	rawPath := ""
+	if !filepath.IsAbs(t.Config.FilePath) {
+		rawPath, _ = os.Getwd()
+	}
+	rawPs := strings.Split(t.Config.FilePath, string(os.PathSeparator))
+	for n, p := range rawPs {
+		if p == "" || p == "." {
+			continue
+		}
+		if n == len(rawPs)-1 {
 			break
 		}
-		if a == 0 {
-			a = 1
-		} //bug fix 当绝对路径时开头的/导致问题
-		i = i + a + 1
-		if !exist(t.Config.FilePath[:i-1]) {
-			err := os.Mkdir(t.Config.FilePath[:i-1], os.ModePerm)
+		rawPath += string(os.PathSeparator) + p
+
+		if !exist(rawPath) {
+			err := os.Mkdir(rawPath, os.ModePerm)
 			if err != nil {
 				return err
 			}

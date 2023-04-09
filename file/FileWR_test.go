@@ -4,11 +4,39 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"runtime"
 	"testing"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/unicode"
 )
+
+func TestNewPath(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		f := New("/tmp/test/test.log", 0, true)
+		f.Create()
+		if !f.IsExist() {
+			t.Fatal()
+		}
+		f.Delete()
+	}
+	if runtime.GOOS == "windows" {
+		f := New("C:\\test\\test.log", 0, true)
+		f.Create()
+		if !f.IsExist() {
+			t.Fatal()
+		}
+		f.Delete()
+	}
+	{
+		f := New("./test/test.log", 0, true)
+		f.Create()
+		if !f.IsExist() {
+			t.Fatal()
+		}
+		f.Delete()
+	}
+}
 
 func TestWriteReadDelSync(t *testing.T) {
 	f := New("rwd.txt", -6, true)
