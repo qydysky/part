@@ -356,7 +356,7 @@ func (t *File) newPath() error {
 	*/
 	var exist func(string) bool = func(s string) bool {
 		_, err := os.Stat(s)
-		return err == nil || os.IsExist(err)
+		return !os.IsNotExist(err)
 	}
 
 	rawPath := ""
