@@ -351,14 +351,6 @@ func (t *File) getRWCloser() {
 }
 
 func (t *File) newPath() error {
-	/*
-		如果filename路径不存在，就新建它
-	*/
-	var exist func(string) bool = func(s string) bool {
-		_, err := os.Stat(s)
-		return !os.IsNotExist(err)
-	}
-
 	rawPath := ""
 	if !filepath.IsAbs(t.Config.FilePath) {
 		rawPath, _ = os.Getwd()
@@ -373,7 +365,7 @@ func (t *File) newPath() error {
 		}
 		rawPath += string(os.PathSeparator) + p
 
-		if !exist(rawPath) {
+		if _, err := os.Stat(rawPath); os.IsNotExist(err) {
 			err := os.Mkdir(rawPath, os.ModePerm)
 			if err != nil {
 				return err

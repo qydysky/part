@@ -11,6 +11,22 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+func TestNewPath2(t *testing.T) {
+	{
+		f := New("./test/test.log", 0, true)
+		f.Create()
+		if !f.IsExist() {
+			t.Fatal()
+		}
+		f.Delete()
+	}
+	{
+		f := New("./test/test.log", 0, true)
+		f.Create()
+		f.Delete()
+	}
+}
+
 func TestNewPath(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		f := New("/tmp/test/test.log", 0, true)
