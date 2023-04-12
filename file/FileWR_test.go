@@ -4,27 +4,21 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/unicode"
 )
 
 func TestNewPath2(t *testing.T) {
-	{
-		f := New("./test/test.log", 0, true)
-		f.Create()
-		if !f.IsExist() {
-			t.Fatal()
-		}
-		f.Delete()
-	}
-	{
-		f := New("./test/test.log", 0, true)
-		f.Create()
-		f.Delete()
-	}
+	os.RemoveAll("./test")
+	time.Sleep(time.Second)
+	go New("./test/test.log", 0, true).Create()
+	go New("./test/test2.log", 0, true).Create()
+	time.Sleep(time.Second)
 }
 
 func TestNewPath(t *testing.T) {
@@ -89,7 +83,7 @@ func TestWriteReadDel(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0, 0); e != nil {
+	if e := f.Seed(0, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 
@@ -121,7 +115,7 @@ func TestSeed(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(1, 0); e != nil {
+	if e := f.Seed(1, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 
@@ -134,7 +128,7 @@ func TestSeed(t *testing.T) {
 		}
 	}
 
-	if e := f.Seed(-1, 2); e != nil {
+	if e := f.Seed(-1, AtEnd); e != nil {
 		t.Fatal(e)
 	}
 
@@ -180,7 +174,7 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0, 0); e != nil {
+	if e := f.Seed(0, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 

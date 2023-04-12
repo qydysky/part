@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,7 +152,7 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 
 		if i := bytes.Index(tmpArea[:n], []byte{separation}); i != -1 {
 			if n-i-1 != 0 {
-				t.file.Seek(-int64(n-i-1), 1)
+				t.file.Seek(-int64(n-i-1), int(AtCurrent))
 			}
 			if i != 0 {
 				data = append(data, tmpArea[:i]...)
@@ -205,8 +206,16 @@ func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) 
 	return
 }
 
-// Seek sets the offset for the next Read or Write on file to offset, interpreted according to whence: 0 means relative to the origin of the file, 1 means relative to the current offset, and 2 means relative to the end. It returns the new offset and an error, if any. The behavior of Seek on a file opened with O_APPEND is not specified.
-func (t *File) Seed(index int64, whence int) (e error) {
+type FileWhence int
+
+const (
+	AtOrigin FileWhence = iota
+	AtCurrent
+	AtEnd
+)
+
+// Seek sets the offset for the next Read or Write on file to offset
+func (t *File) Seed(index int64, whence FileWhence) (e error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -217,7 +226,7 @@ func (t *File) Seed(index int64, whence int) (e error) {
 	}
 	defer t.l.Unlock()
 
-	t.cu, e = t.file.Seek(index, whence)
+	t.cu, e = t.file.Seek(index, int(whence))
 
 	return nil
 }
@@ -236,8 +245,8 @@ func (t *File) Sync() (e error) {
 	return t.file.Sync()
 }
 
-func (t *File) Create() {
-	t.getRWCloser()
+func (t *File) Create(mode ...fs.FileMode) {
+	t.getRWCloser(mode...)
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -268,39 +277,17 @@ func (t *File) Close() error {
 }
 
 func (t *File) IsExist() bool {
-	if len(t.Config.FilePath) > 4096 {
-		panic(ErrFilePathTooLong)
+	_, err := t.Stat()
+	if errors.Is(err, ErrFilePathTooLong) {
+		panic(err)
 	}
-
-	_, err := os.Stat(t.Config.FilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		} else {
-			if !strings.Contains(err.Error(), "file name too long") {
-				panic(ErrFilePathTooLong)
-			}
-			return false
-		}
-	}
-	return true
+	return err == nil
 }
 
 func (t *File) IsDir() bool {
-	if len(t.Config.FilePath) > 4096 {
-		panic(ErrFilePathTooLong)
-	}
-
-	info, err := os.Stat(t.Config.FilePath)
+	info, err := t.Stat()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		} else {
-			if !strings.Contains(err.Error(), "file name too long") {
-				panic(ErrFilePathTooLong)
-			}
-			return false
-		}
+		panic(err)
 	}
 	return info.IsDir()
 }
@@ -310,18 +297,39 @@ func (t *File) File() *os.File {
 	return t.file
 }
 
-func (t *File) getRWCloser() {
+func (t *File) Stat() (fs.FileInfo, error) {
+	if len(t.Config.FilePath) > 4096 {
+		return nil, ErrFilePathTooLong
+	}
+
+	info, err := os.Stat(t.Config.FilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, os.ErrNotExist
+		} else {
+			if !strings.Contains(err.Error(), "file name too long") {
+				return nil, ErrFilePathTooLong
+			}
+			return nil, err
+		}
+	}
+	return info, nil
+}
+
+func (t *File) getRWCloser(mode ...fs.FileMode) {
+	fmode := fs.ModePerm
+	if len(mode) != 0 {
+		fmode = mode[0]
+	}
 	if t.Config.AutoClose || t.file == nil {
 		if !t.IsExist() {
-			if e := t.newPath(); e != nil {
-				panic(e)
-			}
-			if f, e := os.Create(t.Config.FilePath); e != nil {
+			newPath(t.Config.FilePath, fs.ModeDir|fmode)
+			if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
 				panic(e)
 			} else {
 				if t.Config.CurIndex > 0 {
 					t.cu = t.Config.CurIndex
-					t.cu, e = f.Seek(t.cu, 0)
+					t.cu, e = f.Seek(t.cu, int(AtOrigin))
 					if e != nil {
 						panic(e)
 					}
@@ -329,17 +337,17 @@ func (t *File) getRWCloser() {
 				t.file = f
 			}
 		} else {
-			if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, 0644); e != nil {
+			if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, fmode); e != nil {
 				panic(e)
 			} else {
 				if t.Config.CurIndex != 0 {
 					t.cu = t.Config.CurIndex
-					whenc := 0
+					whenc := AtOrigin
 					if t.Config.CurIndex < 0 {
 						t.cu = t.cu + 1
-						whenc = 2
+						whenc = AtEnd
 					}
-					t.cu, e = f.Seek(t.cu, whenc)
+					t.cu, e = f.Seek(t.cu, int(whenc))
 					if e != nil {
 						panic(e)
 					}
@@ -350,12 +358,12 @@ func (t *File) getRWCloser() {
 	}
 }
 
-func (t *File) newPath() error {
+func newPath(path string, mode fs.FileMode) {
 	rawPath := ""
-	if !filepath.IsAbs(t.Config.FilePath) {
+	if !filepath.IsAbs(path) {
 		rawPath, _ = os.Getwd()
 	}
-	rawPs := strings.Split(t.Config.FilePath, string(os.PathSeparator))
+	rawPs := strings.Split(path, string(os.PathSeparator))
 	for n, p := range rawPs {
 		if p == "" || p == "." {
 			continue
@@ -364,16 +372,10 @@ func (t *File) newPath() error {
 			break
 		}
 		rawPath += string(os.PathSeparator) + p
-
 		if _, err := os.Stat(rawPath); os.IsNotExist(err) {
-			err := os.Mkdir(rawPath, os.ModePerm)
-			if err != nil {
-				return err
-			}
+			os.Mkdir(rawPath, mode)
 		}
 	}
-
-	return nil
 }
 
 func transferIO(r io.Reader, w io.Writer, byteInSec int64) (e error) {
