@@ -287,7 +287,7 @@ func (t *File) IsExist() bool {
 func (t *File) IsDir() bool {
 	info, err := t.Stat()
 	if err != nil {
-		panic(err)
+		return false
 	}
 	return info.IsDir()
 }
