@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -103,13 +103,15 @@ func (t *Req) Reqf(val Rval) error {
 		_val := val
 
 		for SleepTime, Retry := _val.SleepTime, _val.Retry; Retry >= 0; Retry -= 1 {
+			for len(t.cancelFs) != 0 {
+				<-t.cancelFs
+			}
 			t.err = t.Reqf_1(_val)
 			if t.err == nil || IsCancel(t.err) {
 				break
 			}
 			time.Sleep(time.Duration(SleepTime) * time.Millisecond)
 		}
-
 		t.UsedTime = time.Since(beginTime)
 		t.running.Done()
 	}()
@@ -249,7 +251,7 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		err = errors.New(strconv.Itoa(resp.StatusCode))
+		err = fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 
 	var ws []io.Writer

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,6 +22,10 @@ func init() {
 		WriteTimeout: time.Second * time.Duration(10),
 	})
 	s.Handle(map[string]func(http.ResponseWriter, *http.Request){
+		`/code`: func(w http.ResponseWriter, r *http.Request) {
+			code, _ := strconv.Atoi(r.URL.Query().Get(`code`))
+			w.WriteHeader(code)
+		},
 		`/no`: func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("abc强强强强"))
 		},
@@ -80,6 +85,18 @@ func init() {
 		},
 	})
 	time.Sleep(time.Second)
+}
+
+func Test_req13(t *testing.T) {
+	r := New()
+	e := r.Reqf(Rval{
+		Url:     "http://" + addr + "/code?code=403",
+		Timeout: 1000,
+		Retry:   2,
+	})
+	if e.Error() != "403 Forbidden" {
+		t.Fatal()
+	}
 }
 
 func Test_req7(t *testing.T) {
