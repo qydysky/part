@@ -12,7 +12,7 @@ import (
 
 func TestMain(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite", ":memory:")
+	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
