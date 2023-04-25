@@ -17,9 +17,11 @@ type CanTx interface {
 }
 
 type SqlTx[T any] struct {
-	tx    *sql.Tx
-	dataP *T
-	err   error
+	canTx    CanTx
+	ctx      context.Context
+	opts     *sql.TxOptions
+	sqlFuncs []*SqlFunc[T]
+	dataP    *T
 }
 
 type SqlFunc[T any] struct {
@@ -35,80 +37,80 @@ type SqlFunc[T any] struct {
 }
 
 func BeginTx[T any](canTx CanTx, ctx context.Context, opts *sql.TxOptions) *SqlTx[T] {
-	var sqlTX = SqlTx[T]{}
-
-	if tx, err := canTx.BeginTx(ctx, opts); err != nil {
-		sqlTX.err = fmt.Errorf("BeginTx; [] >> %s", err)
-	} else {
-		sqlTX.tx = tx
+	return &SqlTx[T]{
+		canTx: canTx,
+		ctx:   ctx,
+		opts:  opts,
 	}
-
-	return &sqlTX
 }
 
 func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
-	if t.err != nil {
-		return t
-	}
-
-	if sqlf.Ctx == nil {
-		sqlf.Ctx = context.Background()
-	}
-
-	switch sqlf.Ty {
-	case Execf:
-		if sqlf.BeforeEF != nil {
-			if datap, err := sqlf.BeforeEF(t.dataP, &sqlf, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
-			} else {
-				t.dataP = datap
-			}
-		}
-		if res, err := t.tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
-			if !sqlf.SkipSqlErr {
-				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-			}
-		} else if sqlf.AfterEF != nil {
-			if datap, err := sqlf.AfterEF(t.dataP, res, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-			} else {
-				t.dataP = datap
-			}
-		}
-	case Queryf:
-		if sqlf.BeforeQF != nil {
-			if datap, err := sqlf.BeforeQF(t.dataP, &sqlf, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-			} else {
-				t.dataP = datap
-			}
-		}
-		if res, err := t.tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
-			if !sqlf.SkipSqlErr {
-				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-			}
-		} else if sqlf.AfterQF != nil {
-			if datap, err := sqlf.AfterQF(t.dataP, res, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-			} else {
-				t.dataP = datap
-			}
-		}
-	}
+	t.sqlFuncs = append(t.sqlFuncs, &sqlf)
 	return t
 }
 
-func (t *SqlTx[T]) Fin() error {
-	if t.err != nil {
-		if t.tx != nil {
-			if err := t.tx.Rollback(); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("Rollback; [] >> %s", err))
+func (t *SqlTx[T]) Fin() (e error) {
+	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
+	if err != nil {
+		e = fmt.Errorf("BeginTx; [] >> %s", err)
+	} else {
+		for i := 0; i < len(t.sqlFuncs); i++ {
+			sqlf := t.sqlFuncs[i]
+			if sqlf.Ctx == nil {
+				sqlf.Ctx = t.ctx
+			}
+			switch sqlf.Ty {
+			case Execf:
+				if sqlf.BeforeEF != nil {
+					if datap, err := sqlf.BeforeEF(t.dataP, sqlf, e); err != nil {
+						e = errors.Join(e, fmt.Errorf("%s >> %s", sqlf.Query, err))
+					} else {
+						t.dataP = datap
+					}
+				}
+				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+					if !sqlf.SkipSqlErr {
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+					}
+				} else if sqlf.AfterEF != nil {
+					if datap, err := sqlf.AfterEF(t.dataP, res, e); err != nil {
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+					} else {
+						t.dataP = datap
+					}
+				}
+			case Queryf:
+				if sqlf.BeforeQF != nil {
+					if datap, err := sqlf.BeforeQF(t.dataP, sqlf, e); err != nil {
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+					} else {
+						t.dataP = datap
+					}
+				}
+				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+					if !sqlf.SkipSqlErr {
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+					}
+				} else if sqlf.AfterQF != nil {
+					if datap, err := sqlf.AfterQF(t.dataP, res, e); err != nil {
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+					} else {
+						t.dataP = datap
+					}
+				}
+			}
+		}
+	}
+	if e != nil {
+		if tx != nil {
+			if err := tx.Rollback(); err != nil {
+				e = errors.Join(e, fmt.Errorf("Rollback; [] >> %s", err))
 			}
 		}
 	} else {
-		if err := t.tx.Commit(); err != nil {
-			t.err = errors.Join(t.err, fmt.Errorf("Commit; [] >> %s", err))
+		if err := tx.Commit(); err != nil {
+			e = errors.Join(e, fmt.Errorf("Commit; [] >> %s", err))
 		}
 	}
-	return t.err
+	return e
 }

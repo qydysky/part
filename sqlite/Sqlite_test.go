@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	file "github.com/qydysky/part/file"
+	_ "modernc.org/sqlite"
 )
 
 func TestMain(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func TestMain(t *testing.T) {
 
 func TestMain2(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,4 +151,60 @@ func TestMain2(t *testing.T) {
 	for len(res) > 0 {
 		t.Fatal(<-res)
 	}
+}
+
+func TestMain3(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "test.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	defer file.New("test.sqlite3", 0, true).Delete()
+
+	conn, _ := db.Conn(context.Background())
+	if e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "create table log123 (msg text)",
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+	conn.Close()
+
+	tx1 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "insert into log123 values ('1')",
+	})
+
+	tx2 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "insert into log123 values ('2')",
+	})
+
+	if e := tx1.Fin(); e != nil {
+		t.Log(e)
+	}
+	if e := tx2.Fin(); e != nil {
+		t.Log(e)
+	}
+
+	tx1 = BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Queryf,
+		Query: "select count(1) as c from log123",
+		AfterQF: func(_ *any, rows *sql.Rows, txE error) (_ *any, stopErr error) {
+			for rows.Next() {
+				var row int64
+				stopErr = rows.Scan(&row)
+				if row != 2 {
+					t.Fatal()
+				}
+			}
+			return
+		},
+	})
+	if e := tx1.Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	time.Sleep(time.Second)
 }
