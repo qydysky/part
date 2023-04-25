@@ -208,3 +208,35 @@ func TestMain3(t *testing.T) {
 
 	time.Sleep(time.Second)
 }
+
+func TestMain4(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "test.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	defer file.New("test.sqlite3", 0, true).Delete()
+
+	conn, _ := db.Conn(context.Background())
+	if e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "create table log123 (msg text)",
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+	conn.Close()
+
+	tx1 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "insert into log123 values ('1')",
+	})
+
+	if e := tx1.Fin(); e != nil {
+		t.Log(e)
+	}
+
+	if !IsFin(tx1) {
+		t.Fatal()
+	}
+}

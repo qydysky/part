@@ -22,6 +22,7 @@ type SqlTx[T any] struct {
 	opts     *sql.TxOptions
 	sqlFuncs []*SqlFunc[T]
 	dataP    *T
+	fin      bool
 }
 
 type SqlFunc[T any] struct {
@@ -50,6 +51,10 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 }
 
 func (t *SqlTx[T]) Fin() (e error) {
+	if t.fin {
+		return fmt.Errorf("BeginTx; [] >> fin")
+	}
+
 	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
 	if err != nil {
 		e = fmt.Errorf("BeginTx; [] >> %s", err)
@@ -112,5 +117,10 @@ func (t *SqlTx[T]) Fin() (e error) {
 			e = errors.Join(e, fmt.Errorf("Commit; [] >> %s", err))
 		}
 	}
+	t.fin = true
 	return e
+}
+
+func IsFin[T any](t *SqlTx[T]) bool {
+	return t == nil || t.fin
 }
