@@ -5,14 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
 	Execf = iota
 	Queryf
 )
+
+type CanTx interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
 
 type SqlTx[T any] struct {
 	tx    *sql.Tx
@@ -32,20 +34,25 @@ type SqlFunc[T any] struct {
 	AfterQF    func(dataP *T, rows *sql.Rows, txE error) (dataPR *T, stopErr error)
 }
 
-func BeginTx[T any](db *sql.DB, ctx context.Context, opts *sql.TxOptions) *SqlTx[T] {
+func BeginTx[T any](canTx CanTx, ctx context.Context, opts *sql.TxOptions) *SqlTx[T] {
 	var sqlTX = SqlTx[T]{}
 
-	if tx, e := db.BeginTx(ctx, opts); e != nil {
+	if tx, e := canTx.BeginTx(ctx, opts); e != nil {
 		sqlTX.err = e
 	} else {
 		sqlTX.tx = tx
 	}
+
 	return &sqlTX
 }
 
 func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 	if t.err != nil {
 		return t
+	}
+
+	if sqlf.Ctx == nil {
+		sqlf.Ctx = context.Background()
 	}
 
 	switch sqlf.Ty {
@@ -59,11 +66,11 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 		}
 		if res, err := t.tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
 			if !sqlf.SkipSqlErr {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
+				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 			}
 		} else if sqlf.AfterEF != nil {
 			if datap, err := sqlf.AfterEF(t.dataP, res, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
+				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 			} else {
 				t.dataP = datap
 			}
@@ -71,18 +78,18 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 	case Queryf:
 		if sqlf.BeforeQF != nil {
 			if datap, err := sqlf.BeforeQF(t.dataP, &sqlf, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
+				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 			} else {
 				t.dataP = datap
 			}
 		}
 		if res, err := t.tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
 			if !sqlf.SkipSqlErr {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
+				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 			}
 		} else if sqlf.AfterQF != nil {
 			if datap, err := sqlf.AfterQF(t.dataP, res, t.err); err != nil {
-				t.err = errors.Join(t.err, fmt.Errorf("%s >> %s", sqlf.Query, err))
+				t.err = errors.Join(t.err, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 			} else {
 				t.dataP = datap
 			}

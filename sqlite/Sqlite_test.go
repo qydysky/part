@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -105,5 +106,48 @@ func TestMain(t *testing.T) {
 
 	if e := tx.Fin(); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestMain2(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	defer db.Close()
+
+	conn, _ := db.Conn(context.Background())
+	if e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:    Execf,
+		Query: "create table log123 (msg text)",
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+	conn.Close()
+
+	var res = make(chan string, 101)
+	var wg sync.WaitGroup
+	wg.Add(100)
+
+	for i := 0; i < 100; i++ {
+		go func() {
+			x := BeginTx[any](db, context.Background(), &sql.TxOptions{})
+			x.Do(SqlFunc[any]{
+				Ty:    Execf,
+				Query: "insert into log123 values (?)",
+				Args:  []any{"1"},
+			})
+			if e := x.Fin(); e != nil {
+				res <- e.Error()
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	for len(res) > 0 {
+		t.Fatal(<-res)
 	}
 }
