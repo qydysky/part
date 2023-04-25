@@ -37,8 +37,8 @@ type SqlFunc[T any] struct {
 func BeginTx[T any](canTx CanTx, ctx context.Context, opts *sql.TxOptions) *SqlTx[T] {
 	var sqlTX = SqlTx[T]{}
 
-	if tx, e := canTx.BeginTx(ctx, opts); e != nil {
-		sqlTX.err = e
+	if tx, err := canTx.BeginTx(ctx, opts); err != nil {
+		sqlTX.err = fmt.Errorf("BeginTx; [] >> %s", err)
 	} else {
 		sqlTX.tx = tx
 	}
@@ -100,8 +100,15 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 
 func (t *SqlTx[T]) Fin() error {
 	if t.err != nil {
-		return errors.Join(t.err, t.tx.Rollback())
+		if t.tx != nil {
+			if err := t.tx.Rollback(); err != nil {
+				t.err = errors.Join(t.err, fmt.Errorf("Rollback; [] >> %s", err))
+			}
+		}
 	} else {
-		return errors.Join(t.err, t.tx.Commit())
+		if err := t.tx.Commit(); err != nil {
+			t.err = errors.Join(t.err, fmt.Errorf("Commit; [] >> %s", err))
+		}
 	}
+	return t.err
 }
