@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 const (
@@ -123,4 +124,46 @@ func (t *SqlTx[T]) Fin() (e error) {
 
 func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
+}
+
+func DealRows[T any](rows *sql.Rows, createF func() T) ([]T, error) {
+	rowNames, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	var res []T
+
+	for rows.Next() {
+		rowP := make([]any, len(rowNames))
+		for i := 0; i < len(rowNames); i++ {
+			rowP[i] = new(any)
+		}
+
+		err = rows.Scan(rowP...)
+		if err != nil {
+			return nil, err
+		}
+
+		var rowT = createF()
+		refV := reflect.ValueOf(&rowT)
+		for i := 0; i < len(rowNames); i++ {
+			v := refV.Elem().FieldByName(rowNames[i])
+			if v.IsValid() {
+				if v.CanSet() {
+					val := reflect.ValueOf(*rowP[i].(*any))
+					if val.Kind() == v.Kind() {
+						v.Set(val)
+					} else {
+						return nil, fmt.Errorf("reflectFail:%s KindNotMatch:%v !> %v", rowNames[i], val.Kind(), v.Kind())
+					}
+				} else {
+					return nil, fmt.Errorf("reflectFail:%s CanSet:%v", rowNames[i], v.CanSet())
+				}
+			}
+		}
+		res = append(res, rowT)
+
+	}
+
+	return res, nil
 }

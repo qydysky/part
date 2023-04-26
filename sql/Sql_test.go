@@ -165,7 +165,7 @@ func TestMain3(t *testing.T) {
 	conn, _ := db.Conn(context.Background())
 	if e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Ty:    Execf,
-		Query: "create table log123 (msg text)",
+		Query: "create table log123 (msg text,msg2 text)",
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
@@ -173,12 +173,12 @@ func TestMain3(t *testing.T) {
 
 	tx1 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Ty:    Execf,
-		Query: "insert into log123 values ('1')",
+		Query: "insert into log123 values ('1','a')",
 	})
 
 	tx2 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Ty:    Execf,
-		Query: "insert into log123 values ('2')",
+		Query: "insert into log123 values ('2','b')",
 	})
 
 	if e := tx1.Fin(); e != nil {
@@ -190,12 +190,20 @@ func TestMain3(t *testing.T) {
 
 	tx1 = BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Ty:    Queryf,
-		Query: "select count(1) as c from log123",
+		Query: "select 1 as Msg, msg2 as Msg2 from log123",
 		AfterQF: func(_ *any, rows *sql.Rows, txE error) (_ *any, stopErr error) {
-			for rows.Next() {
-				var row int64
-				stopErr = rows.Scan(&row)
-				if row != 2 {
+			type logg struct {
+				Msg  int64
+				Msg2 string
+			}
+
+			if v, err := DealRows(rows, func() logg { return logg{} }); err != nil {
+				return nil, err
+			} else {
+				if v[0].Msg2 != "a" {
+					t.Fatal()
+				}
+				if v[1].Msg2 != "b" {
 					t.Fatal()
 				}
 			}
@@ -205,8 +213,6 @@ func TestMain3(t *testing.T) {
 	if e := tx1.Fin(); e != nil {
 		t.Fatal(e)
 	}
-
-	time.Sleep(time.Second)
 }
 
 func TestMain4(t *testing.T) {
