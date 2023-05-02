@@ -6,16 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 const (
-	Execf = iota
+	null = iota
+	Execf
 	Queryf
 )
 
 type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
+
+type BeforeF[T any] func(dataP *T, sqlf *SqlFunc[T], txE error) (dataPR *T, stopErr error)
+type AfterEF[T any] func(dataP *T, result sql.Result, txE error) (dataPR *T, stopErr error)
+type AfterQF[T any] func(dataP *T, rows *sql.Rows, txE error) (dataPR *T, stopErr error)
 
 type SqlTx[T any] struct {
 	canTx    CanTx
@@ -32,18 +38,20 @@ type SqlFunc[T any] struct {
 	Query      string
 	Args       []any
 	SkipSqlErr bool
-	BeforeEF   func(dataP *T, sqlf *SqlFunc[T], txE error) (dataPR *T, stopErr error)
-	BeforeQF   func(dataP *T, sqlf *SqlFunc[T], txE error) (dataPR *T, stopErr error)
-	AfterEF    func(dataP *T, result sql.Result, txE error) (dataPR *T, stopErr error)
-	AfterQF    func(dataP *T, rows *sql.Rows, txE error) (dataPR *T, stopErr error)
+	beforeF    BeforeF[T]
+	afterEF    AfterEF[T]
+	afterQF    AfterQF[T]
 }
 
-func BeginTx[T any](canTx CanTx, ctx context.Context, opts *sql.TxOptions) *SqlTx[T] {
-	return &SqlTx[T]{
+func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *SqlTx[T] {
+	var tx = SqlTx[T]{
 		canTx: canTx,
 		ctx:   ctx,
-		opts:  opts,
 	}
+	if len(opts) > 0 {
+		tx.opts = opts[0]
+	}
+	return &tx
 }
 
 func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
@@ -51,9 +59,45 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 	return t
 }
 
-func (t *SqlTx[T]) Fin() (e error) {
+func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any) *SqlTx[T] {
+	dataR := reflect.ValueOf(ptr).Elem()
+	for i := 0; i < dataR.NumField(); i++ {
+		field := dataR.Field(i)
+		if field.IsValid() && field.CanSet() {
+			replaceS := "{" + dataR.Type().Field(i).Name + "}"
+			if strings.Contains(sqlf.Query, replaceS) {
+				sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, "?")
+				sqlf.Args = append(sqlf.Args, field.Interface())
+			}
+		}
+	}
+	return t.Do(sqlf)
+}
+
+func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
+	if len(t.sqlFuncs) > 0 {
+		t.sqlFuncs[len(t.sqlFuncs)-1].beforeF = f
+	}
+	return t
+}
+
+func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
+	if len(t.sqlFuncs) > 0 {
+		t.sqlFuncs[len(t.sqlFuncs)-1].afterEF = f
+	}
+	return t
+}
+
+func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
+	if len(t.sqlFuncs) > 0 {
+		t.sqlFuncs[len(t.sqlFuncs)-1].afterQF = f
+	}
+	return t
+}
+
+func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 	if t.fin {
-		return fmt.Errorf("BeginTx; [] >> fin")
+		return nil, fmt.Errorf("BeginTx; [] >> fin")
 	}
 
 	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
@@ -62,43 +106,50 @@ func (t *SqlTx[T]) Fin() (e error) {
 	} else {
 		for i := 0; i < len(t.sqlFuncs); i++ {
 			sqlf := t.sqlFuncs[i]
+
+			if sqlf.beforeF != nil {
+				if datap, err := sqlf.beforeF(t.dataP, sqlf, e); err != nil {
+					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Query, err))
+				} else {
+					t.dataP = datap
+				}
+			}
+
+			if strings.TrimSpace(sqlf.Query) == "" {
+				continue
+			}
+
 			if sqlf.Ctx == nil {
 				sqlf.Ctx = t.ctx
 			}
+
+			if sqlf.Ty == null {
+				sqlf.Ty = Execf
+				if uquery := strings.ToUpper(strings.TrimSpace(sqlf.Query)); strings.HasPrefix(uquery, "SELECT") {
+					sqlf.Ty = Queryf
+				}
+			}
+
 			switch sqlf.Ty {
 			case Execf:
-				if sqlf.BeforeEF != nil {
-					if datap, err := sqlf.BeforeEF(t.dataP, sqlf, e); err != nil {
-						e = errors.Join(e, fmt.Errorf("%s >> %s", sqlf.Query, err))
-					} else {
-						t.dataP = datap
-					}
-				}
 				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
 					if !sqlf.SkipSqlErr {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
-				} else if sqlf.AfterEF != nil {
-					if datap, err := sqlf.AfterEF(t.dataP, res, e); err != nil {
+				} else if sqlf.afterEF != nil {
+					if datap, err := sqlf.afterEF(t.dataP, res, e); err != nil {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					} else {
 						t.dataP = datap
 					}
 				}
 			case Queryf:
-				if sqlf.BeforeQF != nil {
-					if datap, err := sqlf.BeforeQF(t.dataP, sqlf, e); err != nil {
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-					} else {
-						t.dataP = datap
-					}
-				}
 				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
 					if !sqlf.SkipSqlErr {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
-				} else if sqlf.AfterQF != nil {
-					if datap, err := sqlf.AfterQF(t.dataP, res, e); err != nil {
+				} else if sqlf.afterQF != nil {
+					if datap, err := sqlf.afterQF(t.dataP, res, e); err != nil {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					} else {
 						t.dataP = datap
@@ -119,14 +170,14 @@ func (t *SqlTx[T]) Fin() (e error) {
 		}
 	}
 	t.fin = true
-	return e
+	return t.dataP, e
 }
 
 func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
 }
 
-func DealRows[T any](rows *sql.Rows, createF func() T) ([]T, error) {
+func DealRows[T any](rows *sql.Rows, createF func() T) (*[]T, error) {
 	rowNames, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -144,26 +195,38 @@ func DealRows[T any](rows *sql.Rows, createF func() T) ([]T, error) {
 			return nil, err
 		}
 
-		var rowT = createF()
-		refV := reflect.ValueOf(&rowT)
+		var stu = createF()
 		for i := 0; i < len(rowNames); i++ {
-			v := refV.Elem().FieldByName(rowNames[i])
+			v := reflect.ValueOf(&stu).Elem().FieldByName(rowNames[i])
 			if v.IsValid() {
+				refT := reflect.TypeOf(&stu).Elem()
 				if v.CanSet() {
 					val := reflect.ValueOf(*rowP[i].(*any))
-					if val.Kind() == v.Kind() {
+					if reflect.TypeOf(*rowP[i].(*any)).ConvertibleTo(v.Type()) {
 						v.Set(val)
 					} else {
-						return nil, fmt.Errorf("reflectFail:%s KindNotMatch:%v !> %v", rowNames[i], val.Kind(), v.Kind())
+						return nil, fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], v.Type())
 					}
 				} else {
-					return nil, fmt.Errorf("reflectFail:%s CanSet:%v", rowNames[i], v.CanSet())
+					return nil, fmt.Errorf("DealRows:%s.%s CanSet:%v", refT.Name(), rowNames[i], v.CanSet())
 				}
 			}
 		}
-		res = append(res, rowT)
+		res = append(res, stu)
 
 	}
 
-	return res, nil
+	return &res, nil
+}
+
+func SimpleQ[T any](canTx CanTx, query string, ptr *T) (*[]T, error) {
+	tx := BeginTx[[]T](canTx, context.Background())
+	tx.DoPlaceHolder(SqlFunc[[]T]{Query: query}, ptr)
+	tx.AfterQF(func(_ *[]T, rows *sql.Rows, txE error) (dataPR *[]T, stopErr error) {
+		if txE != nil {
+			return nil, txE
+		}
+		return DealRows(rows, func() T { return *ptr })
+	})
+	return tx.Fin()
 }
