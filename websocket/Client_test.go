@@ -47,7 +47,7 @@ func Test_Client(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	c, e := New_client(Client{
+	c, e := New_client(&Client{
 		Url: "ws://127.0.0.1:10888/ws",
 		Func_normal_close: func() {
 			t.Log("close")

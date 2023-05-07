@@ -33,4 +33,5 @@ jobs:
         go test -count 1 -timeout 30s -v -race github.com/qydysky/part/msgq
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/sync
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         CC=gcc;CXX=g++;CGO_ENABLED=1;GOOS=linux go test -count 1 -timeout 10s -v -race -ldflags '-extldflags=-static -extldflags=-lm' github.com/qydysky/part/sql

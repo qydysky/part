@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -29,9 +29,10 @@ type Client struct {
 	Func_normal_close func()
 	Func_abort_close  func()
 
-	close atomic.Bool
+	close bool
+	err   error
 
-	err error
+	l sync.RWMutex
 }
 
 type WsMsg struct {
@@ -45,7 +46,7 @@ type Ping struct {
 	had_pong bool
 }
 
-func New_client(config Client) (*Client, error) {
+func New_client(config *Client) (*Client, error) {
 	tmp := Client{
 		TO:                300 * 1000,
 		Func_normal_close: func() {},
@@ -100,7 +101,9 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		dial.Proxy = proxy
 	}
 	c, response, err := dial.Dial(o.Url, tmp_Header)
-
+	if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
+		o.error(err)
+	}
 	if err != nil {
 		e := err.Error()
 		if response != nil {
@@ -121,10 +124,14 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 
 	// rec
 	go func() {
-		defer o.msg.ClearAll()
-		defer o.close.Store(true)
+		defer func() {
+			o.msg.ClearAll()
+			o.l.Lock()
+			o.close = true
+			o.l.Unlock()
+		}()
+
 		for {
-			c.SetReadDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond))))
 			msg_type, message, err := c.ReadMessage()
 			if err != nil {
 				if e, ok := err.(*websocket.CloseError); ok {
@@ -135,7 +142,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 						o.Func_abort_close()
 					default:
 					}
-					o.err = errors.Join(o.err, err)
+					o.error(err)
 				}
 				return
 			}
@@ -170,26 +177,25 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			wm.Type = websocket.TextMessage
 		}
 		if err := c.WriteMessage(wm.Type, wm.Msg); err != nil {
-			o.err = errors.Join(o.err, err)
+			o.error(err)
 			o.msg.ClearAll()
 			return true
 		}
 		if wm.Type == websocket.PingMessage {
 			time.AfterFunc(time.Duration(o.TO*int(time.Millisecond)), func() {
 				if time.Now().UnixMilli() > o.pingT+int64(o.TO) {
-					o.err = errors.Join(o.err, errors.New("PongFail"))
+					o.error(errors.New("PongFail"))
 					o.Close()
 				}
 			})
 		}
-		o.err = errors.Join(o.err, c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO*int(time.Millisecond)))))
 		return false
 	})
 
 	// close
 	o.msg.Pull_tag_only(`close`, func(_ *WsMsg) (disable bool) {
 		if err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close)); err != nil {
-			o.err = errors.Join(o.err, err)
+			o.error(err)
 			o.msg.ClearAll()
 		}
 		return true
@@ -211,10 +217,22 @@ func (o *Client) Close() {
 	o.msg.PushLock_tag(`close`, nil)
 }
 
-func (o *Client) Isclose() bool {
-	return o.close.Load()
+func (o *Client) Isclose() (isclose bool) {
+	o.l.RLock()
+	isclose = o.close
+	o.l.RUnlock()
+	return
 }
 
-func (o *Client) Error() error {
-	return o.err
+func (o *Client) Error() (e error) {
+	o.l.RLock()
+	e = o.err
+	o.l.RUnlock()
+	return
+}
+
+func (o *Client) error(e error) {
+	o.l.Lock()
+	o.err = errors.Join(o.err, e)
+	o.l.Unlock()
 }
