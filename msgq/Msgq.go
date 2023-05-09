@@ -136,7 +136,7 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 	})
 }
 
-func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) chan any {
+func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) <-chan any {
 	var ch = make(chan any, size)
 	m.Register(func(data any) bool {
 		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
@@ -243,7 +243,7 @@ func (m *MsgType[T]) ClearAll() {
 	m.m.ClearAll()
 }
 
-func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) chan T {
+func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) <-chan T {
 	var ch = make(chan T, size)
 	m.m.Register(func(data any) bool {
 		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
