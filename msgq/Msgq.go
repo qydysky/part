@@ -2,6 +2,7 @@ package part
 
 import (
 	"container/list"
+	"context"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -135,6 +136,27 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 	})
 }
 
+func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) chan any {
+	var ch = make(chan any, size)
+	m.Register(func(data any) bool {
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			select {
+			case <-ctx.Done():
+				close(ch)
+				return true
+			default:
+				if len(ch) == size {
+					<-ch
+				}
+				ch <- d.Data
+				return false
+			}
+		}
+		return false
+	})
+	return ch
+}
+
 func (m *Msgq) Pull_tag_only(key string, f func(any) (disable bool)) {
 	m.Register(func(data any) (disable bool) {
 		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
@@ -219,6 +241,27 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 
 func (m *MsgType[T]) ClearAll() {
 	m.m.ClearAll()
+}
+
+func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) chan T {
+	var ch = make(chan T, size)
+	m.m.Register(func(data any) bool {
+		if d, ok := data.(Msgq_tag_data); ok && d.Tag == key {
+			select {
+			case <-ctx.Done():
+				close(ch)
+				return true
+			default:
+				if len(ch) == size {
+					<-ch
+				}
+				ch <- d.Data.(T)
+				return false
+			}
+		}
+		return false
+	})
+	return ch
 }
 
 func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) {

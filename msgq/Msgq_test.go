@@ -1,6 +1,7 @@
 package part
 
 import (
+	"context"
 	_ "net/http/pprof"
 	"sync"
 	"testing"
@@ -135,6 +136,42 @@ func BenchmarkXxx(b *testing.B) {
 		if i == b.N/2 {
 			mq.Push_tag(`2`, nil)
 		}
+	}
+}
+
+func Test_Pull_tag_chan(t *testing.T) {
+	mq := New()
+	ctx, cf := context.WithCancel(context.Background())
+	ch := mq.Pull_tag_chan(`a`, 2, ctx)
+	for i := 0; i < 5; i++ {
+		mq.Push_tag(`a`, i)
+	}
+	var o = 0
+	for s := true; s; {
+		select {
+		case i := <-ch:
+			o += i.(int)
+		default:
+			s = false
+		}
+	}
+	if o != 7 {
+		t.Fatal()
+	}
+	select {
+	case <-ch:
+		t.Fatal()
+	default:
+	}
+	cf()
+	mq.Push_tag(`a`, 1)
+	select {
+	case i := <-ch:
+		if i != nil {
+			t.Fatal()
+		}
+	default:
+		t.Fatal()
 	}
 }
 
