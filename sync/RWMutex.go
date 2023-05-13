@@ -22,15 +22,15 @@ func (m *RWMutex) RLock(to ...time.Duration) (unrlock func()) {
 	if len(to) > 0 {
 		c := time.Now()
 		for m.rlc.Load() < ulock {
-			runtime.Gosched()
 			if time.Since(c) > to[0] {
-				panic(fmt.Sprintf("timeout to wait rlock, rlc:%d", m.rlc.Load()))
+				panic(fmt.Sprintf("timeout to wait lock, rlc:%d", m.rlc.Load()))
 			}
+			runtime.Gosched()
 		}
 	} else {
 		for m.rlc.Load() < ulock {
-			runtime.Gosched()
 			time.Sleep(time.Millisecond)
+			runtime.Gosched()
 		}
 	}
 	m.rlc.Add(1)
@@ -45,39 +45,34 @@ func (m *RWMutex) RLock(to ...time.Duration) (unrlock func()) {
 
 func (m *RWMutex) Lock(to ...time.Duration) (unlock func()) {
 	lockid := m.cul.Add(1)
-
 	if len(to) > 0 {
 		c := time.Now()
+		for m.rlc.Load() > ulock {
+			if time.Since(c) > to[0] {
+				panic(fmt.Sprintf("timeout to wait rlock, rlc:%d", m.rlc.Load()))
+			}
+			runtime.Gosched()
+		}
+		for lockid-1 != m.oll.Load() {
+			if time.Since(c) > to[0] {
+				panic(fmt.Sprintf("timeout to wait lock, rlc:%d", m.rlc.Load()))
+			}
+			runtime.Gosched()
+		}
 		if !m.rlc.CompareAndSwap(ulock, lock) {
-			for m.rlc.Load() > ulock {
-				runtime.Gosched()
-				if time.Since(c) > to[0] {
-					panic(fmt.Sprintf("timeout to wait rlock, rlc:%d", m.rlc.Load()))
-				}
-			}
-			for lockid-1 != m.oll.Load() {
-				runtime.Gosched()
-				if time.Since(c) > to[0] {
-					panic(fmt.Sprintf("timeout to wait lock, rlc:%d", m.rlc.Load()))
-				}
-			}
-			if !m.rlc.CompareAndSwap(ulock, lock) {
-				panic("csa error, bug")
-			}
+			panic("csa error, bug")
 		}
 	} else {
+		for m.rlc.Load() > ulock {
+			time.Sleep(time.Millisecond)
+			runtime.Gosched()
+		}
+		for lockid-1 != m.oll.Load() {
+			time.Sleep(time.Millisecond)
+			runtime.Gosched()
+		}
 		if !m.rlc.CompareAndSwap(ulock, lock) {
-			for m.rlc.Load() > ulock {
-				runtime.Gosched()
-				time.Sleep(time.Millisecond)
-			}
-			for lockid-1 != m.oll.Load() {
-				runtime.Gosched()
-				time.Sleep(time.Millisecond)
-			}
-			if !m.rlc.CompareAndSwap(ulock, lock) {
-				panic("")
-			}
+			panic("csa error, bug")
 		}
 	}
 	var callC atomic.Bool
