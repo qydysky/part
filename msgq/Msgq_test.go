@@ -141,7 +141,7 @@ func BenchmarkXxx(b *testing.B) {
 
 func TestPushLock(t *testing.T) {
 	defer func() {
-		if e := recover(); e.(string) != "Push_tag(test,<nil>) > PushLock_tag(lock,<nil>) > timeout to wait rlock, rlc:1" {
+		if e := recover(); e.(string) != "timeout to wait rlock, rlc:1" {
 			t.Fatal(e)
 		}
 	}()
@@ -152,6 +152,16 @@ func TestPushLock(t *testing.T) {
 	})
 	mq.Push_tag(`test`, nil)
 	t.Fatal()
+}
+
+func Benchmark_1(b *testing.B) {
+	mq := NewTo(time.Second)
+	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+		return false
+	})
+	for i := 0; i < b.N; i++ {
+		mq.PushLock_tag(`test`, i)
+	}
 }
 
 func Test_Pull_tag_chan(t *testing.T) {

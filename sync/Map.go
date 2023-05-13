@@ -34,6 +34,14 @@ func (t *Map) Delete(k any) {
 	}
 }
 
+func (t *Map) ClearAll() {
+	t.m.Range(func(key, _ any) bool {
+		t.m.Delete(key)
+		return true
+	})
+	t.size.Store(0)
+}
+
 func (t *Map) Len() int {
 	return int(t.size.Load())
 }
