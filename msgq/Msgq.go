@@ -17,7 +17,6 @@ type Msgq struct {
 	funcs          *list.List
 	someNeedRemove atomic.Int32
 	lock           sync.RWMutex
-	runMap         sync.Map
 }
 
 type FuncMap map[string]func(any) (disable bool)
