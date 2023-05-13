@@ -3,6 +3,7 @@ package part
 import (
 	"container/list"
 	"context"
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,7 @@ type Msgq struct {
 	funcs          *list.List
 	someNeedRemove atomic.Int32
 	lock           sync.RWMutex
+	runMap         sync.Map
 }
 
 type FuncMap map[string]func(any) (disable bool)
@@ -132,6 +134,11 @@ type Msgq_tag_data struct {
 }
 
 func (m *Msgq) Push_tag(Tag string, Data any) {
+	defer func() {
+		if e := recover(); e != nil {
+			panic(fmt.Sprintf("Push_tag(%s,%v) > %v", Tag, Data, e))
+		}
+	}()
 	m.Push(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
@@ -139,6 +146,11 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 }
 
 func (m *Msgq) PushLock_tag(Tag string, Data any) {
+	defer func() {
+		if e := recover(); e != nil {
+			panic(fmt.Sprintf("PushLock_tag(%s,%v) > %v", Tag, Data, e))
+		}
+	}()
 	m.PushLock(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
@@ -241,6 +253,11 @@ func NewTypeTo[T any](to ...time.Duration) *MsgType[T] {
 }
 
 func (m *MsgType[T]) Push_tag(Tag string, Data T) {
+	defer func() {
+		if e := recover(); e != nil {
+			panic(fmt.Sprintf("Push_tag(%s,%v) > %v", Tag, Data, e))
+		}
+	}()
 	m.m.Push(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
@@ -248,6 +265,11 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 }
 
 func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
+	defer func() {
+		if e := recover(); e != nil {
+			panic(fmt.Sprintf("PushLock_tag(%s,%v) > %v", Tag, Data, e))
+		}
+	}()
 	m.m.PushLock(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,

@@ -141,7 +141,7 @@ func BenchmarkXxx(b *testing.B) {
 
 func TestPushLock(t *testing.T) {
 	defer func() {
-		if e := recover(); e.(string) != "timeout to wait rlock, rlc:1" {
+		if e := recover(); e.(string) != "Push_tag(test,<nil>) > PushLock_tag(lock,<nil>) > timeout to wait rlock, rlc:1" {
 			t.Fatal(e)
 		}
 	}()
