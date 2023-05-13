@@ -61,7 +61,6 @@ func (m *Msgq) Push(msg any) {
 			m.funcs.Remove(removes[i])
 		}
 		m.lock.Unlock()
-		removes = nil
 	}
 }
 
@@ -88,7 +87,6 @@ func (m *Msgq) PushLock(msg any) {
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
 		}
-		removes = nil
 	}
 }
 
@@ -113,7 +111,6 @@ func (m *Msgq) ClearAll() {
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
 		}
-		removes = nil
 	}
 }
 
@@ -233,7 +230,7 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 }
 
 func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
-	m.m.Push(Msgq_tag_data{
+	m.m.PushLock(Msgq_tag_data{
 		Tag:  Tag,
 		Data: Data,
 	})
