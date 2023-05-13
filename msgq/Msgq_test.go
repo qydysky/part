@@ -139,6 +139,21 @@ func BenchmarkXxx(b *testing.B) {
 	}
 }
 
+func TestPushLock(t *testing.T) {
+	defer func() {
+		if e := recover(); e.(string) != "timeout to wait rlock, rlc:1" {
+			t.Fatal(e)
+		}
+	}()
+	mq := NewTo(time.Second)
+	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+		mq.PushLock_tag(`lock`, nil)
+		return false
+	})
+	mq.Push_tag(`test`, nil)
+	t.Fatal()
+}
+
 func Test_Pull_tag_chan(t *testing.T) {
 	mq := New()
 	ctx, cf := context.WithCancel(context.Background())

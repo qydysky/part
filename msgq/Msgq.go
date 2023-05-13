@@ -4,14 +4,15 @@ import (
 	"container/list"
 	"context"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	signal "github.com/qydysky/part/signal"
+	sync "github.com/qydysky/part/sync"
 )
 
 type Msgq struct {
+	to             []time.Duration
 	funcs          *list.List
 	someNeedRemove atomic.Int32
 	lock           sync.RWMutex
@@ -25,16 +26,27 @@ func New() *Msgq {
 	return m
 }
 
+func NewTo(to ...time.Duration) *Msgq {
+	m := new(Msgq)
+	m.funcs = list.New()
+	if len(to) > 0 {
+		m.to = append(m.to, to[0])
+	} else {
+		m.to = append(m.to, time.Second*30)
+	}
+	return m
+}
+
 func (m *Msgq) Register(f func(any) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushBack(f)
-	m.lock.Unlock()
+	ul()
 }
 
 func (m *Msgq) Register_front(f func(any) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushFront(f)
-	m.lock.Unlock()
+	ul()
 }
 
 func (m *Msgq) Push(msg any) {
@@ -45,22 +57,22 @@ func (m *Msgq) Push(msg any) {
 
 	var removes []*list.Element
 
-	m.lock.RLock()
+	ul := m.lock.RLock(m.to...)
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
 			m.someNeedRemove.Add(1)
 			removes = append(removes, el)
 		}
 	}
-	m.lock.RUnlock()
+	ul()
 
 	if len(removes) != 0 {
-		m.lock.Lock()
+		ul := m.lock.Lock(m.to...)
 		m.someNeedRemove.Add(-int32(len(removes)))
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
 		}
-		m.lock.Unlock()
+		ul()
 	}
 }
 
@@ -70,8 +82,8 @@ func (m *Msgq) PushLock(msg any) {
 		runtime.Gosched()
 	}
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	ul := m.lock.Lock(m.to...)
+	defer ul()
 
 	var removes []*list.Element
 
@@ -96,8 +108,8 @@ func (m *Msgq) ClearAll() {
 		runtime.Gosched()
 	}
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	ul := m.lock.Lock(m.to...)
+	defer ul()
 
 	var removes []*list.Element
 
@@ -219,6 +231,12 @@ type MsgType[T any] struct {
 func NewType[T any]() *MsgType[T] {
 	return &MsgType[T]{
 		m: New(),
+	}
+}
+
+func NewTypeTo[T any](to ...time.Duration) *MsgType[T] {
+	return &MsgType[T]{
+		m: NewTo(to...),
 	}
 }
 
