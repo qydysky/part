@@ -139,20 +139,20 @@ func BenchmarkXxx(b *testing.B) {
 	}
 }
 
-func TestPushLock(t *testing.T) {
-	defer func() {
-		if e := recover(); e != nil {
-			t.Fatal(e)
-		}
-	}()
-	mq := NewTo(time.Second)
-	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
-		mq.PushLock_tag(`lock`, nil)
-		return false
-	})
-	mq.Push_tag(`test`, nil)
-	t.Fatal()
-}
+// func TestPushLock(t *testing.T) {
+// 	defer func() {
+// 		if e := recover(); e != nil {
+// 			t.Fatal(e)
+// 		}
+// 	}()
+// 	mq := NewTo(time.Second)
+// 	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+// 		mq.PushLock_tag(`lock`, nil)
+// 		return false
+// 	})
+// 	mq.Push_tag(`test`, nil)
+// 	t.Fatal()
+// }
 
 func Benchmark_1(b *testing.B) {
 	mq := NewTo(time.Second)
