@@ -176,6 +176,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		if wm.Type == 0 {
 			wm.Type = websocket.TextMessage
 		}
+		c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond))))
 		if err := c.WriteMessage(wm.Type, wm.Msg); err != nil {
 			o.error(err)
 			o.msg.ClearAll()

@@ -141,7 +141,7 @@ func BenchmarkXxx(b *testing.B) {
 
 func TestPushLock(t *testing.T) {
 	defer func() {
-		if e := recover(); e.(string) != "timeout to wait rlock, rlc:1" {
+		if e := recover(); e != nil {
 			t.Fatal(e)
 		}
 	}()
@@ -171,6 +171,9 @@ func Test_Pull_tag_chan(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		mq.Push_tag(`a`, i)
 	}
+	if len(ch) != 1 {
+		t.Fatal()
+	}
 	var o = 0
 	for s := true; s; {
 		select {
@@ -180,7 +183,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 			s = false
 		}
 	}
-	if o != 7 {
+	if o != 4 {
 		t.Fatal()
 	}
 	select {
@@ -198,6 +201,16 @@ func Test_Pull_tag_chan(t *testing.T) {
 	default:
 		t.Fatal()
 	}
+}
+
+func Test_Pull_tag_chan2(t *testing.T) {
+	mq := New()
+
+	mq.Pull_tag_chan(`a`, 1, context.Background())
+	go func() {
+		mq.PushLock_tag(`a`, nil)
+		mq.PushLock_tag(`a`, nil)
+	}()
 }
 
 func Test_msgq1(t *testing.T) {

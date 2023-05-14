@@ -4,11 +4,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"time"
 
-	p "github.com/qydysky/part"
+	f "github.com/qydysky/part/file"
 	m "github.com/qydysky/part/msgq"
-	s "github.com/qydysky/part/signal"
 )
 
 var (
@@ -16,20 +14,21 @@ var (
 )
 
 type Log_interface struct {
-	MQ *m.Msgq
+	MQ *m.MsgType[Msg_item]
 	Config
 }
 
 type Config struct {
-	File          string
-	Stdout        bool
+	File   string
+	Stdout bool
+
 	Prefix_string map[string]struct{}
-	Base_string   []interface{}
+	Base_string   []any
 }
 
 type Msg_item struct {
 	Prefix  string
-	Msg_obj []interface{}
+	Msg_obj []any
 	Config
 }
 
@@ -40,45 +39,31 @@ func New(c Config) (o *Log_interface) {
 		Config: c,
 	}
 	if c.File != `` {
-		p.File().NewPath(c.File)
+		f.New(c.File, 0, true).Create()
 	}
 
-	o.MQ = m.New()
-	o.MQ.Pull_tag(map[string]func(interface{}) bool{
-		`block`: func(data interface{}) bool {
-			if v, ok := data.(*s.Signal); ok {
-				v.Done()
-			}
-			return false
-		},
-		`L`: func(data interface{}) bool {
-			msg := data.(Msg_item)
-			var showObj = []io.Writer{}
-			if msg.Stdout {
-				showObj = append(showObj, os.Stdout)
-			}
-			if msg.File != `` {
-				file, err := os.OpenFile(msg.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-				if err == nil {
-					showObj = append(showObj, file)
-					defer file.Close()
-				} else {
-					log.Println(err)
-				}
-			}
-			log.New(io.MultiWriter(showObj...),
-				msg.Prefix,
-				log.Ldate|log.Ltime).Println(msg.Msg_obj...)
-			return false
-		},
-	})
-	{ //启动阻塞
-		b := s.Init()
-		for b.Islive() {
-			o.MQ.Push_tag(`block`, b)
-			time.Sleep(time.Duration(20) * time.Millisecond)
+	o.MQ = m.NewType[Msg_item]()
+	o.MQ.Pull_tag_only(`L`, func(msg Msg_item) bool {
+		var showObj = []io.Writer{}
+		if msg.Stdout {
+			showObj = append(showObj, os.Stdout)
 		}
-	}
+		if msg.File != `` {
+			file, err := os.OpenFile(msg.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err == nil {
+				showObj = append(showObj, file)
+				defer file.Close()
+			} else {
+				log.Println(err)
+			}
+		}
+		log.New(io.MultiWriter(showObj...),
+			msg.Prefix,
+			log.Ldate|log.Ltime).Println(msg.Msg_obj...)
+		return false
+	})
+	//启动阻塞
+	o.MQ.PushLock_tag(`block`, Msg_item{})
 	return
 }
 
@@ -87,20 +72,15 @@ func Copy(i *Log_interface) (o *Log_interface) {
 		Config: (*i).Config,
 		MQ:     (*i).MQ,
 	}
-	{ //启动阻塞
-		b := s.Init()
-		for b.Islive() {
-			o.MQ.Push_tag(`block`, b)
-			time.Sleep(time.Duration(20) * time.Millisecond)
-		}
-	}
+	//启动阻塞
+	o.MQ.PushLock_tag(`block`, Msg_item{})
 	return
 }
 
 // Level 设置之后日志等级
 func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
 	O = Copy(I)
-	for k, _ := range O.Prefix_string {
+	for k := range O.Prefix_string {
 		if _, ok := log[k]; !ok {
 			delete(O.Prefix_string, k)
 		}
@@ -117,40 +97,52 @@ func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
 	return
 }
 
+func (I *Log_interface) LShow(show bool) (O *Log_interface) {
+	return I.Log_show_control(show)
+}
+
 // Open 日志输出至文件
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 	O = I
 	//
 	O.Block(100)
-	O.File = fileP
 	if O.File != `` {
-		p.File().NewPath(O.File)
+		O.File = fileP
+		f.New(O.File, 0, true).Create()
+	} else {
+		O.File = ``
 	}
 	return
 }
 
+func (I *Log_interface) LFile(fileP string) (O *Log_interface) {
+	return I.Log_to_file(fileP)
+}
+
 // Block 阻塞直到本轮日志输出完毕
-func (I *Log_interface) Block(timeout int) (O *Log_interface) {
+func (I *Log_interface) Block(ms int) (O *Log_interface) {
 	O = I
-	b := s.Init()
-	O.MQ.Push_tag(`block`, b)
-	b.Wait()
+	O.MQ.PushLock_tag(`block`, Msg_item{})
 	return
+}
+
+func (I *Log_interface) Close() {
+	I.MQ.ClearAll()
 }
 
 // 日志等级
 // Base 追加到后续输出
-func (I *Log_interface) Base(i ...interface{}) (O *Log_interface) {
+func (I *Log_interface) Base(i ...any) (O *Log_interface) {
 	O = Copy(I)
 	O.Base_string = i
 	return
 }
-func (I *Log_interface) Base_add(i ...interface{}) (O *Log_interface) {
+func (I *Log_interface) Base_add(i ...any) (O *Log_interface) {
 	O = Copy(I)
 	O.Base_string = append(O.Base_string, i...)
 	return
 }
-func (I *Log_interface) L(prefix string, i ...interface{}) (O *Log_interface) {
+func (I *Log_interface) L(prefix string, i ...any) (O *Log_interface) {
 	O = I
 	if _, ok := O.Prefix_string[prefix]; !ok {
 		return

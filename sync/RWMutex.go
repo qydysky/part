@@ -19,22 +19,43 @@ type RWMutex struct {
 }
 
 func (m *RWMutex) RLock(to ...time.Duration) (unrlock func()) {
+	var callC atomic.Bool
 	if len(to) > 0 {
+		var calls []string
+		for i := 1; true; i++ {
+			if pc, file, line, ok := runtime.Caller(i); !ok {
+				break
+			} else {
+				calls = append(calls, fmt.Sprintf("%s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line))
+			}
+		}
 		c := time.Now()
-		for m.rlc.Load() < ulock {
+		for m.rlc.Load() < ulock || m.cul.Load() != m.oll.Load() {
 			if time.Since(c) > to[0] {
 				panic(fmt.Sprintf("timeout to wait lock, rlc:%d", m.rlc.Load()))
 			}
 			runtime.Gosched()
 		}
+		c = time.Now()
+		go func() {
+			for !callC.Load() {
+				if time.Since(c) > to[0] {
+					panicS := fmt.Sprintf("timeout to run rlock %v > %v\n", time.Since(c), to[0])
+					for i := 0; i < len(calls); i++ {
+						panicS += fmt.Sprintf("%s\n", calls[i])
+					}
+					panic(panicS)
+				}
+				runtime.Gosched()
+			}
+		}()
 	} else {
-		for m.rlc.Load() < ulock {
+		for m.rlc.Load() < ulock || m.cul.Load() != m.oll.Load() {
 			time.Sleep(time.Millisecond)
 			runtime.Gosched()
 		}
 	}
 	m.rlc.Add(1)
-	var callC atomic.Bool
 	return func() {
 		if !callC.CompareAndSwap(false, true) {
 			panic("had unrlock")
@@ -45,7 +66,16 @@ func (m *RWMutex) RLock(to ...time.Duration) (unrlock func()) {
 
 func (m *RWMutex) Lock(to ...time.Duration) (unlock func()) {
 	lockid := m.cul.Add(1)
+	var callC atomic.Bool
 	if len(to) > 0 {
+		var calls []string
+		for i := 1; true; i++ {
+			if pc, file, line, ok := runtime.Caller(i); !ok {
+				break
+			} else {
+				calls = append(calls, fmt.Sprintf("%s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line))
+			}
+		}
 		c := time.Now()
 		for m.rlc.Load() > ulock {
 			if time.Since(c) > to[0] {
@@ -60,8 +90,21 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlock func()) {
 			runtime.Gosched()
 		}
 		if !m.rlc.CompareAndSwap(ulock, lock) {
-			panic("csa error, bug")
+			panic(fmt.Sprintf("csa error, rlc:%d", m.rlc.Load()))
 		}
+		c = time.Now()
+		go func() {
+			for !callC.Load() {
+				if time.Since(c) > to[0] {
+					panicS := fmt.Sprintf("timeout to run lock %v > %v\n", time.Since(c), to[0])
+					for i := 0; i < len(calls); i++ {
+						panicS += fmt.Sprintf("call by %s\n", calls[i])
+					}
+					panic(panicS)
+				}
+				runtime.Gosched()
+			}
+		}()
 	} else {
 		for m.rlc.Load() > ulock {
 			time.Sleep(time.Millisecond)
@@ -72,10 +115,9 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlock func()) {
 			runtime.Gosched()
 		}
 		if !m.rlc.CompareAndSwap(ulock, lock) {
-			panic("csa error, bug")
+			panic(fmt.Sprintf("csa error, rlc:%d", m.rlc.Load()))
 		}
 	}
-	var callC atomic.Bool
 	return func() {
 		if !callC.CompareAndSwap(false, true) {
 			panic("had unlock")
