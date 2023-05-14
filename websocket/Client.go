@@ -125,6 +125,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	// rec
 	go func() {
 		defer func() {
+			o.msg.PushLock_tag(`close`, nil)
 			o.msg.ClearAll()
 			o.l.Lock()
 			o.close = true
