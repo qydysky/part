@@ -106,8 +106,6 @@ func (t *Req) Reqf(val Rval) error {
 			for len(t.cancelFs) != 0 {
 				<-t.cancelFs
 			}
-			t.Respon = t.Respon[:0]
-			t.responBuf.Reset()
 
 			t.err = t.Reqf_1(_val)
 			if t.err == nil || IsCancel(t.err) {
