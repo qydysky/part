@@ -87,6 +87,8 @@ func New_client(config *Client) (*Client, error) {
 //		fmt.Println(string(wm.Msg))
 //		return false
 //	})
+//
+// 事件 send rec close exit
 func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	tmp_Header := make(http.Header)
 	for k, v := range o.Header {
@@ -125,7 +127,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	// rec
 	go func() {
 		defer func() {
-			o.msg.PushLock_tag(`close`, nil)
+			o.msg.PushLock_tag(`exit`, nil)
 			o.msg.ClearAll()
 			o.l.Lock()
 			o.close = true

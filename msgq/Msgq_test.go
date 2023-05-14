@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"fmt"
 	_ "net/http/pprof"
 	"sync"
 	"testing"
@@ -155,7 +156,7 @@ func BenchmarkXxx(b *testing.B) {
 // }
 
 func Benchmark_1(b *testing.B) {
-	mq := NewTo(time.Second)
+	mq := New()
 	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
 		return false
 	})
@@ -358,6 +359,7 @@ func Test_msgq3(t *testing.T) {
 
 	time.Sleep(time.Second)
 	for fin_turn := 0; fin_turn < 1000000; fin_turn += 1 {
+		fmt.Printf("\r%d", fin_turn)
 		mq.Push_tag(`A1`, fin_turn)
 		if fin_turn != <-mun_c {
 			t.Fatal(fin_turn)

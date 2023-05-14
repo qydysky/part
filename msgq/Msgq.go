@@ -42,13 +42,13 @@ func NewTo(to time.Duration) *Msgq {
 }
 
 func (m *Msgq) Register(f func(any) (disable bool)) {
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	m.funcs.PushBack(f)
 	ul()
 }
 
 func (m *Msgq) Register_front(f func(any) (disable bool)) {
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	m.funcs.PushFront(f)
 	ul()
 }
@@ -61,7 +61,7 @@ func (m *Msgq) Push(msg any) {
 
 	var removes []*list.Element
 
-	ul := m.lock.RLock(m.to...)
+	ul := m.lock.RLock(m.to...)()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
 			m.someNeedRemove.Add(1)
@@ -71,7 +71,7 @@ func (m *Msgq) Push(msg any) {
 	ul()
 
 	if len(removes) != 0 {
-		ul := m.lock.Lock(m.to...)
+		ul := m.lock.Lock(m.to...)()
 		m.someNeedRemove.Add(-int32(len(removes)))
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
@@ -86,7 +86,7 @@ func (m *Msgq) PushLock(msg any) {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	defer ul()
 
 	var removes []*list.Element
@@ -112,7 +112,7 @@ func (m *Msgq) ClearAll() {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	defer ul()
 
 	var removes []*list.Element
@@ -304,7 +304,7 @@ func (m *MsgType[T]) push(msg MsgType_tag_data[T]) {
 
 	var removes []*list.Element
 
-	ul := m.lock.RLock(m.to...)
+	ul := m.lock.RLock(m.to...)()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(MsgType_tag_data[T]) bool)(msg); disable {
 			m.someNeedRemove.Add(1)
@@ -314,7 +314,7 @@ func (m *MsgType[T]) push(msg MsgType_tag_data[T]) {
 	ul()
 
 	if len(removes) != 0 {
-		ul := m.lock.Lock(m.to...)
+		ul := m.lock.Lock(m.to...)()
 		m.someNeedRemove.Add(-int32(len(removes)))
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
@@ -329,7 +329,7 @@ func (m *MsgType[T]) pushLock(msg MsgType_tag_data[T]) {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	defer ul()
 
 	var removes []*list.Element
@@ -350,13 +350,13 @@ func (m *MsgType[T]) pushLock(msg MsgType_tag_data[T]) {
 }
 
 func (m *MsgType[T]) register(f func(MsgType_tag_data[T]) (disable bool)) {
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	m.funcs.PushBack(f)
 	ul()
 }
 
 func (m *MsgType[T]) register_front(f func(MsgType_tag_data[T]) (disable bool)) {
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	m.funcs.PushFront(f)
 	ul()
 }
@@ -419,7 +419,7 @@ func (m *MsgType[T]) ClearAll() {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)
+	ul := m.lock.Lock(m.to...)()
 	defer ul()
 
 	var removes []*list.Element

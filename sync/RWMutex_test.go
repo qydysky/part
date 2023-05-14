@@ -12,24 +12,26 @@ func TestMain(t *testing.T) {
 	var callRL2 time.Time
 	var to = time.Second * 2
 
-	ul := rl.RLock(to)
+	ul := rl.RLock(to)()
 	callRL = time.Now()
 
+	rlock := rl.RLock(to)
 	go func() {
-		ull := rl.RLock(to)
+		unlock := rlock()
 		callRL2 = time.Now()
-		ull()
+		unlock()
 	}()
 
+	lock := rl.Lock(to)
 	go func() {
-		ull := rl.Lock(to)
+		ull := lock()
 		callL = time.Now()
 		ull()
 	}()
 
 	time.Sleep(time.Second)
 	ul()
-	rl.Lock(to)()
+	rl.Lock(to)()()
 
 	if time.Since(callRL) < time.Since(callRL2) {
 		t.Fatal()
