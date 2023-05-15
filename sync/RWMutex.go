@@ -89,9 +89,15 @@ func (m *RWMutex) Lock(to ...time.Duration) (lockf func() (unlockf func())) {
 				}
 			}
 			c := time.Now()
-			for m.rlc.Load() > ulock || lockid-1 != m.oll.Load() {
+			for m.rlc.Load() > ulock {
 				if time.Since(c) > to[0] {
 					panic(fmt.Sprintf("timeout to wait rlock, rlc:%d", m.rlc.Load()))
+				}
+				runtime.Gosched()
+			}
+			for lockid-1 != m.oll.Load() {
+				if time.Since(c) > to[0] {
+					panic(fmt.Sprintf("timeout to wait lock, rlc:%d", m.rlc.Load()))
 				}
 				runtime.Gosched()
 			}
