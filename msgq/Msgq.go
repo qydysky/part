@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
 	signal "github.com/qydysky/part/signal"
-	sync "github.com/qydysky/part/sync"
+	psync "github.com/qydysky/part/sync"
 )
 
 type Msgq struct {
@@ -18,7 +19,7 @@ type Msgq struct {
 	funcs          *list.List
 	someNeedRemove atomic.Int32
 	lock           sync.RWMutex
-	runTag         sync.Map
+	runTag         psync.Map
 }
 
 type FuncMap map[string]func(any) (disable bool)
@@ -38,15 +39,15 @@ func NewTo(to ...time.Duration) *Msgq {
 }
 
 func (m *Msgq) Register(f func(any) (disable bool)) {
-	ul := m.lock.Lock(m.to...)()
+	m.lock.Lock()
 	m.funcs.PushBack(f)
-	ul()
+	m.lock.Unlock()
 }
 
 func (m *Msgq) Register_front(f func(any) (disable bool)) {
-	ul := m.lock.Lock(m.to...)()
+	m.lock.Lock()
 	m.funcs.PushFront(f)
-	ul()
+	m.lock.Unlock()
 }
 
 func (m *Msgq) Push(msg any) {
@@ -57,22 +58,22 @@ func (m *Msgq) Push(msg any) {
 
 	var removes []*list.Element
 
-	ul := m.lock.RLock(m.to...)()
+	m.lock.RLock()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
 			m.someNeedRemove.Add(1)
 			removes = append(removes, el)
 		}
 	}
-	ul()
+	m.lock.RUnlock()
 
 	if len(removes) != 0 {
-		ul := m.lock.Lock(m.to...)()
+		m.lock.Lock()
 		m.someNeedRemove.Add(-int32(len(removes)))
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
 		}
-		ul()
+		m.lock.Unlock()
 	}
 }
 
@@ -82,8 +83,8 @@ func (m *Msgq) PushLock(msg any) {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)()
-	defer ul()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	var removes []*list.Element
 
@@ -108,8 +109,8 @@ func (m *Msgq) ClearAll() {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)()
-	defer ul()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	var removes []*list.Element
 
@@ -266,7 +267,7 @@ type MsgType[T any] struct {
 	funcs          *list.List
 	someNeedRemove atomic.Int32
 	lock           sync.RWMutex
-	runTag         sync.Map
+	runTag         psync.Map
 }
 
 type MsgType_tag_data[T any] struct {
@@ -296,22 +297,22 @@ func (m *MsgType[T]) push(msg MsgType_tag_data[T]) {
 
 	var removes []*list.Element
 
-	ul := m.lock.RLock(m.to...)()
+	m.lock.RLock()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(MsgType_tag_data[T]) bool)(msg); disable {
 			m.someNeedRemove.Add(1)
 			removes = append(removes, el)
 		}
 	}
-	ul()
+	m.lock.RUnlock()
 
 	if len(removes) != 0 {
-		ul := m.lock.Lock(m.to...)()
+		m.lock.Lock()
 		m.someNeedRemove.Add(-int32(len(removes)))
 		for i := 0; i < len(removes); i++ {
 			m.funcs.Remove(removes[i])
 		}
-		ul()
+		m.lock.Unlock()
 	}
 }
 
@@ -321,8 +322,8 @@ func (m *MsgType[T]) pushLock(msg MsgType_tag_data[T]) {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)()
-	defer ul()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	var removes []*list.Element
 
@@ -342,15 +343,15 @@ func (m *MsgType[T]) pushLock(msg MsgType_tag_data[T]) {
 }
 
 func (m *MsgType[T]) register(f func(MsgType_tag_data[T]) (disable bool)) {
-	ul := m.lock.Lock(m.to...)()
+	m.lock.Lock()
 	m.funcs.PushBack(f)
-	ul()
+	m.lock.Unlock()
 }
 
 func (m *MsgType[T]) register_front(f func(MsgType_tag_data[T]) (disable bool)) {
-	ul := m.lock.Lock(m.to...)()
+	m.lock.Lock()
 	m.funcs.PushFront(f)
-	ul()
+	m.lock.Unlock()
 }
 
 func (m *MsgType[T]) Push_tag(Tag string, Data T) {
@@ -411,8 +412,8 @@ func (m *MsgType[T]) ClearAll() {
 		runtime.Gosched()
 	}
 
-	ul := m.lock.Lock(m.to...)()
-	defer ul()
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
 	var removes []*list.Element
 
