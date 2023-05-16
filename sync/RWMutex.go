@@ -55,6 +55,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (lockf func() (unlockf func())) {
 			}()
 		} else {
 			for m.rlc.Load() < ulock {
+				time.Sleep(time.Millisecond)
 				runtime.Gosched()
 			}
 		}
@@ -115,9 +116,11 @@ func (m *RWMutex) Lock(to ...time.Duration) (lockf func() (unlockf func())) {
 			}()
 		} else {
 			for m.rlc.Load() > ulock || m.wantRead.Load() {
+				time.Sleep(time.Millisecond)
 				runtime.Gosched()
 			}
 			for lockid-1 != m.oll.Load() {
+				time.Sleep(time.Millisecond)
 				runtime.Gosched()
 			}
 			if !m.rlc.CompareAndSwap(ulock, lock) {
