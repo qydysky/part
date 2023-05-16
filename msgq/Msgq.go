@@ -29,15 +29,11 @@ func New() *Msgq {
 	return m
 }
 
-func NewTo(to time.Duration) *Msgq {
+func NewTo(to ...time.Duration) *Msgq {
 	fmt.Println("Warn: NewTo is slow, consider New")
 	m := new(Msgq)
 	m.funcs = list.New()
-	if to != 0 {
-		m.to = append(m.to, to)
-	} else {
-		m.to = append(m.to, time.Second*30)
-	}
+	m.to = to
 	return m
 }
 
@@ -284,15 +280,11 @@ func NewType[T any]() *MsgType[T] {
 	return m
 }
 
-func NewTypeTo[T any](to time.Duration) *MsgType[T] {
+func NewTypeTo[T any](to ...time.Duration) *MsgType[T] {
 	fmt.Println("Warn: NewTypeTo[T any] is slow, consider NewType[T any]")
 	m := new(MsgType[T])
 	m.funcs = list.New()
-	if to != 0 {
-		m.to = append(m.to, to)
-	} else {
-		m.to = append(m.to, time.Second*30)
-	}
+	m.to = to
 	return m
 }
 

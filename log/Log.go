@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	f "github.com/qydysky/part/file"
 	m "github.com/qydysky/part/msgq"
@@ -19,6 +20,7 @@ type Log_interface struct {
 }
 
 type Config struct {
+	To     time.Duration
 	File   string
 	Stdout bool
 
@@ -42,7 +44,12 @@ func New(c Config) (o *Log_interface) {
 		f.New(c.File, 0, true).Create()
 	}
 
-	o.MQ = m.NewType[Msg_item]()
+	if o.To != 0 {
+		o.MQ = m.NewTypeTo[Msg_item](o.To)
+	} else {
+		o.MQ = m.NewType[Msg_item]()
+	}
+
 	o.MQ.Pull_tag_only(`L`, func(msg Msg_item) bool {
 		var showObj = []io.Writer{}
 		if msg.Stdout {
@@ -72,8 +79,6 @@ func Copy(i *Log_interface) (o *Log_interface) {
 		Config: (*i).Config,
 		MQ:     (*i).MQ,
 	}
-	//启动阻塞
-	o.MQ.PushLock_tag(`block`, Msg_item{})
 	return
 }
 

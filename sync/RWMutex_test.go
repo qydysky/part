@@ -43,3 +43,10 @@ func TestMain(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func BenchmarkRlock(b *testing.B) {
+	var lock1 RWMutex
+	for i := 0; i < b.N; i++ {
+		lock1.Lock(time.Second)()()
+	}
+}
