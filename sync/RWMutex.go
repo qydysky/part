@@ -45,7 +45,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 		if len(to) > 1 {
 			time.AfterFunc(to[1], func() {
 				if !callC.Load() {
-					panicS := fmt.Sprintf("timeout to run rlock %v > %v\n", time.Since(c), to[0])
+					panicS := fmt.Sprintf("timeout to run rlock %v > %v\n", time.Since(c), to[1])
 					for i := 0; i < len(calls); i++ {
 						panicS += fmt.Sprintf("call by %s\n", calls[i])
 					}
@@ -94,7 +94,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
 		if len(to) > 1 {
 			time.AfterFunc(to[1], func() {
 				if !callC.Load() {
-					panicS := fmt.Sprintf("timeout to run lock %v > %v\n", time.Since(c), to[0])
+					panicS := fmt.Sprintf("timeout to run lock %v > %v\n", time.Since(c), to[1])
 					for i := 0; i < len(calls); i++ {
 						panicS += fmt.Sprintf("call by %s\n", calls[i])
 					}
