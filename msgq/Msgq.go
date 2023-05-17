@@ -4,8 +4,6 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"runtime"
-	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -15,11 +13,15 @@ import (
 )
 
 type Msgq struct {
-	to             []time.Duration
-	funcs          *list.List
-	someNeedRemove atomic.Int32
-	lock           sync.RWMutex
-	runTag         psync.Map
+	to    []time.Duration
+	funcs *list.List
+
+	call       atomic.Int64
+	removeList []*list.Element
+	removelock psync.RWMutex
+
+	lock   psync.RWMutex
+	runTag psync.Map
 }
 
 type FuncMap map[string]func(any) (disable bool)
@@ -30,101 +32,93 @@ func New() *Msgq {
 	return m
 }
 
-func NewTo(to ...time.Duration) *Msgq {
+func NewTo(waitTo time.Duration, runTo ...time.Duration) *Msgq {
 	fmt.Println("Warn: NewTo is slow, consider New")
 	m := new(Msgq)
 	m.funcs = list.New()
-	m.to = to
+	m.to = append([]time.Duration{waitTo}, runTo...)
 	return m
 }
 
 func (m *Msgq) Register(f func(any) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushBack(f)
-	m.lock.Unlock()
+	ul()
 }
 
 func (m *Msgq) Register_front(f func(any) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushFront(f)
-	m.lock.Unlock()
+	ul()
 }
 
 func (m *Msgq) Push(msg any) {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	var removes []*list.Element
-
-	m.lock.RLock()
+	ul := m.lock.RLock(m.to...)
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
-			m.someNeedRemove.Add(1)
-			removes = append(removes, el)
+			rul := m.removelock.Lock()
+			m.removeList = append(m.removeList, el)
+			rul()
 		}
 	}
-	m.lock.RUnlock()
+	ul()
 
-	if len(removes) != 0 {
-		m.lock.Lock()
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
 		}
-		m.lock.Unlock()
+		rul()
 	}
+
+	m.call.Add(-1)
 }
 
 func (m *Msgq) PushLock(msg any) {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	var removes []*list.Element
+	ul := m.lock.Lock(m.to...)
+	defer ul()
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(any) bool)(msg); disable {
-			m.someNeedRemove.Add(1)
-			removes = append(removes, el)
+			rul := m.removelock.Lock()
+			m.removeList = append(m.removeList, el)
+			rul()
 		}
 	}
 
-	if len(removes) != 0 {
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
 		}
+		rul()
 	}
+
+	m.call.Add(-1)
 }
 
 func (m *Msgq) ClearAll() {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	var removes []*list.Element
-
+	rul := m.removelock.Lock()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
-		m.someNeedRemove.Add(1)
-		removes = append(removes, el)
+		m.removeList = append(m.removeList, el)
+	}
+	rul()
+
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
+		}
+		rul()
 	}
 
-	if len(removes) != 0 {
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
-		}
-	}
+	m.call.Add(-1)
 }
 
 type Msgq_tag_data struct {
@@ -132,6 +126,7 @@ type Msgq_tag_data struct {
 	Data any
 }
 
+// 不能放置在由PushLock_tag调用的同步Pull中
 func (m *Msgq) Push_tag(Tag string, Data any) {
 	if len(m.to) > 0 {
 		ptr := uintptr(unsafe.Pointer(&Data))
@@ -158,6 +153,7 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 	})
 }
 
+// 不能放置在由Push_tag、PushLock_tag调用的同步Pull中
 func (m *Msgq) PushLock_tag(Tag string, Data any) {
 	if len(m.to) > 0 {
 		ptr := uintptr(unsafe.Pointer(&Data))
@@ -263,11 +259,15 @@ func (m *Msgq) Pull_tag_async(func_map map[string]func(any) (disable bool)) {
 }
 
 type MsgType[T any] struct {
-	to             []time.Duration
-	funcs          *list.List
-	someNeedRemove atomic.Int32
-	lock           sync.RWMutex
-	runTag         psync.Map
+	to    []time.Duration
+	funcs *list.List
+
+	call       atomic.Int64
+	removeList []*list.Element
+	removelock psync.RWMutex
+
+	lock   psync.RWMutex
+	runTag psync.Map
 }
 
 type MsgType_tag_data[T any] struct {
@@ -281,79 +281,76 @@ func NewType[T any]() *MsgType[T] {
 	return m
 }
 
-func NewTypeTo[T any](to ...time.Duration) *MsgType[T] {
+func NewTypeTo[T any](waitTo time.Duration, runTo ...time.Duration) *MsgType[T] {
 	fmt.Println("Warn: NewTypeTo[T any] is slow, consider NewType[T any]")
 	m := new(MsgType[T])
 	m.funcs = list.New()
-	m.to = to
+	m.to = append([]time.Duration{waitTo}, runTo...)
 	return m
 }
 
 func (m *MsgType[T]) push(msg MsgType_tag_data[T]) {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	var removes []*list.Element
-
-	m.lock.RLock()
+	ul := m.lock.RLock(m.to...)
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(MsgType_tag_data[T]) bool)(msg); disable {
-			m.someNeedRemove.Add(1)
-			removes = append(removes, el)
+			rul := m.removelock.Lock()
+			m.removeList = append(m.removeList, el)
+			rul()
 		}
 	}
-	m.lock.RUnlock()
+	ul()
 
-	if len(removes) != 0 {
-		m.lock.Lock()
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
 		}
-		m.lock.Unlock()
+		rul()
 	}
+
+	m.call.Add(-1)
 }
 
 func (m *MsgType[T]) pushLock(msg MsgType_tag_data[T]) {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	var removes []*list.Element
+	ul := m.lock.Lock(m.to...)
+	defer ul()
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		if disable := el.Value.(func(MsgType_tag_data[T]) bool)(msg); disable {
-			m.someNeedRemove.Add(1)
-			removes = append(removes, el)
+			rul := m.removelock.Lock()
+			m.removeList = append(m.removeList, el)
+			rul()
 		}
 	}
 
-	if len(removes) != 0 {
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
 		}
+		rul()
 	}
+
+	m.call.Add(-1)
 }
 
 func (m *MsgType[T]) register(f func(MsgType_tag_data[T]) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushBack(f)
-	m.lock.Unlock()
+	ul()
 }
 
 func (m *MsgType[T]) register_front(f func(MsgType_tag_data[T]) (disable bool)) {
-	m.lock.Lock()
+	ul := m.lock.Lock(m.to...)
 	m.funcs.PushFront(f)
-	m.lock.Unlock()
+	ul()
 }
 
+// 不能放置在由PushLock_tag调用的同步Pull中
 func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 	if len(m.to) > 0 {
 		ptr := uintptr(unsafe.Pointer(&Data))
@@ -380,6 +377,7 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 	})
 }
 
+// 不能放置在由Push_tag、PushLock_tag调用的同步Pull中
 func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 	if len(m.to) > 0 {
 		ptr := uintptr(unsafe.Pointer(&Data))
@@ -407,27 +405,23 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 }
 
 func (m *MsgType[T]) ClearAll() {
-	for m.someNeedRemove.Load() != 0 {
-		time.Sleep(time.Millisecond)
-		runtime.Gosched()
-	}
+	isfirst := m.call.Add(1)
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	var removes []*list.Element
-
+	rul := m.removelock.Lock()
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
-		m.someNeedRemove.Add(1)
-		removes = append(removes, el)
+		m.removeList = append(m.removeList, el)
+	}
+	rul()
+
+	if isfirst == 1 {
+		rul := m.removelock.Lock()
+		for i := 0; i < len(m.removeList); i++ {
+			m.funcs.Remove(m.removeList[i])
+		}
+		rul()
 	}
 
-	if len(removes) != 0 {
-		m.someNeedRemove.Add(-int32(len(removes)))
-		for i := 0; i < len(removes); i++ {
-			m.funcs.Remove(removes[i])
-		}
-	}
+	m.call.Add(-1)
 }
 
 func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) <-chan T {

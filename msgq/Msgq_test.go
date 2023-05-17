@@ -164,6 +164,23 @@ func Benchmark_1(b *testing.B) {
 	}
 }
 
+func Test_RemoveInPush(t *testing.T) {
+	mq := NewTo(time.Second, time.Second*3)
+	mq.Pull_tag(FuncMap{
+		`r1`: func(a any) (disable bool) {
+			mq.ClearAll()
+			return false
+		},
+		`r2`: func(a any) (disable bool) {
+			return true
+		},
+	})
+	mq.PushLock_tag(`r1`, nil)
+	if mq.funcs.Len() != 0 {
+		t.Fatal()
+	}
+}
+
 func Test_Pull_tag_chan(t *testing.T) {
 	mq := New()
 	ctx, cf := context.WithCancel(context.Background())
