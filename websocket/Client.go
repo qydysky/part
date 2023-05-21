@@ -103,7 +103,9 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		dial.Proxy = proxy
 	}
 	c, response, err := dial.Dial(o.Url, tmp_Header)
-	if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
+	if err != nil {
+		o.error(err)
+	} else if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
 		o.error(err)
 	}
 	if err != nil {
@@ -179,7 +181,11 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		if wm.Type == 0 {
 			wm.Type = websocket.TextMessage
 		}
-		c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond))))
+		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
+			o.error(err)
+			o.msg.ClearAll()
+			return true
+		}
 		if err := c.WriteMessage(wm.Type, wm.Msg); err != nil {
 			o.error(err)
 			o.msg.ClearAll()
