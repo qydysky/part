@@ -31,6 +31,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/funcCtrl
         go test -count 1 -timeout 30s -v -race github.com/qydysky/part/msgq
+        go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/sync
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
