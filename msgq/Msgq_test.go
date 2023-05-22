@@ -159,8 +159,9 @@ func Benchmark_1(b *testing.B) {
 	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
 		return false
 	})
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mq.PushLock_tag(`test`, i)
+		mq.Push_tag(`test`, i)
 	}
 }
 
@@ -179,6 +180,17 @@ func Test_RemoveInPush(t *testing.T) {
 	if mq.funcs.Len() != 0 {
 		t.Fatal()
 	}
+}
+
+func Test_3(t *testing.T) {
+	mq := NewTo(time.Millisecond, time.Millisecond*3)
+	go mq.Push_tag(`sss`, nil)
+	mq.Pull_tag(FuncMap{
+		`test`: func(a any) (disable bool) {
+			return false
+		},
+	})
+	time.Sleep(time.Millisecond * 500)
 }
 
 func Test_Pull_tag_chan(t *testing.T) {

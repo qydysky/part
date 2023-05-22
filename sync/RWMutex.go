@@ -10,19 +10,19 @@ import (
 const (
 	lock  = -1
 	ulock = 0
+	rlock = 0
 )
 
 type RWMutex struct {
-	rlc       atomic.Int32
-	wantRead  atomic.Bool
-	wantWrite atomic.Bool
+	rlc  atomic.Int32
+	want atomic.Int32
 }
 
 // to[0]: wait lock timeout to[1]: run lock timeout
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
-	m.wantRead.Store(true)
+	getWant := m.want.CompareAndSwap(ulock, rlock)
 	var callC atomic.Bool
 	if len(to) > 0 {
 		var calls []string
@@ -36,9 +36,9 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 			}
 		}
 		c := time.Now()
-		for m.rlc.Load() < ulock || m.wantWrite.Load() {
+		for m.rlc.Load() < ulock || !getWant && !m.want.CompareAndSwap(ulock, rlock) {
 			if time.Since(c) > to[0] {
-				panic(fmt.Sprintf("timeout to wait lock while rlocking, rlc:%d", m.rlc.Load()))
+				panic(fmt.Sprintf("timeout to wait lock while rlocking, rlc:%d, want:%d, getWant:%v", m.rlc.Load(), m.want.Load(), getWant))
 			}
 			runtime.Gosched()
 		}
@@ -54,7 +54,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 			})
 		}
 	} else {
-		for m.rlc.Load() < ulock || m.wantWrite.Load() {
+		for m.rlc.Load() < ulock || !getWant && m.want.CompareAndSwap(ulock, rlock) {
 			runtime.Gosched()
 		}
 	}
@@ -64,14 +64,14 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 			panic("had unrlock")
 		}
 		if m.rlc.Add(-1) == ulock {
-			m.wantRead.Store(false)
+			m.want.CompareAndSwap(rlock, ulock)
 		}
 	}
 }
 
 // to[0]: wait lock timeout to[1]: run lock timeout
 func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
-	m.wantWrite.Store(true)
+	getWant := m.want.CompareAndSwap(ulock, lock)
 	var callC atomic.Bool
 	if len(to) > 0 {
 		var calls []string
@@ -85,9 +85,9 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
 			}
 		}
 		c := time.Now()
-		for m.rlc.Load() != ulock || m.wantRead.Load() {
+		for m.rlc.Load() != ulock || !getWant && !m.want.CompareAndSwap(ulock, lock) {
 			if time.Since(c) > to[0] {
-				panic(fmt.Sprintf("timeout to wait rlock while locking, rlc:%d", m.rlc.Load()))
+				panic(fmt.Sprintf("timeout to wait rlock while locking, rlc:%d, want:%v, getWant:%v", m.rlc.Load(), m.want.Load(), getWant))
 			}
 			runtime.Gosched()
 		}
@@ -103,7 +103,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
 			})
 		}
 	} else {
-		for m.rlc.Load() != ulock || m.wantRead.Load() {
+		for m.rlc.Load() != ulock || !getWant && m.want.CompareAndSwap(ulock, lock) {
 			runtime.Gosched()
 		}
 	}
@@ -113,7 +113,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
 			panic("had unlock")
 		}
 		if m.rlc.Add(1) == ulock {
-			m.wantWrite.Store(false)
+			m.want.CompareAndSwap(lock, ulock)
 		}
 	}
 }
