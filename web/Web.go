@@ -172,6 +172,9 @@ func (t *CountLimits) SetMaxCount(cidr string, max int) {
 }
 
 func (t *CountLimits) IsOverflow(r *http.Request) (isOverflow bool) {
+	if len(t.g) == 0 {
+		return
+	}
 	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
 	t.l.RLock()
 	defer t.l.RUnlock()
@@ -188,6 +191,9 @@ func (t *CountLimits) IsOverflow(r *http.Request) (isOverflow bool) {
 }
 
 func (t *CountLimits) AddOverflow(r *http.Request) (isOverflow bool) {
+	if len(t.g) == 0 {
+		return
+	}
 	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
 	t.l.Lock()
 	defer t.l.Unlock()
