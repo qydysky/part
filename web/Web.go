@@ -2,8 +2,10 @@ package part
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,10 +17,63 @@ type Web struct {
 	mux    *http.ServeMux
 }
 
+func New(conf *http.Server) (o *Web) {
+
+	o = new(Web)
+
+	o.Server = conf
+
+	if o.Server.Handler == nil {
+		o.mux = http.NewServeMux()
+		o.Server.Handler = o.mux
+	}
+
+	go o.Server.ListenAndServe()
+
+	return
+}
+
+func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Request)) {
+	for k, v := range path_func {
+		t.mux.HandleFunc(k, v)
+	}
+}
+
+func (t *Web) Shutdown() {
+	t.Server.Shutdown(context.Background())
+}
+
 type WebSync struct {
 	Server *http.Server
 	mux    *http.ServeMux
 	wrs    *WebPath
+}
+
+func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
+
+	o = new(WebSync)
+
+	o.Server = conf
+	o.wrs = m
+
+	if o.Server.Handler == nil {
+		o.mux = http.NewServeMux()
+		o.Server.Handler = o.mux
+	}
+
+	go o.Server.ListenAndServe()
+
+	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if f, ok := o.wrs.Load(r.URL.Path); ok {
+			f(w, r)
+		}
+	})
+
+	return
+}
+
+func (t *WebSync) Shutdown() {
+	t.Server.Shutdown(context.Background())
 }
 
 type WebPath struct {
@@ -98,57 +153,67 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func New(conf *http.Server) (o *Web) {
-
-	o = new(Web)
-
-	o.Server = conf
-
-	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
-	}
-
-	go o.Server.ListenAndServe()
-
-	return
+type CountLimits struct {
+	g []countLimit
+	l sync.RWMutex
 }
 
-func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
+type countLimit struct {
+	cidr      *net.IPNet
+	available int
+}
 
-	o = new(WebSync)
-
-	o.Server = conf
-	o.wrs = m
-
-	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
+func (t *CountLimits) SetMaxCount(cidr string, max int) {
+	if _, cidrx, err := net.ParseCIDR(cidr); err != nil {
+		panic(err)
+	} else {
+		t.g = append(t.g, countLimit{cidrx, max})
 	}
+}
 
-	go o.Server.ListenAndServe()
-
-	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if f, ok := o.wrs.Load(r.URL.Path); ok {
-			f(w, r)
+func (t *CountLimits) IsOverflow(r *http.Request) (isOverflow bool) {
+	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
+	t.l.RLock()
+	defer t.l.RUnlock()
+	for i := 0; i < len(t.g); i++ {
+		if !t.g[i].cidr.Contains(ip) {
+			continue
 		}
-	})
-
+		if t.g[i].available == 0 {
+			isOverflow = true
+			break
+		}
+	}
 	return
 }
 
-func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Request)) {
-	for k, v := range path_func {
-		t.mux.HandleFunc(k, v)
+func (t *CountLimits) AddOverflow(r *http.Request) (isOverflow bool) {
+	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
+	t.l.Lock()
+	defer t.l.Unlock()
+	var match []int
+	for i := 0; i < len(t.g); i++ {
+		if !t.g[i].cidr.Contains(ip) {
+			continue
+		}
+		if t.g[i].available == 0 {
+			isOverflow = true
+			return
+		}
+		match = append(match, i)
 	}
-}
-
-func (t *Web) Shutdown() {
-	t.Server.Shutdown(context.Background())
-}
-
-func (t *WebSync) Shutdown() {
-	t.Server.Shutdown(context.Background())
+	for i := 0; i < len(match); i++ {
+		t.g[match[i]].available -= 1
+	}
+	go func() {
+		<-r.Context().Done()
+		t.l.Lock()
+		defer t.l.Unlock()
+		for i := 0; i < len(match); i++ {
+			t.g[match[i]].available += 1
+		}
+	}()
+	return
 }
 
 func Easy_boot() *Web {
