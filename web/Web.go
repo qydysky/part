@@ -171,7 +171,7 @@ func (t *CountLimits) SetMaxCount(cidr string, max int) {
 	}
 }
 
-func (t *CountLimits) IsOverflow(r *http.Request) (isOverflow bool) {
+func (t *CountLimits) ReachMax(r *http.Request) (isOverflow bool) {
 	if len(t.g) == 0 {
 		return
 	}
@@ -190,7 +190,7 @@ func (t *CountLimits) IsOverflow(r *http.Request) (isOverflow bool) {
 	return
 }
 
-func (t *CountLimits) AddOverflow(r *http.Request) (isOverflow bool) {
+func (t *CountLimits) AddCount(r *http.Request) (isOverflow bool) {
 	if len(t.g) == 0 {
 		return
 	}
