@@ -87,9 +87,10 @@ func Test_ServerSyncMapP(t *testing.T) {
 		A string `json:"path"`
 	}
 
-	NewSyncMap(&http.Server{
+	o := NewSyncMap(&http.Server{
 		Addr: "127.0.0.1:9090",
 	}, &m)
+	defer o.Shutdown()
 	m.Store("/1/2", func(w http.ResponseWriter, _ *http.Request) {
 		ResStruct{0, "ok", d{"/1/2"}}.Write(w)
 	})
@@ -102,6 +103,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
 		ResStruct{0, "ok", d{"/"}}.Write(w)
 	})
+	time.Sleep(time.Second)
 
 	r := reqf.New()
 	res := ResStruct{}
