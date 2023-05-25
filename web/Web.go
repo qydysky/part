@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	psync "github.com/qydysky/part/sync"
@@ -224,7 +225,8 @@ func (t *CountLimits) AddCount(r *http.Request) (isOverflow bool) {
 }
 
 type Cache struct {
-	g psync.MapExceeded[string, []byte]
+	g   psync.MapExceeded[string, []byte]
+	gcL atomic.Int64
 }
 
 func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
@@ -233,6 +235,10 @@ func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
 
 func (t *Cache) Store(key string, aliveDur time.Duration, data []byte) {
 	t.g.Store(key, data, aliveDur)
+	if s := int64(t.g.Len()); s > 10 && t.gcL.Load() <= s {
+		t.gcL.Store(s * 2)
+		t.g.GC()
+	}
 }
 
 func Easy_boot() *Web {
