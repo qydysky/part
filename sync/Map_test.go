@@ -336,7 +336,8 @@ func Benchmark_syncMap_Range(b *testing.B) {
 
 func TestMapExceeded1(t *testing.T) {
 	var m MapExceeded[string, []byte]
-	m.Store("1", []byte("1"), time.Second)
+	var data = []byte("1")
+	m.Store("1", &data, time.Second)
 	if b, ok := m.Load("1"); !ok || 0 != bytes.Compare(*b, []byte("1")) {
 		t.Fatal(ok, b)
 	}
