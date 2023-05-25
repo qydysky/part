@@ -233,7 +233,7 @@ func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
 	return t.g.Load(key)
 }
 
-func (t *Cache) Store(key string, aliveDur time.Duration, data []byte) {
+func (t *Cache) Store(key string, aliveDur time.Duration, data *[]byte) {
 	t.g.Store(key, data, aliveDur)
 	if s := int64(t.g.Len()); s > 10 && t.gcL.Load() <= s {
 		t.gcL.Store(s * 2)

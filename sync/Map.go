@@ -72,9 +72,9 @@ type mapExceededItem[V any] struct {
 	exceeded time.Time
 }
 
-func (t *MapExceeded[K, V]) Store(k K, v V, dur time.Duration) {
+func (t *MapExceeded[K, V]) Store(k K, v *V, dur time.Duration) {
 	t.m.Store(k, mapExceededItem[V]{
-		data:     &v,
+		data:     v,
 		exceeded: time.Now().Add(dur),
 	})
 }
