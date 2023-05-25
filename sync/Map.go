@@ -3,6 +3,7 @@ package part
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Map struct {
@@ -60,4 +61,53 @@ func Copy[T comparable, S any](s map[T]S) map[T]S {
 		t[k] = v
 	}
 	return t
+}
+
+type MapExceeded[K, V any] struct {
+	m Map
+}
+
+type mapExceededItem[V any] struct {
+	data     *V
+	exceeded time.Time
+}
+
+func (t *MapExceeded[K, V]) Store(k K, v V, dur time.Duration) {
+	t.m.Store(k, mapExceededItem[V]{
+		data:     &v,
+		exceeded: time.Now().Add(dur),
+	})
+}
+
+func (t *MapExceeded[K, V]) Load(k K) (*V, bool) {
+	if v, ok := t.m.Load(k); ok {
+		if v.(mapExceededItem[V]).exceeded.After(time.Now()) {
+			return v.(mapExceededItem[V]).data, true
+		}
+		t.Delete(k)
+	}
+	return nil, false
+}
+
+func (t *MapExceeded[K, V]) Range(f func(key K, value *V) bool) {
+	t.m.Range(func(key, value any) bool {
+		if value.(mapExceededItem[V]).exceeded.After(time.Now()) {
+			return f(key.(K), value.(*V))
+		}
+		t.Delete(key.(K))
+		return true
+	})
+}
+
+func (t *MapExceeded[K, V]) GC(dur ...time.Duration) {
+	t.m.Range(func(key, value any) bool {
+		if value.(mapExceededItem[V]).exceeded.Before(time.Now()) {
+			t.Delete(key.(K))
+		}
+		return true
+	})
+}
+
+func (t *MapExceeded[K, V]) Delete(k K) {
+	t.m.Delete(k)
 }

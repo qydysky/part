@@ -1,8 +1,10 @@
 package part
 
 import (
+	"bytes"
 	"sync"
 	"testing"
+	"time"
 )
 
 type tmp struct {
@@ -330,4 +332,16 @@ func Benchmark_syncMap_Range(b *testing.B) {
 		}
 		return true
 	})
+}
+
+func TestMapExceeded1(t *testing.T) {
+	var m MapExceeded[string, []byte]
+	m.Store("1", []byte("1"), time.Second)
+	if b, ok := m.Load("1"); !ok || 0 != bytes.Compare(*b, []byte("1")) {
+		t.Fatal(ok, b)
+	}
+	time.Sleep(time.Second * 2)
+	if b, ok := m.Load("1"); ok || b != nil {
+		t.Fatal()
+	}
 }

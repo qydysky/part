@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	psync "github.com/qydysky/part/sync"
 	sys "github.com/qydysky/part/sys"
 )
 
@@ -220,6 +221,18 @@ func (t *CountLimits) AddCount(r *http.Request) (isOverflow bool) {
 		}
 	}()
 	return
+}
+
+type Cache struct {
+	g psync.MapExceeded[string, []byte]
+}
+
+func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
+	return t.g.Load(key)
+}
+
+func (t *Cache) Store(key string, aliveDur time.Duration, data []byte) {
+	t.g.Store(key, data, aliveDur)
 }
 
 func Easy_boot() *Web {
