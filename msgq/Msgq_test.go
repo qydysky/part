@@ -183,7 +183,7 @@ func Test_RemoveInPush(t *testing.T) {
 }
 
 func Test_3(t *testing.T) {
-	mq := NewTo(time.Millisecond, time.Millisecond*3)
+	mq := NewTo(time.Millisecond*5, time.Millisecond*10)
 	go mq.Push_tag(`sss`, nil)
 	mq.Pull_tag(FuncMap{
 		`test`: func(a any) (disable bool) {
