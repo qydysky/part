@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	psync "github.com/qydysky/part/sync"
 	sys "github.com/qydysky/part/sys"
 )
@@ -229,8 +230,48 @@ type Cache struct {
 	gcL atomic.Int64
 }
 
+type cacheRes struct {
+	headerf      func() http.Header
+	writef       func([]byte) (int, error)
+	writeHeaderf func(statusCode int)
+}
+
+func (t cacheRes) Header() http.Header {
+	return t.headerf()
+}
+func (t cacheRes) Write(b []byte) (int, error) {
+	return t.writef(b)
+}
+func (t cacheRes) WriteHeader(statusCode int) {
+	t.writeHeaderf(statusCode)
+}
+
 func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
 	return t.g.Load(key)
+}
+
+func (t *Cache) Cache(key string, aliveDur time.Duration, w http.ResponseWriter) http.ResponseWriter {
+	var (
+		res    cacheRes
+		called atomic.Bool
+	)
+	res.headerf = w.Header
+	res.writeHeaderf = w.WriteHeader
+	res.writef = func(b []byte) (int, error) {
+		if called.CompareAndSwap(false, true) {
+			if len(b) < humanize.MByte {
+				t.g.Store(key, &b, aliveDur)
+			}
+		} else {
+			panic("Cache Write called")
+		}
+		return w.Write(b)
+	}
+	if s := int64(t.g.Len()); s > 10 && t.gcL.Load() <= s {
+		t.gcL.Store(s * 2)
+		t.g.GC()
+	}
+	return res
 }
 
 func (t *Cache) Store(key string, aliveDur time.Duration, data *[]byte) {
