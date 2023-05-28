@@ -156,73 +156,143 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-type CountLimits struct {
-	g []countLimit
+type Limits struct {
+	g []*limitItem
 	l sync.RWMutex
 }
 
-type countLimit struct {
-	cidr      *net.IPNet
-	available int
+func (t *Limits) AddLimitItem(item *limitItem) {
+	t.g = append(t.g, item)
 }
 
-func (t *CountLimits) SetMaxCount(cidr string, max int) {
+func (t *Limits) ReachMax(r *http.Request) (isOverflow bool) {
+	if len(t.g) == 0 {
+		return
+	}
+	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
+	for i := 0; !isOverflow && i < len(t.g); i++ {
+		var match bool
+		t.g[i].l.RLock()
+		for b := 0; !match && b < len(t.g[i].matchfs); b++ {
+			switch t.g[i].matchfs[b].k {
+			case rcidr:
+				match = t.g[i].matchfs[b].f(ip)
+			case rreq:
+				match = t.g[i].matchfs[b].f(r)
+			default:
+			}
+		}
+		if match && t.g[i].available == 0 {
+			isOverflow = true
+		}
+		t.g[i].l.RUnlock()
+	}
+	return
+}
+
+func (t *Limits) AddCount(r *http.Request) (isOverflow bool) {
+	if len(t.g) == 0 {
+		return
+	}
+	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
+	var matchs []int
+
+	for i := 0; !isOverflow && i < len(t.g); i++ {
+		var match bool
+		t.g[i].l.RLock()
+		for b := 0; !match && b < len(t.g[i].matchfs); b++ {
+			switch t.g[i].matchfs[b].k {
+			case rcidr:
+				match = t.g[i].matchfs[b].f(ip)
+			case rreq:
+				match = t.g[i].matchfs[b].f(r)
+			default:
+			}
+		}
+		if match {
+			if t.g[i].available == 0 {
+				isOverflow = true
+			} else {
+				matchs = append(matchs, i)
+			}
+		}
+		t.g[i].l.RUnlock()
+	}
+	if !isOverflow && len(matchs) != 0 {
+		t.l.Lock()
+		for i := 0; !isOverflow && i < len(matchs); i++ {
+			t.g[matchs[i]].l.RLock()
+			if t.g[matchs[i]].available == 0 {
+				isOverflow = true
+			}
+			t.g[matchs[i]].l.RUnlock()
+		}
+		for i := 0; !isOverflow && i < len(matchs); i++ {
+			t.g[matchs[i]].l.Lock()
+			t.g[matchs[i]].available -= 1
+			t.g[matchs[i]].l.Unlock()
+		}
+		t.l.Unlock()
+		if !isOverflow {
+			go func() {
+				<-r.Context().Done()
+				t.l.Lock()
+				for i := 0; i < len(matchs); i++ {
+					t.g[matchs[i]].l.Lock()
+					t.g[matchs[i]].available += 1
+					t.g[matchs[i]].l.Unlock()
+				}
+				t.l.Unlock()
+			}()
+		}
+	}
+	return
+}
+
+const (
+	rcidr = iota
+	rreq
+)
+
+type limitItem struct {
+	matchfs   []matchFunc
+	available int
+	l         sync.RWMutex
+}
+
+type matchFunc struct {
+	k int
+	f func(any) (match bool)
+}
+
+func NewLimitItem(max int) *limitItem {
+	return &limitItem{
+		available: max,
+	}
+}
+
+func (t *limitItem) Cidr(cidr string) *limitItem {
 	if _, cidrx, err := net.ParseCIDR(cidr); err != nil {
 		panic(err)
 	} else {
-		t.g = append(t.g, countLimit{cidrx, max})
+		t.matchfs = append(t.matchfs, matchFunc{
+			rcidr,
+			func(a any) (match bool) {
+				return cidrx.Contains(a.(net.IP))
+			},
+		})
 	}
+	return t
 }
 
-func (t *CountLimits) ReachMax(r *http.Request) (isOverflow bool) {
-	if len(t.g) == 0 {
-		return
-	}
-	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
-	t.l.RLock()
-	defer t.l.RUnlock()
-	for i := 0; i < len(t.g); i++ {
-		if !t.g[i].cidr.Contains(ip) {
-			continue
-		}
-		if t.g[i].available == 0 {
-			isOverflow = true
-			break
-		}
-	}
-	return
-}
-
-func (t *CountLimits) AddCount(r *http.Request) (isOverflow bool) {
-	if len(t.g) == 0 {
-		return
-	}
-	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
-	t.l.Lock()
-	defer t.l.Unlock()
-	var match []int
-	for i := 0; i < len(t.g); i++ {
-		if !t.g[i].cidr.Contains(ip) {
-			continue
-		}
-		if t.g[i].available == 0 {
-			isOverflow = true
-			return
-		}
-		match = append(match, i)
-	}
-	for i := 0; i < len(match); i++ {
-		t.g[match[i]].available -= 1
-	}
-	go func() {
-		<-r.Context().Done()
-		t.l.Lock()
-		defer t.l.Unlock()
-		for i := 0; i < len(match); i++ {
-			t.g[match[i]].available += 1
-		}
-	}()
-	return
+func (t *limitItem) Request(matchf func(req *http.Request) (match bool)) *limitItem {
+	t.matchfs = append(t.matchfs, matchFunc{
+		rreq,
+		func(a any) (match bool) {
+			return matchf(a.(*http.Request))
+		},
+	})
+	return t
 }
 
 type Cache struct {
@@ -246,7 +316,7 @@ func (t cacheRes) WriteHeader(statusCode int) {
 	t.writeHeaderf(statusCode)
 }
 
-func (t *Cache) IsCache(key string) (res *[]byte, isCache bool) {
+func (t *Cache) IsCache(key string) (data *[]byte, isCache bool) {
 	return t.g.Load(key)
 }
 
@@ -274,12 +344,9 @@ func (t *Cache) Cache(key string, aliveDur time.Duration, w http.ResponseWriter)
 	return res
 }
 
-func (t *Cache) Store(key string, aliveDur time.Duration, data *[]byte) {
-	t.g.Store(key, data, aliveDur)
-	if s := int64(t.g.Len()); s > 10 && t.gcL.Load() <= s {
-		t.gcL.Store(s * 2)
-		t.g.GC()
-	}
+func WithStatusCode(w http.ResponseWriter, code int) {
+	w.WriteHeader(code)
+	_, _ = w.Write([]byte(http.StatusText(code)))
 }
 
 func Easy_boot() *Web {
