@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
-	l "github.com/qydysky/part/limit"
 	encoder "golang.org/x/text/encoding"
 )
 
@@ -380,19 +380,29 @@ func newPath(path string, mode fs.FileMode) {
 
 func transferIO(r io.Reader, w io.Writer, byteInSec int64) (e error) {
 	if byteInSec > 0 {
-		limit := l.New(1, "1s", "-1s")
-		defer limit.Close()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 
 		for buf := make([]byte, byteInSec); true; {
 			if n, err := r.Read(buf); n != 0 {
-				w.Write(buf[:n])
+				if _, werr := w.Write(buf[:n]); werr != nil {
+					return err
+				}
 			} else if err != nil {
-				return err
+				if !errors.Is(err, io.EOF) {
+					return err
+				} else {
+					return nil
+				}
 			}
-			limit.TO()
+			<-ticker.C
 		}
 	} else if _, err := io.Copy(w, r); err != nil {
-		return err
+		if !errors.Is(err, io.EOF) {
+			return err
+		} else {
+			return nil
+		}
 	}
 	return nil
 }
