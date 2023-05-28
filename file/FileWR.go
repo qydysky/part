@@ -383,21 +383,17 @@ func transferIO(r io.Reader, w io.Writer, byteInSec int64) (e error) {
 		limit := l.New(1, "1s", "-1s")
 		defer limit.Close()
 
-		buf := make([]byte, byteInSec)
-		for {
-			n, err := r.Read(buf)
-			if n != 0 {
+		for buf := make([]byte, byteInSec); true; {
+			if n, err := r.Read(buf); n != 0 {
 				w.Write(buf[:n])
 			} else if err != nil {
-				e = err
-				break
+				return err
 			}
 			limit.TO()
 		}
-	} else {
-		_, e = io.Copy(w, r)
+	} else if _, err := io.Copy(w, r); err != nil {
+		return err
 	}
-
 	return nil
 }
 
