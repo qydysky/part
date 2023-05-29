@@ -36,3 +36,6 @@ jobs:
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         CC=gcc;CXX=g++;CGO_ENABLED=1;GOOS=linux go test -count 1 -timeout 10s -v -race -ldflags '-extldflags=-static -extldflags=-lm' github.com/qydysky/part/sql
+
+    - name: Upload a Release Asset
+      uses: softprops/action-gh-release@v1
