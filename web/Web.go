@@ -349,6 +349,15 @@ func WithStatusCode(w http.ResponseWriter, code int) {
 	_, _ = w.Write([]byte(http.StatusText(code)))
 }
 
+func IsMethod(r *http.Request, method ...string) bool {
+	for i := 0; i < len(method); i++ {
+		if r.Method == method[i] {
+			return true
+		}
+	}
+	return false
+}
+
 func Easy_boot() *Web {
 	s := New(&http.Server{
 		Addr:         "127.0.0.1:" + strconv.Itoa(sys.Sys().GetFreePort()),
