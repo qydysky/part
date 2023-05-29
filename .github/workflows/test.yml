@@ -39,3 +39,5 @@ jobs:
 
     - name: Upload a Release Asset
       uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v0.28.0-${{ env.HASH }}
