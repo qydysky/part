@@ -10,15 +10,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	flate "compress/flate"
 	gzip "compress/gzip"
 
 	br "github.com/andybalholm/brotli"
-	signal "github.com/qydysky/part/signal"
 	s "github.com/qydysky/part/strings"
 	// "encoding/binary"
 )
@@ -30,10 +31,13 @@ type Rval struct {
 	Proxy            string
 	Retry            int
 	SleepTime        int
+	WriteLoopTO      int
 	JustResponseCode bool
 	NoResponse       bool
-	Async            bool
-	Cookies          []*http.Cookie
+	// 当Async为true时，Respon、Response必须在Wait()之后读取，否则有DATA RACE可能
+	Async   bool
+	Cookies []*http.Cookie
+	Ctx     context.Context
 
 	SaveToPath       string
 	SaveToChan       chan []byte
@@ -42,22 +46,39 @@ type Rval struct {
 	Header map[string]string
 }
 
-type Req struct {
-	Respon    []byte
-	responBuf *bytes.Buffer
-	Response  *http.Response
-	UsedTime  time.Duration
+const (
+	defaultUA     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
+	defaultAccept = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`
+	free          = iota
+	running
+)
 
-	cancelFs chan func()
-	cancel   *signal.Signal
-	running  *signal.Signal
-	isLive   *signal.Signal
+var (
+	ErrEmptyUrl         = errors.New("ErrEmptyUrl")
+	ErrNewRequest       = errors.New("ErrNewRequest")
+	ErrClientDo         = errors.New("ErrClientDo")
+	ErrResponFileCreate = errors.New("ErrResponFileCreate")
+	ErrWriteRes         = errors.New("ErrWriteRes")
+	ErrReadRes          = errors.New("ErrReadRes")
+)
+
+type Req struct {
+	// 当Async为true时，必须在Wait()之后读取，否则有DATA RACE可能
+	Respon []byte
+	// 当Async为true时，必须在Wait()之后读取，否则有DATA RACE可能
+	Response *http.Response
+	UsedTime time.Duration
+
+	cancelP atomic.Pointer[func()]
+	ctx     context.Context
+	state   atomic.Int32
 
 	responFile *os.File
+	responBuf  *bytes.Buffer
 	err        error
+	callTree   string
 
-	init sync.RWMutex
-	l    sync.Mutex
+	l sync.RWMutex
 }
 
 func New() *Req {
@@ -65,101 +86,67 @@ func New() *Req {
 }
 
 func (t *Req) Reqf(val Rval) error {
-	t.isLive.Wait()
 	t.l.Lock()
-	t.init.Lock()
+	t.state.Store(running)
 
-	t.Respon = t.Respon[:0]
-	if t.responBuf == nil {
-		t.responBuf = new(bytes.Buffer)
-	}
-	t.Response = nil
-	t.UsedTime = 0
-	t.cancelFs = make(chan func(), 5)
-	t.isLive = signal.Init()
-	t.cancel = signal.Init()
-	t.running = signal.Init()
-	t.responFile = nil
-	t.err = nil
-	go func() {
-		cancel, cancelFin := t.cancel.WaitC()
-		defer cancelFin()
-		running, runningFin := t.running.WaitC()
-		defer runningFin()
+	t.prepare(&val)
 
-		select {
-		case <-cancel:
-			for len(t.cancelFs) != 0 {
-				(<-t.cancelFs)()
-			}
-		case <-running:
-		}
-	}()
-
-	t.init.Unlock()
-
-	go func() {
+	// 同步
+	if !val.Async {
 		beginTime := time.Now()
-		_val := val
 
-		for SleepTime, Retry := _val.SleepTime, _val.Retry; Retry >= 0; Retry -= 1 {
-			for len(t.cancelFs) != 0 {
-				<-t.cancelFs
+		for i := 0; i <= val.Retry; i++ {
+			ctx, cancle := t.prepareRes(&val)
+			t.err = t.Reqf_1(ctx, val)
+			if cancle != nil {
+				cancle()
 			}
-
-			t.err = t.Reqf_1(_val)
 			if t.err == nil || IsCancel(t.err) {
 				break
 			}
-			time.Sleep(time.Duration(SleepTime) * time.Millisecond)
+			if val.SleepTime != 0 {
+				time.Sleep(time.Duration(val.SleepTime * int(time.Millisecond)))
+			}
 		}
-		t.UsedTime = time.Since(beginTime)
-		t.running.Done()
-	}()
 
-	if !val.Async {
-		t.Wait()
-		if val.SaveToChan != nil {
-			close(val.SaveToChan)
-		}
-		if t.responFile != nil {
-			t.responFile.Close()
-		}
-		if val.SaveToPipeWriter != nil {
-			val.SaveToPipeWriter.Close()
-		}
-		t.cancel.Done()
-		t.running.Done()
+		t.updateUseDur(beginTime)
+		t.clean(&val)
+		t.state.Store(free)
 		t.l.Unlock()
-		t.isLive.Done()
 		return t.err
-	} else {
-		go func() {
-			t.Wait()
-			if val.SaveToChan != nil {
-				close(val.SaveToChan)
-			}
-			if t.responFile != nil {
-				t.responFile.Close()
-			}
-			if val.SaveToPipeWriter != nil {
-				val.SaveToPipeWriter.Close()
-			}
-			t.cancel.Done()
-			t.running.Done()
-			t.l.Unlock()
-			t.isLive.Done()
-		}()
 	}
+
+	//异步
+	go func() {
+		beginTime := time.Now()
+
+		for i := 0; i <= val.Retry; i++ {
+			ctx, cancle := t.prepareRes(&val)
+			t.err = t.Reqf_1(ctx, val)
+			if cancle != nil {
+				cancle()
+			}
+			if t.err == nil || IsCancel(t.err) {
+				break
+			}
+			if val.SleepTime != 0 {
+				time.Sleep(time.Duration(val.SleepTime * int(time.Millisecond)))
+			}
+		}
+
+		t.updateUseDur(beginTime)
+		t.clean(&val)
+		t.state.Store(free)
+		t.l.Unlock()
+	}()
 	return nil
 }
 
-func (t *Req) Reqf_1(val Rval) (err error) {
+func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	var (
 		Header map[string]string = val.Header
+		client http.Client
 	)
-
-	var client http.Client
 
 	if Header == nil {
 		Header = make(map[string]string)
@@ -180,7 +167,7 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	}
 
 	if val.Url == "" {
-		return errors.New("url is empty")
+		return ErrEmptyUrl
 	}
 
 	Method := "GET"
@@ -193,24 +180,18 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		}
 	}
 
-	cx, cancel := context.WithCancel(context.Background())
-	if val.Timeout > 0 {
-		cx, cancel = context.WithTimeout(cx, time.Duration(val.Timeout)*time.Millisecond)
-	}
-	t.cancelFs <- cancel
-
 	req, e := http.NewRequest(Method, val.Url, body)
 	if e != nil {
-		panic(e)
+		return errors.Join(ErrNewRequest, e)
 	}
-	req = req.WithContext(cx)
+	req = req.WithContext(ctx)
 
 	for _, v := range val.Cookies {
 		req.AddCookie(v)
 	}
 
 	if _, ok := Header["Accept"]; !ok {
-		Header["Accept"] = `text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8`
+		Header["Accept"] = defaultAccept
 	}
 	if _, ok := Header["Connection"]; !ok {
 		Header["Connection"] = "keep-alive"
@@ -222,23 +203,17 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 		Header["Accept-Encoding"] = "identity"
 	}
 	if _, ok := Header["User-Agent"]; !ok {
-		Header["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"
+		Header["User-Agent"] = defaultUA
 	}
 
 	for k, v := range Header {
 		req.Header.Set(k, v)
 	}
 
-	if !t.cancel.Islive() {
-		err = context.Canceled
-		return
-	}
-
 	resp, e := client.Do(req)
 
 	if e != nil {
-		err = e
-		return
+		return errors.Join(ErrClientDo, e)
 	}
 
 	if v, ok := Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
@@ -258,59 +233,62 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	var ws []io.Writer
 	if val.SaveToPath != "" {
 		t.responFile, e = os.Create(val.SaveToPath)
-		if err != nil {
+		if e != nil {
 			t.responFile.Close()
-			err = e
-			return
+			return errors.Join(err, ErrResponFileCreate, e)
 		}
 		ws = append(ws, t.responFile)
-		t.cancelFs <- func() { t.responFile.Close() }
 	}
 	if val.SaveToPipeWriter != nil {
 		ws = append(ws, val.SaveToPipeWriter)
-		t.cancelFs <- func() { val.SaveToPipeWriter.Close() }
 	}
 	if !val.NoResponse {
+		//will clear t.Respon
 		t.responBuf.Reset()
 		ws = append(ws, t.responBuf)
 	}
 
 	w := io.MultiWriter(ws...)
 
-	var resReader io.Reader
+	var resReadCloser io.ReadCloser
 	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
 		switch compress_type[0] {
 		case `br`:
-			resReader = br.NewReader(resp.Body)
+			resReadCloser = rwc{r: br.NewReader(resp.Body).Read}
 		case `gzip`:
-			resReader, _ = gzip.NewReader(resp.Body)
+			resReadCloser, _ = gzip.NewReader(resp.Body)
 		case `deflate`:
-			resReader = flate.NewReader(resp.Body)
+			resReadCloser = flate.NewReader(resp.Body)
 		default:
-			resReader = resp.Body
+			resReadCloser = resp.Body
 		}
 	} else {
-		resReader = resp.Body
+		resReadCloser = resp.Body
 	}
-	t.cancelFs <- func() { resp.Body.Close() }
 
-	buf := make([]byte, 512)
+	writeLoopTO := val.WriteLoopTO
+	if writeLoopTO == 0 {
+		writeLoopTO = 1000
+	}
+	rwc := t.withCtxTO(ctx, time.Duration(int(time.Millisecond)*writeLoopTO), w, resReadCloser)
+	defer rwc.Close()
 
-	for {
-		if n, e := resReader.Read(buf); n != 0 {
-			w.Write(buf[:n])
-			if val.SaveToChan != nil {
-				val.SaveToChan <- buf[:n]
+	for buf := make([]byte, 512); true; {
+		if n, e := rwc.Read(buf); n != 0 {
+			if wn, we := rwc.Write(buf[:n]); wn != 0 {
+				if val.SaveToChan != nil {
+					val.SaveToChan <- buf[:n]
+				}
+			} else if we != nil {
+				if !errors.Is(e, io.EOF) {
+					err = errors.Join(err, ErrWriteRes, e)
+				}
+				break
 			}
 		} else if e != nil {
 			if !errors.Is(e, io.EOF) {
-				err = e
+				err = errors.Join(err, ErrReadRes, e)
 			}
-			break
-		}
-
-		if !t.cancel.Islive() {
-			err = context.Canceled
 			break
 		}
 	}
@@ -324,31 +302,145 @@ func (t *Req) Reqf_1(val Rval) (err error) {
 	return
 }
 
-func (t *Req) Wait() error {
-	t.init.RLock()
-	defer t.init.RUnlock()
-
-	t.running.Wait()
-	return t.err
+func (t *Req) Wait() (err error) {
+	t.l.RLock()
+	err = t.err
+	t.l.RUnlock()
+	return
 }
 
-func (t *Req) Cancel() { t.Close() }
-
-func (t *Req) Close() {
-	t.init.RLock()
-	defer t.init.RUnlock()
-
-	if !t.cancel.Islive() {
-		return
+func (t *Req) Close() { t.Cancel() }
+func (t *Req) Cancel() {
+	if p := t.cancelP.Load(); p != nil {
+		(*p)()
 	}
-	t.cancel.Done()
 }
 
 func (t *Req) IsLive() bool {
-	t.init.RLock()
-	defer t.init.RUnlock()
+	return t.state.Load() == running
+}
 
-	return t.isLive.Islive()
+func (t *Req) prepareRes(val *Rval) (context.Context, context.CancelFunc) {
+	if !val.NoResponse {
+		if t.responBuf == nil {
+			t.responBuf = new(bytes.Buffer)
+			t.Respon = t.responBuf.Bytes()
+		} else {
+			t.responBuf.Reset()
+		}
+	} else {
+		t.Respon = []byte{}
+		t.responBuf = nil
+	}
+	t.Response = nil
+	t.err = nil
+	if val.Timeout > 0 {
+		return context.WithTimeout(t.ctx, time.Duration(val.Timeout*int(time.Millisecond)))
+	}
+	return t.ctx, nil
+}
+
+func (t *Req) prepare(val *Rval) {
+	t.UsedTime = 0
+	t.responFile = nil
+	t.callTree = ""
+	for i := 2; true; i++ {
+		if pc, file, line, ok := runtime.Caller(i); !ok {
+			break
+		} else {
+			t.callTree += fmt.Sprintf("call by %s\n\t%s:%d\n", runtime.FuncForPC(pc).Name(), file, line)
+		}
+	}
+	var cancel func()
+	if val.Ctx != nil {
+		t.ctx, cancel = context.WithCancel(val.Ctx)
+	} else {
+		t.ctx, cancel = context.WithCancel(context.Background())
+	}
+	t.cancelP.Store(&cancel)
+}
+
+func (t *Req) clean(val *Rval) {
+	if p := t.cancelP.Load(); p != nil {
+		(*p)()
+	}
+	if val.SaveToChan != nil {
+		close(val.SaveToChan)
+	}
+	if t.responFile != nil {
+		t.responFile.Close()
+	}
+	if val.SaveToPipeWriter != nil {
+		val.SaveToPipeWriter.Close()
+	}
+}
+
+func (t *Req) updateUseDur(u time.Time) {
+	t.UsedTime = time.Since(u)
+}
+
+type rwc struct {
+	r func(p []byte) (n int, err error)
+	w func(p []byte) (n int, err error)
+	c func() error
+}
+
+func (t rwc) Write(p []byte) (n int, err error) {
+	return t.w(p)
+}
+func (t rwc) Read(p []byte) (n int, err error) {
+	return t.r(p)
+}
+func (t rwc) Close() error {
+	return t.c()
+}
+
+func (t *Req) withCtxTO(ctx context.Context, to time.Duration, w io.Writer, r io.Reader) io.ReadWriteCloser {
+	var chanw = make(chan struct{}, 1)
+
+	go func(callTree string) {
+		var timer = time.NewTicker(to)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				if len(chanw) != 0 {
+					panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", to, callTree))
+				}
+				return
+			case <-timer.C:
+				if len(chanw) != 0 {
+					panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", to, callTree))
+				}
+			}
+		}
+	}(t.callTree)
+
+	return rwc{
+		func(p []byte) (n int, err error) {
+			if n, err = r.Read(p); n != 0 {
+				select {
+				case <-ctx.Done():
+				case chanw <- struct{}{}:
+				default:
+				}
+			}
+			return
+		},
+		func(p []byte) (n int, err error) {
+			if n, err = w.Write(p); n != 0 {
+				select {
+				case <-chanw:
+				default:
+				}
+			}
+			return
+		},
+		func() error {
+			close(chanw)
+			return nil
+		},
+	}
 }
 
 func IsTimeout(e error) bool {

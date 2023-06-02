@@ -14,10 +14,10 @@ func InFlate(byteS []byte, level int) ([]byte, error) {
 	if err != nil {
 		return buf.Bytes(), err
 	}
-	defer flateWrite.Close()
 	// 写入待压缩内容
 	flateWrite.Write(byteS)
 	flateWrite.Flush()
+	flateWrite.Close()
 	return buf.Bytes(), nil
 }
 
