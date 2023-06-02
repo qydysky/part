@@ -405,8 +405,16 @@ func (t *Req) withCtxTO(ctx context.Context, to time.Duration, w io.Writer, r io
 		for {
 			select {
 			case <-ctx.Done():
-				if chanw.Load() != 0 {
-					panic(fmt.Sprintf("write blocking after Ctx Done, goruntime leak \n%v", callTree))
+				if old, now := chanw.Load(), time.Now(); old != 0 && now.Unix()-old > int64(to.Seconds()) {
+					if chanw.Load() != 0 {
+						panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", now.Unix()-old, callTree))
+					}
+				} else {
+					time.AfterFunc(to, func() {
+						if chanw.Load() != 0 {
+							panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", now.Unix()-old, callTree))
+						}
+					})
 				}
 				return
 			case now := <-timer.C:
