@@ -20,6 +20,7 @@ import (
 	gzip "compress/gzip"
 
 	br "github.com/andybalholm/brotli"
+	pio "github.com/qydysky/part/io"
 	s "github.com/qydysky/part/strings"
 	// "encoding/binary"
 )
@@ -60,7 +61,6 @@ var (
 	ErrResponFileCreate = errors.New("ErrResponFileCreate")
 	ErrWriteRes         = errors.New("ErrWriteRes")
 	ErrReadRes          = errors.New("ErrReadRes")
-	ErrWriteAfterWrite  = errors.New("ErrWriteAfterWrite")
 )
 
 type Req struct {
@@ -255,7 +255,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
 		switch compress_type[0] {
 		case `br`:
-			resReadCloser = rwc{r: br.NewReader(resp.Body).Read}
+			resReadCloser = pio.RWC{R: br.NewReader(resp.Body).Read}
 		case `gzip`:
 			resReadCloser, _ = gzip.NewReader(resp.Body)
 		case `deflate`:
@@ -271,7 +271,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	if writeLoopTO == 0 {
 		writeLoopTO = 1000
 	}
-	rwc := t.withCtxTO(ctx, time.Duration(int(time.Millisecond)*writeLoopTO), w, resReadCloser)
+	rwc := pio.WithCtxTO(ctx, t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), w, resReadCloser)
 	defer rwc.Close()
 
 	for buf := make([]byte, 2048); true; {
@@ -378,76 +378,6 @@ func (t *Req) clean(val *Rval) {
 
 func (t *Req) updateUseDur(u time.Time) {
 	t.UsedTime = time.Since(u)
-}
-
-type rwc struct {
-	r func(p []byte) (n int, err error)
-	w func(p []byte) (n int, err error)
-	c func() error
-}
-
-func (t rwc) Write(p []byte) (n int, err error) {
-	return t.w(p)
-}
-func (t rwc) Read(p []byte) (n int, err error) {
-	return t.r(p)
-}
-func (t rwc) Close() error {
-	return t.c()
-}
-
-func (t *Req) withCtxTO(ctx context.Context, to time.Duration, w io.Writer, r io.Reader) io.ReadWriteCloser {
-	var chanw atomic.Int64
-
-	go func(callTree string) {
-		var timer = time.NewTicker(to)
-		defer timer.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				if old, now := chanw.Load(), time.Now(); old != 0 && now.Unix()-old > int64(to.Seconds()) {
-					if chanw.Load() != 0 {
-						panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", now.Unix()-old, callTree))
-					}
-				} else {
-					time.AfterFunc(to, func() {
-						if chanw.Load() != 0 {
-							panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", now.Unix()-old, callTree))
-						}
-					})
-				}
-				return
-			case now := <-timer.C:
-				if old := chanw.Load(); old != 0 && now.Unix()-old > int64(to.Seconds()) {
-					panic(fmt.Sprintf("write blocking after %v, goruntime leak \n%v", now.Unix()-old, callTree))
-				}
-			}
-		}
-	}(t.callTree)
-
-	return rwc{
-		func(p []byte) (n int, err error) {
-			if n, err = r.Read(p); n != 0 {
-				select {
-				case <-ctx.Done():
-				default:
-					chanw.Store(time.Now().Unix())
-				}
-			}
-			return
-		},
-		func(p []byte) (n int, err error) {
-			if n, err = w.Write(p); n != 0 {
-				if chanw.Swap(0) == 0 {
-					panic(ErrWriteAfterWrite)
-				}
-			}
-			return
-		},
-		func() error {
-			return nil
-		},
-	}
 }
 
 func IsTimeout(e error) bool {

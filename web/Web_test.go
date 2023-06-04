@@ -2,11 +2,16 @@ package part
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	pio "github.com/qydysky/part/io"
 	reqf "github.com/qydysky/part/reqf"
 )
 
@@ -65,6 +70,68 @@ func Test_ServerSyncMap(t *testing.T) {
 		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
 			t.Error(string(r.Respon))
 		}
+	}
+}
+
+func Test_ClientBlock(t *testing.T) {
+	var m WebPath
+	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("1"))
+	})
+	s := NewSyncMap(&http.Server{
+		Addr:         "127.0.0.1:10000",
+		WriteTimeout: time.Millisecond,
+	}, &m)
+	defer s.Shutdown()
+
+	m.Store("/to", func(w http.ResponseWriter, r *http.Request) {
+
+		rwc := pio.WithCtxTO(context.Background(), fmt.Sprintf("server handle %v by %v ", r.URL.Path, r.RemoteAddr), time.Second, w, r.Body, func(s string) {
+			fmt.Println(s)
+			if !strings.Contains(s, "write blocking after rw 2s > 1s, goruntime leak") {
+				t.Fatal(s)
+			}
+		})
+		defer rwc.Close()
+
+		type d struct {
+			A string         `json:"a"`
+			B []string       `json:"b"`
+			C map[string]int `json:"c"`
+		}
+
+		var t = ResStruct{0, "ok", d{"0", []string{"0"}, map[string]int{"0": 1}}}
+		data, e := json.Marshal(t)
+		if e != nil {
+			t.Code = -1
+			t.Data = nil
+			t.Message = e.Error()
+			data, _ = json.Marshal(t)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(data)
+	})
+
+	time.Sleep(time.Second)
+
+	r := reqf.New()
+	{
+		rc, wc := io.Pipe()
+		c := make(chan struct{})
+		go func() {
+			time.Sleep(time.Second * 3)
+			d, _ := io.ReadAll(rc)
+			fmt.Println(string(d))
+			fmt.Println(r.Response.Status)
+			close(c)
+		}()
+		r.Reqf(reqf.Rval{
+			Url:              "http://127.0.0.1:10000/to",
+			SaveToPipeWriter: wc,
+			WriteLoopTO:      5000,
+			Async:            true,
+		})
+		<-c
 	}
 }
 
