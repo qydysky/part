@@ -76,12 +76,12 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 		for {
 			select {
 			case <-ctx.Done():
-				if old, now := chanw.Load(), time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+				if old := chanw.Load(); old < 0 {
+					return
+				} else if now := time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
 					if old != 0 {
 						panicf[0](fmt.Sprintf("write blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 					}
-				} else if old < 0 {
-					return
 				} else {
 					time.AfterFunc(to, func() {
 						if old, now := chanw.Load(), time.Now(); old != 0 && now.Unix()-old > int64(to.Seconds()) {
@@ -91,10 +91,10 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 				}
 				return
 			case now := <-timer.C:
-				if old := chanw.Load(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
-					panicf[0](fmt.Sprintf("write blocking after rw %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
+				if old := chanw.Load(); old < 0 {
 					return
-				} else if old < 0 {
+				} else if old > 0 && now.Unix()-old > int64(to.Seconds()) {
+					panicf[0](fmt.Sprintf("write blocking after rw %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 					return
 				}
 			}
