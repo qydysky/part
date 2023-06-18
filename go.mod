@@ -37,6 +37,7 @@ require (
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.2 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect

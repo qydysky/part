@@ -59,14 +59,20 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 	return t
 }
 
-func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any) *SqlTx[T] {
+func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ...func(index int, holder string) (replaceTo string)) *SqlTx[T] {
 	dataR := reflect.ValueOf(ptr).Elem()
+	index := 0
 	for i := 0; i < dataR.NumField(); i++ {
 		field := dataR.Field(i)
 		if field.IsValid() && field.CanSet() {
 			replaceS := "{" + dataR.Type().Field(i).Name + "}"
 			if strings.Contains(sqlf.Query, replaceS) {
-				sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, "?")
+				if len(replaceF) == 0 {
+					sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, "?")
+				} else {
+					sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, replaceF[0](index, replaceS))
+					index += 1
+				}
 				sqlf.Args = append(sqlf.Args, field.Interface())
 			}
 		}
@@ -100,9 +106,12 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 		return nil, fmt.Errorf("BeginTx; [] >> fin")
 	}
 
+	var hasErr bool
+
 	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
 	if err != nil {
 		e = fmt.Errorf("BeginTx; [] >> %s", err)
+		hasErr = true
 	} else {
 		for i := 0; i < len(t.sqlFuncs); i++ {
 			sqlf := t.sqlFuncs[i]
@@ -110,6 +119,7 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 			if sqlf.beforeF != nil {
 				if datap, err := sqlf.beforeF(t.dataP, sqlf, e); err != nil {
 					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Query, err))
+					hasErr = true
 				} else {
 					t.dataP = datap
 				}
@@ -133,11 +143,13 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 			switch sqlf.Ty {
 			case Execf:
 				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+					hasErr = true
 					if !sqlf.SkipSqlErr {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
 				} else if sqlf.afterEF != nil {
 					if datap, err := sqlf.afterEF(t.dataP, res, e); err != nil {
+						hasErr = true
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					} else {
 						t.dataP = datap
@@ -145,11 +157,13 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 				}
 			case Queryf:
 				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+					hasErr = true
 					if !sqlf.SkipSqlErr {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
 				} else if sqlf.afterQF != nil {
 					if datap, err := sqlf.afterQF(t.dataP, res, e); err != nil {
+						hasErr = true
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					} else {
 						t.dataP = datap
@@ -158,7 +172,7 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 			}
 		}
 	}
-	if e != nil {
+	if hasErr {
 		if tx != nil {
 			if err := tx.Rollback(); err != nil {
 				e = errors.Join(e, fmt.Errorf("Rollback; [] >> %s", err))
@@ -177,7 +191,7 @@ func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
 }
 
-func DealRows[T any](rows *sql.Rows, createF func() T) (*[]T, error) {
+func DealRows[T any](rows *sql.Rows, newT func() T) (*[]T, error) {
 	rowNames, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -195,30 +209,50 @@ func DealRows[T any](rows *sql.Rows, createF func() T) (*[]T, error) {
 			return nil, err
 		}
 
-		var stu = createF()
+		var (
+			stu      = newT()
+			refV     = reflect.ValueOf(&stu).Elem()
+			refT     = reflect.TypeOf(&stu).Elem()
+			FieldMap = make(map[string]*reflect.Value)
+		)
+
+		for NumField := refV.NumField() - 1; NumField >= 0; NumField-- {
+			field := refV.Field(NumField)
+			fieldT := refT.Field(NumField)
+			fieldTName := fieldT.Name
+			if value, ok := fieldT.Tag.Lookup("sql"); ok {
+				fieldTName = value
+			}
+			if !field.IsValid() {
+				continue
+			}
+			if !field.CanSet() {
+				FieldMap[strings.ToUpper(fieldTName)] = nil
+				continue
+			}
+			FieldMap[strings.ToUpper(fieldTName)] = &field
+		}
+
 		for i := 0; i < len(rowNames); i++ {
-			v := reflect.ValueOf(&stu).Elem().FieldByName(rowNames[i])
-			if v.IsValid() {
-				refT := reflect.TypeOf(&stu).Elem()
-				if v.CanSet() {
-					val := reflect.ValueOf(*rowP[i].(*any))
-					if reflect.TypeOf(*rowP[i].(*any)).ConvertibleTo(v.Type()) {
-						v.Set(val)
-					} else {
-						return nil, fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], v.Type())
-					}
+			if field, ok := FieldMap[strings.ToUpper(rowNames[i])]; ok {
+				if field == nil {
+					return nil, fmt.Errorf("DealRows:%s.%s CanSet:false", refT.Name(), rowNames[i])
+				}
+				val := reflect.ValueOf(*rowP[i].(*any))
+				if reflect.TypeOf(*rowP[i].(*any)).ConvertibleTo(field.Type()) {
+					field.Set(val)
 				} else {
-					return nil, fmt.Errorf("DealRows:%s.%s CanSet:%v", refT.Name(), rowNames[i], v.CanSet())
+					return nil, fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], field.Type())
 				}
 			}
 		}
 		res = append(res, stu)
-
 	}
 
 	return &res, nil
 }
 
+// for mysql,oracle not postgresql
 func SimpleQ[T any](canTx CanTx, query string, ptr *T) (*[]T, error) {
 	tx := BeginTx[[]T](canTx, context.Background())
 	tx.DoPlaceHolder(SqlFunc[[]T]{Query: query}, ptr)

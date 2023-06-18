@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	_ "github.com/lib/pq"
 	file "github.com/qydysky/part/file"
 	_ "modernc.org/sqlite"
 )
@@ -157,7 +159,9 @@ func TestMain3(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	defer file.New("test.sqlite3", 0, true).Delete()
+	defer func() {
+		_ = file.New("test.sqlite3", 0, true).Delete()
+	}()
 
 	{
 		tx := BeginTx[any](db, context.Background())
@@ -220,7 +224,9 @@ func TestMain4(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	defer file.New("test.sqlite3", 0, true).Delete()
+	defer func() {
+		_ = file.New("test.sqlite3", 0, true).Delete()
+	}()
 
 	conn, _ := db.Conn(context.Background())
 	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
@@ -242,5 +248,52 @@ func TestMain4(t *testing.T) {
 
 	if !IsFin(tx1) {
 		t.Fatal()
+	}
+}
+
+func Local_TestPostgresql(t *testing.T) {
+	// connect
+	db, err := sql.Open("postgres", "postgres://postgres:qydysky@192.168.31.103:5432/postgres?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	type test1 struct {
+		Created string `sql:"sss"`
+	}
+
+	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Query:      "create table test (created varchar(20))",
+		SkipSqlErr: true,
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).DoPlaceHolder(SqlFunc[any]{
+		Query: "insert into test (created) values ({Created})",
+	}, &test1{"1"}, func(index int, holder string) (replaceTo string) {
+		return fmt.Sprintf("$%d", index+1)
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Query: "select created as sss from test",
+		afterQF: func(_ *any, rows *sql.Rows, txE error) (dataPR *any, stopErr error) {
+			if rowsP, e := DealRows[test1](rows, func() test1 { return test1{} }); e != nil {
+				return nil, e
+			} else {
+				if len(*rowsP) != 1 {
+					return nil, errors.New("no match")
+				}
+				if (*rowsP)[0].Created != "1" {
+					return nil, errors.New("no match")
+				}
+			}
+			return nil, nil
+		},
+	}).Fin(); e != nil {
+		t.Fatal(e)
 	}
 }
