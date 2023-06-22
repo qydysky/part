@@ -76,7 +76,7 @@ func New(c Config) (o *Log_interface) {
 			sqlTx := psql.BeginTx[any](msg.DBConn, context.Background())
 			sqlTx.SimpleDo(
 				msg.DBInsert,
-				msg.Prefix,
+				strings.TrimSpace(msg.Prefix),
 				strings.TrimSpace(fmt.Sprintln(msg.Base_string...)),
 				strings.TrimSpace(fmt.Sprintln(msg.Msgs...)))
 			if _, err := sqlTx.Fin(); err != nil {
