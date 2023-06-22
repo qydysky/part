@@ -57,51 +57,52 @@ func TestMain(t *testing.T) {
 		Ty:    Queryf,
 		Ctx:   ctx,
 		Query: "select msg from log",
-	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err error) (dataPR *[]string, stopErr error) {
+	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
 		names := make([]string, 0)
 		for rows.Next() {
 			var name string
-			if err := rows.Scan(&name); err != nil {
-				return nil, err
+			if *err = rows.Scan(&name); *err != nil {
+				return
 			}
 			names = append(names, name)
 		}
 		rows.Close()
 
 		if len(names) != 1 || dateTime != names[0] {
-			return nil, errors.New("no")
+			*err = errors.New("no")
+			return
 		}
 
-		return &names, nil
+		*dataP = names
 	})
 	tx = tx.Do(SqlFunc[[]string]{
 		Ty:  Execf,
 		Ctx: ctx,
-	}).BeforeF(func(dataP *[]string, sqlf *SqlFunc[[]string], txE error) (dataPR *[]string, stopErr error) {
+	}).BeforeF(func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
 		sqlf.Query = "insert into log2 values (?)"
 		sqlf.Args = append(sqlf.Args, (*dataP)[0])
-		return dataP, nil
 	})
 	tx = tx.Do(SqlFunc[[]string]{
 		Ty:    Queryf,
 		Ctx:   ctx,
 		Query: "select msg from log2",
-	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err error) (dataPR *[]string, stopErr error) {
+	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
 		names := make([]string, 0)
 		for rows.Next() {
 			var name string
-			if err := rows.Scan(&name); err != nil {
-				return nil, err
+			if *err = rows.Scan(&name); *err != nil {
+				return
 			}
 			names = append(names, name)
 		}
 		rows.Close()
 
 		if len(names) != 1 || dateTime != names[0] {
-			return nil, errors.New("no2")
+			*err = errors.New("no2")
+			return
 		}
 
-		return &names, nil
+		*dataP = names
 	})
 
 	if _, e := tx.Fin(); e != nil {
@@ -184,7 +185,8 @@ func TestMain3(t *testing.T) {
 		if _, e := tx.Fin(); e != nil {
 			t.Log(e)
 		}
-		if _, err := SimpleQ(db, "insert into log123 values ({Msg},{Msg2})", &logg{Msg: 3, Msg2: "b"}); err != nil {
+		tx1 := BeginTx[any](db, context.Background()).SimplePlaceHolderA("insert into log123 values ({Msg},{Msg2})", &logg{Msg: 3, Msg2: "b"})
+		if _, err := tx1.Fin(); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -192,25 +194,30 @@ func TestMain3(t *testing.T) {
 		selectLog123 := SqlFunc[[]logg]{Query: "select msg as Msg, msg2 as Msg2 from log123 where msg = {Msg}"}
 		tx := BeginTx[[]logg](db, context.Background())
 		tx.DoPlaceHolder(selectLog123, &logg{Msg: 2, Msg2: "b"})
-		tx.AfterQF(func(_ *[]logg, rows *sql.Rows, txE error) (dataPR *[]logg, stopErr error) {
-			return DealRows(rows, func() logg { return logg{} })
+		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows, txE *error) {
+			*ctxVP, *txE = DealRows(rows, func() logg { return logg{} })
 		})
 		if v, e := tx.Fin(); e != nil {
 			t.Fatal(e)
 		} else {
-			if (*v)[0].Msg2 != "b" || (*v)[0].Msg != 2 {
+			if v[0].Msg2 != "b" || v[0].Msg != 2 {
 				t.Fatal()
 			}
 		}
 	}
 	{
-		if v, err := SimpleQ(db, "select msg as Msg, msg2 as Msg2 from log123 where msg2 = {Msg2}", &logg{Msg2: "b"}); err != nil {
+		tx1 := BeginTx[[]logg](db, context.Background()).
+			SimplePlaceHolderA("select msg as Msg, msg2 as Msg2 from log123 where msg2 = {Msg2}", &logg{Msg2: "b"}).
+			AfterQF(func(ctxVP *[]logg, rows *sql.Rows, e *error) {
+				*ctxVP, *e = DealRows[logg](rows, func() logg { return logg{} })
+			})
+		if v, err := tx1.Fin(); err != nil {
 			t.Fatal(err)
 		} else {
-			if (*v)[0].Msg2 != "b" || (*v)[0].Msg != 2 {
+			if v[0].Msg2 != "b" || v[0].Msg != 2 {
 				t.Fatal()
 			}
-			if (*v)[1].Msg2 != "b" || (*v)[1].Msg != 3 {
+			if v[1].Msg2 != "b" || v[1].Msg != 3 {
 				t.Fatal()
 			}
 		}
@@ -280,18 +287,19 @@ func Local_TestPostgresql(t *testing.T) {
 
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Query: "select created as sss from test",
-		afterQF: func(_ *any, rows *sql.Rows, txE error) (dataPR *any, stopErr error) {
+		afterQF: func(_ *any, rows *sql.Rows, txE *error) {
 			if rowsP, e := DealRows[test1](rows, func() test1 { return test1{} }); e != nil {
-				return nil, e
+				*txE = e
 			} else {
-				if len(*rowsP) != 1 {
-					return nil, errors.New("no match")
+				if len(rowsP) != 1 {
+					*txE = errors.New("no match")
+					return
 				}
-				if (*rowsP)[0].Created != "1" {
-					return nil, errors.New("no match")
+				if rowsP[0].Created != "1" {
+					*txE = errors.New("no match")
+					return
 				}
 			}
-			return nil, nil
 		},
 	}).Fin(); e != nil {
 		t.Fatal(e)

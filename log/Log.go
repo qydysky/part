@@ -1,13 +1,18 @@
 package part
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	f "github.com/qydysky/part/file"
 	m "github.com/qydysky/part/msgq"
+	psql "github.com/qydysky/part/sql"
 )
 
 var (
@@ -22,15 +27,19 @@ type Log_interface struct {
 type Config struct {
 	To     time.Duration
 	File   string
-	Stdout bool
+	DBConn *sql.DB
+
+	// $1:Prefix $2:Base $2:Msgs
+	DBInsert string
+	Stdout   bool
 
 	Prefix_string map[string]struct{}
 	Base_string   []any
 }
 
 type Msg_item struct {
-	Prefix  string
-	Msg_obj []any
+	Prefix string
+	Msgs   []any
 	Config
 }
 
@@ -43,7 +52,6 @@ func New(c Config) (o *Log_interface) {
 	if c.File != `` {
 		f.New(c.File, 0, true).Create()
 	}
-
 	if o.To != 0 {
 		o.MQ = m.NewTypeTo[Msg_item](o.To)
 	} else {
@@ -64,9 +72,20 @@ func New(c Config) (o *Log_interface) {
 				log.Println(err)
 			}
 		}
+		if msg.DBConn != nil && msg.DBInsert != `` {
+			sqlTx := psql.BeginTx[any](msg.DBConn, context.Background())
+			sqlTx.SimpleDo(
+				msg.DBInsert,
+				msg.Prefix,
+				strings.TrimSpace(fmt.Sprintln(msg.Base_string...)),
+				strings.TrimSpace(fmt.Sprintln(msg.Msgs...)))
+			if _, err := sqlTx.Fin(); err != nil {
+				log.Println(err)
+			}
+		}
 		log.New(io.MultiWriter(showObj...),
 			msg.Prefix,
-			log.Ldate|log.Ltime).Println(msg.Msg_obj...)
+			log.Ldate|log.Ltime).Println(append(msg.Base_string, msg.Msgs...))
 		return false
 	})
 	//启动阻塞
@@ -111,11 +130,26 @@ func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 	O = I
 	//
 	O.Block(100)
-	if O.File != `` {
+	if O.File != `` && fileP != `` {
 		O.File = fileP
 		f.New(O.File, 0, true).Create()
 	} else {
 		O.File = ``
+	}
+	return
+}
+
+// Open 日志输出至DB
+func (I *Log_interface) LDB(db *sql.DB, insert string) (O *Log_interface) {
+	O = I
+	//
+	O.Block(100)
+	if db != nil && insert != `` {
+		O.DBConn = db
+		O.DBInsert = insert
+	} else {
+		O.DBConn = nil
+		O.DBInsert = ``
 	}
 	return
 }
@@ -133,6 +167,9 @@ func (I *Log_interface) Block(ms int) (O *Log_interface) {
 
 func (I *Log_interface) Close() {
 	I.MQ.ClearAll()
+	if I.DBConn != nil {
+		(*I.DBConn).Close()
+	}
 }
 
 // 日志等级
@@ -154,9 +191,9 @@ func (I *Log_interface) L(prefix string, i ...any) (O *Log_interface) {
 	}
 
 	O.MQ.Push_tag(`L`, Msg_item{
-		Prefix:  prefix,
-		Msg_obj: append(O.Base_string, i),
-		Config:  O.Config,
+		Prefix: prefix,
+		Msgs:   i,
+		Config: O.Config,
 	})
 	return
 }

@@ -19,16 +19,15 @@ type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
-type BeforeF[T any] func(dataP *T, sqlf *SqlFunc[T], txE error) (dataPR *T, stopErr error)
-type AfterEF[T any] func(dataP *T, result sql.Result, txE error) (dataPR *T, stopErr error)
-type AfterQF[T any] func(dataP *T, rows *sql.Rows, txE error) (dataPR *T, stopErr error)
+type BeforeF[T any] func(ctxVP *T, sqlf *SqlFunc[T], e *error)
+type AfterEF[T any] func(ctxVP *T, result sql.Result, e *error)
+type AfterQF[T any] func(ctxVP *T, rows *sql.Rows, e *error)
 
 type SqlTx[T any] struct {
 	canTx    CanTx
 	ctx      context.Context
 	opts     *sql.TxOptions
 	sqlFuncs []*SqlFunc[T]
-	dataP    *T
 	fin      bool
 }
 
@@ -54,9 +53,33 @@ func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *S
 	return &tx
 }
 
+func (t *SqlTx[T]) SimpleDo(query string, args ...any) *SqlTx[T] {
+	t.sqlFuncs = append(t.sqlFuncs, &SqlFunc[T]{
+		Query: query,
+		Args:  args,
+	})
+	return t
+}
+
 func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 	t.sqlFuncs = append(t.sqlFuncs, &sqlf)
 	return t
+}
+
+// PlaceHolder will replaced by ?
+func (t *SqlTx[T]) SimplePlaceHolderA(query string, ptr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{
+		Query: query,
+	}, ptr)
+}
+
+// PlaceHolder will replaced by $%d
+func (t *SqlTx[T]) SimplePlaceHolderB(query string, ptr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{
+		Query: query,
+	}, ptr, func(index int, holder string) (replaceTo string) {
+		return fmt.Sprintf("$%d", index+1)
+	})
 }
 
 func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ...func(index int, holder string) (replaceTo string)) *SqlTx[T] {
@@ -101,9 +124,10 @@ func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
 	return t
 }
 
-func (t *SqlTx[T]) Fin() (dataP *T, e error) {
+func (t *SqlTx[T]) Fin() (ctxVP T, e error) {
 	if t.fin {
-		return nil, fmt.Errorf("BeginTx; [] >> fin")
+		e = fmt.Errorf("BeginTx; [] >> fin")
+		return
 	}
 
 	var hasErr bool
@@ -117,11 +141,10 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 			sqlf := t.sqlFuncs[i]
 
 			if sqlf.beforeF != nil {
-				if datap, err := sqlf.beforeF(t.dataP, sqlf, e); err != nil {
+				sqlf.beforeF(&ctxVP, sqlf, &e)
+				if e != nil {
 					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Query, err))
 					hasErr = true
-				} else {
-					t.dataP = datap
 				}
 			}
 
@@ -148,11 +171,10 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
 				} else if sqlf.afterEF != nil {
-					if datap, err := sqlf.afterEF(t.dataP, res, e); err != nil {
+					sqlf.afterEF(&ctxVP, res, &e)
+					if e != nil {
 						hasErr = true
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-					} else {
-						t.dataP = datap
 					}
 				}
 			case Queryf:
@@ -162,11 +184,10 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
 					}
 				} else if sqlf.afterQF != nil {
-					if datap, err := sqlf.afterQF(t.dataP, res, e); err != nil {
+					sqlf.afterQF(&ctxVP, res, &e)
+					if e != nil {
 						hasErr = true
 						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
-					} else {
-						t.dataP = datap
 					}
 				}
 			}
@@ -184,14 +205,14 @@ func (t *SqlTx[T]) Fin() (dataP *T, e error) {
 		}
 	}
 	t.fin = true
-	return t.dataP, e
+	return
 }
 
 func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
 }
 
-func DealRows[T any](rows *sql.Rows, newT func() T) (*[]T, error) {
+func DealRows[T any](rows *sql.Rows, newT func() T) ([]T, error) {
 	rowNames, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -249,18 +270,5 @@ func DealRows[T any](rows *sql.Rows, newT func() T) (*[]T, error) {
 		res = append(res, stu)
 	}
 
-	return &res, nil
-}
-
-// for mysql,oracle not postgresql
-func SimpleQ[T any](canTx CanTx, query string, ptr *T) (*[]T, error) {
-	tx := BeginTx[[]T](canTx, context.Background())
-	tx.DoPlaceHolder(SqlFunc[[]T]{Query: query}, ptr)
-	tx.AfterQF(func(_ *[]T, rows *sql.Rows, txE error) (dataPR *[]T, stopErr error) {
-		if txE != nil {
-			return nil, txE
-		}
-		return DealRows(rows, func() T { return *ptr })
-	})
-	return tx.Fin()
+	return res, nil
 }
