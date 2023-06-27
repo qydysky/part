@@ -13,6 +13,20 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+func TestDirFs(t *testing.T) {
+	f := New("./testdata", 0, true)
+	if fs, err := f.DirFiles(); err != nil {
+		t.Fatal(err)
+	} else {
+		if len(fs) != 1 {
+			t.Fatal()
+		}
+		if fs[0] != "testdata/1.txt" {
+			t.Fatal()
+		}
+	}
+}
+
 func TestNewPath2(t *testing.T) {
 	os.RemoveAll("./test")
 	time.Sleep(time.Second)

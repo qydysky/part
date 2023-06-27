@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ var (
 	ErrNewFileCantSeed  = errors.New("ErrNewFileCantSeed")
 	ErrFailToLock       = errors.New("ErrFailToLock")
 	ErrMaxReadSizeReach = errors.New("ErrMaxReadSizeReach")
+	ErrNoDir            = errors.New("ErrNoDir")
 )
 
 type File struct {
@@ -292,6 +294,24 @@ func (t *File) IsDir() bool {
 	return info.IsDir()
 }
 
+func (t *File) DirFiles() (files []string, err error) {
+	if !t.IsDir() {
+		err = ErrNoDir
+		return
+	}
+
+	f := t.File()
+	if fis, e := f.Readdir(0); e != nil {
+		err = e
+		return
+	} else {
+		for i := 0; i < len(fis); i++ {
+			files = append(files, path.Clean(f.Name())+string(os.PathSeparator)+fis[i].Name())
+		}
+	}
+	return
+}
+
 func (t *File) File() *os.File {
 	t.getRWCloser()
 	return t.file
@@ -324,35 +344,51 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 	if t.Config.AutoClose || t.file == nil {
 		if !t.IsExist() {
 			newPath(t.Config.FilePath, fs.ModeDir|fmode)
-			if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
-				panic(e)
-			} else {
-				if t.Config.CurIndex > 0 {
-					t.cu = t.Config.CurIndex
-					t.cu, e = f.Seek(t.cu, int(AtOrigin))
-					if e != nil {
-						panic(e)
-					}
+			if t.IsDir() {
+				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
+					panic(e)
+				} else {
+					t.file = f
 				}
-				t.file = f
+			} else {
+				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
+					panic(e)
+				} else {
+					if t.Config.CurIndex > 0 {
+						t.cu = t.Config.CurIndex
+						t.cu, e = f.Seek(t.cu, int(AtOrigin))
+						if e != nil {
+							panic(e)
+						}
+					}
+					t.file = f
+				}
 			}
 		} else {
-			if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, fmode); e != nil {
-				panic(e)
-			} else {
-				if t.Config.CurIndex != 0 {
-					t.cu = t.Config.CurIndex
-					whenc := AtOrigin
-					if t.Config.CurIndex < 0 {
-						t.cu = t.cu + 1
-						whenc = AtEnd
-					}
-					t.cu, e = f.Seek(t.cu, int(whenc))
-					if e != nil {
-						panic(e)
-					}
+			if t.IsDir() {
+				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
+					panic(e)
+				} else {
+					t.file = f
 				}
-				t.file = f
+			} else {
+				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, fmode); e != nil {
+					panic(e)
+				} else {
+					if t.Config.CurIndex != 0 {
+						t.cu = t.Config.CurIndex
+						whenc := AtOrigin
+						if t.Config.CurIndex < 0 {
+							t.cu = t.cu + 1
+							whenc = AtEnd
+						}
+						t.cu, e = f.Seek(t.cu, int(whenc))
+						if e != nil {
+							panic(e)
+						}
+					}
+					t.file = f
+				}
 			}
 		}
 	}
