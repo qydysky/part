@@ -1,6 +1,8 @@
 package part
 
 import (
+	"bytes"
+	"encoding/gob"
 	"net/http"
 	"net/rpc"
 
@@ -9,7 +11,22 @@ import (
 
 type Gob struct {
 	Key  string
-	Data any
+	Data []byte
+}
+
+func NewGob(k string) *Gob {
+	return &Gob{Key: k}
+}
+
+func (t *Gob) Encode(e any) (err error) {
+	var buf bytes.Buffer
+	err = gob.NewEncoder(&buf).Encode(e)
+	t.Data = buf.Bytes()
+	return
+}
+
+func (t *Gob) Decode(e any) (err error) {
+	return gob.NewDecoder(bytes.NewReader(t.Data)).Decode(e)
 }
 
 type DealGob struct {

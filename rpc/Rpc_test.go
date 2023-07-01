@@ -2,6 +2,7 @@ package part
 
 import (
 	"errors"
+	"log"
 	"testing"
 	"time"
 )
@@ -9,17 +10,18 @@ import (
 func TestMain(t *testing.T) {
 	pob := Pob{Host: "127.0.0.1:10902", Path: "/123"}
 	if shutdown, e := pob.Server(func(i, o *Gob) error {
-		if iv, ok := i.Data.(int); !ok {
-			return errors.New("iv")
-		} else {
-			switch i.Key {
-			case "+":
-				o.Data = iv + 1
-			case "-":
-				o.Data = iv - 1
-			default:
-				return errors.New("no key")
+		switch i.Key {
+		case "+":
+			var ivv int
+			if e := i.Decode(&ivv); e != nil {
+				log.Fatal("d", e)
 			}
+			ivv += 1
+			if e := o.Encode(ivv); e != nil {
+				log.Fatal("e", e)
+			}
+		default:
+			return errors.New("no key")
 		}
 		return nil
 	}); e != nil {
@@ -33,28 +35,28 @@ func TestMain(t *testing.T) {
 	if c, e := pob.Client(); e != nil {
 		t.Fatal(e)
 	} else {
-		var gob = Gob{"+", 9}
-		if e := c.Call(&gob); e != nil {
+		var gob = NewGob("+")
+
+		var i int = 9
+		if e := gob.Encode(&i); e != nil {
+			t.Fatal(e)
+		}
+		if e := gob.Decode(&i); e != nil {
+			t.Fatal(e)
+		}
+		if e := c.Call(gob); e != nil {
 			t.Fatal(e)
 		} else if gob.Key != "+" {
 			t.Fatal()
-		} else if i, ok := gob.Data.(int); !ok || i != 10 {
-			t.Fatal()
+		} else {
+			if e := gob.Decode(&i); e != nil {
+				t.Fatal(e)
+			}
+			if i != 10 {
+				t.Fatal()
+			}
 		}
 		c.Close()
 	}
 
-	if c, e := pob.Client(); e != nil {
-		t.Fatal(e)
-	} else {
-		var gob = Gob{"-", 9}
-		if e := c.Call(&gob); e != nil {
-			t.Fatal(e)
-		} else if gob.Key != "-" {
-			t.Fatal()
-		} else if i, ok := gob.Data.(int); !ok || i != 8 {
-			t.Fatal()
-		}
-		c.Close()
-	}
 }
