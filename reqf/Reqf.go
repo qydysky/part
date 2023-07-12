@@ -280,8 +280,8 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 					val.SaveToChan <- buf[:n]
 				}
 			} else if we != nil {
-				if !errors.Is(e, io.EOF) {
-					err = errors.Join(err, ErrWriteRes, e)
+				if !errors.Is(we, io.EOF) {
+					err = errors.Join(err, ErrWriteRes, we)
 				}
 				break
 			}

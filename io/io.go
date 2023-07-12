@@ -105,18 +105,28 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 
 	return RWC{
 		func(p []byte) (n int, err error) {
-			if n, err = r.Read(p); n != 0 {
-				select {
-				case <-ctx.Done():
-				default:
+			select {
+			case <-ctx.Done():
+				chanw.Store(-1)
+				err = context.Canceled
+				return
+			default:
+				if n, err = r.Read(p); n != 0 {
 					chanw.Store(time.Now().Unix())
 				}
 			}
 			return
 		},
 		func(p []byte) (n int, err error) {
-			if n, err = w.Write(p); n != 0 {
-				chanw.Store(time.Now().Unix())
+			select {
+			case <-ctx.Done():
+				chanw.Store(-1)
+				err = context.Canceled
+				return
+			default:
+				if n, err = w.Write(p); n != 0 {
+					chanw.Store(time.Now().Unix())
+				}
 			}
 			return
 		},
