@@ -181,11 +181,10 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		}
 	}
 
-	req, e := http.NewRequest(Method, val.Url, body)
+	req, e := http.NewRequestWithContext(ctx, Method, val.Url, body)
 	if e != nil {
 		return errors.Join(ErrNewRequest, e)
 	}
-	req = req.WithContext(ctx)
 
 	for _, v := range val.Cookies {
 		req.AddCookie(v)
