@@ -268,7 +268,7 @@ func Test_req8(t *testing.T) {
 		rc, wc := io.Pipe()
 		go func() {
 			var buf []byte = make([]byte, 1<<16)
-			rc.Read(buf)
+			_, _ = rc.Read(buf)
 			time.Sleep(time.Millisecond * 500)
 			r.Cancel()
 		}()
