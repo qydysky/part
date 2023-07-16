@@ -78,7 +78,7 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 			case <-ctx.Done():
 				if old := chanw.Load(); old == -1 {
 					return
-				} else if now := time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+				} else if now := time.Now(); old > 0 && now.Unix()-old >= int64(to.Seconds()) {
 					if old != 0 {
 						panicf[0](fmt.Sprintf("rw blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 					}
@@ -86,7 +86,7 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 					time.AfterFunc(to, func() {
 						if old := chanw.Load(); old == -1 {
 							return
-						} else if now := time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+						} else if now := time.Now(); old > 0 && now.Unix()-old >= int64(to.Seconds()) {
 							panicf[0](fmt.Sprintf("rw blocking after close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 						}
 					})
@@ -107,9 +107,7 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 		func(p []byte) (n int, err error) {
 			select {
 			case <-ctx.Done():
-				chanw.Store(-1)
 				err = context.Canceled
-				return
 			default:
 				if n, err = r.Read(p); n != 0 {
 					chanw.Store(time.Now().Unix())
@@ -120,9 +118,7 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 		func(p []byte) (n int, err error) {
 			select {
 			case <-ctx.Done():
-				chanw.Store(-1)
 				err = context.Canceled
-				return
 			default:
 				if n, err = w.Write(p); n != 0 {
 					chanw.Store(time.Now().Unix())
