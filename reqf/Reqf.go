@@ -41,7 +41,6 @@ type Rval struct {
 	Ctx     context.Context
 
 	SaveToPath       string
-	SaveToChan       chan []byte
 	SaveToPipeWriter *io.PipeWriter
 
 	Header map[string]string
@@ -71,7 +70,6 @@ type Req struct {
 	UsedTime time.Duration
 
 	cancelP atomic.Pointer[context.CancelFunc]
-	ctx     context.Context
 	state   atomic.Int32
 
 	responFile *os.File
@@ -229,7 +227,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		err = fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 
-	var ws []io.Writer
+	var ws []io.WriteCloser
 	if val.SaveToPath != "" {
 		t.responFile, e = os.Create(val.SaveToPath)
 		if e != nil {
@@ -239,15 +237,13 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		ws = append(ws, t.responFile)
 	}
 	if val.SaveToPipeWriter != nil {
-		ws = append(ws, val.SaveToPipeWriter)
+		ws = append(ws, pio.RWC{W: val.SaveToPipeWriter.Write, C: func() error { return val.SaveToPipeWriter.CloseWithError(context.Canceled) }})
 	}
 	if !val.NoResponse {
 		//will clear t.Respon
 		t.responBuf.Reset()
-		ws = append(ws, t.responBuf)
+		ws = append(ws, pio.RWC{W: t.responBuf.Write, C: func() error { return nil }})
 	}
-
-	w := io.MultiWriter(ws...)
 
 	var resReadCloser = resp.Body
 	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
@@ -266,16 +262,13 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	if writeLoopTO == 0 {
 		writeLoopTO = 1000
 	}
-	rwc := pio.WithCtxTO(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), w, resReadCloser)
+
+	rwc := pio.WithCtxTO(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser)
 	defer rwc.Close()
 
 	for buf := make([]byte, 2048); true; {
 		if n, e := rwc.Read(buf); n != 0 {
-			if n, e := rwc.Write(buf[:n]); n != 0 {
-				if val.SaveToChan != nil {
-					val.SaveToChan <- buf[:n]
-				}
-			} else if e != nil {
+			if n, e := rwc.Write(buf[:n]); n == 0 && e != nil {
 				if !errors.Is(e, io.EOF) {
 					err = errors.Join(err, ErrWriteRes, e)
 				}
@@ -355,9 +348,6 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 }
 
 func (t *Req) clean(val *Rval) {
-	if val.SaveToChan != nil {
-		close(val.SaveToChan)
-	}
 	if t.responFile != nil {
 		t.responFile.Close()
 	}

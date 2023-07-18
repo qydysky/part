@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -81,11 +82,72 @@ func init() {
 				flusher.Flush()
 			}
 		},
+		`/stream`: func(w http.ResponseWriter, r *http.Request) {
+			flusher, flushSupport := w.(http.Flusher)
+			if flushSupport {
+				flusher.Flush()
+			}
+			for {
+				select {
+				case <-r.Context().Done():
+					println("server req ctx done")
+					return
+				default:
+					w.Write([]byte{'0'})
+					flusher.Flush()
+				}
+			}
+		},
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
 	})
 	time.Sleep(time.Second)
+}
+
+func Test14(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	i, o := io.Pipe()
+
+	r := New()
+	if e := r.Reqf(Rval{
+		Url:              "http://" + addr + "/stream",
+		Ctx:              ctx,
+		NoResponse:       true,
+		SaveToPipeWriter: o,
+		Async:            true,
+		WriteLoopTO:      5*1000*2 + 1,
+	}); e != nil {
+		t.Log(e)
+	}
+
+	start := time.Now()
+
+	t.Log("Do", time.Since(start))
+
+	go func() {
+		buf := make([]byte, 1<<8)
+		for {
+			if n, e := i.Read(buf); n != 0 {
+				if time.Since(start) > time.Second {
+					cancel()
+					t.Log("Cancel", time.Since(start))
+					break
+				}
+				// do nothing
+				continue
+			} else if e != nil {
+				t.Log(e)
+				break
+			}
+		}
+	}()
+
+	if !errors.Is(r.Wait(), context.Canceled) {
+		t.Fatal()
+	}
+	t.Log("Do finished", time.Since(start))
 }
 
 func Test_req13(t *testing.T) {
@@ -176,50 +238,50 @@ func Test_req4(t *testing.T) {
 	}
 }
 
-func Test_req5(t *testing.T) {
-	r := New()
-	{
-		c := make(chan []byte)
-		r.Reqf(Rval{
-			Url:        "http://" + addr + "/to",
-			Timeout:    1000,
-			Async:      true,
-			SaveToChan: c,
-		})
-		for {
-			buf := <-c
-			if len(buf) == 0 {
-				break
-			}
-		}
-		if !IsTimeout(r.Wait()) {
-			t.Error("async IsTimeout fail")
-		}
-	}
-}
+// func Test_req5(t *testing.T) {
+// 	r := New()
+// 	{
+// 		c := make(chan []byte)
+// 		r.Reqf(Rval{
+// 			Url:        "http://" + addr + "/to",
+// 			Timeout:    1000,
+// 			Async:      true,
+// 			SaveToChan: c,
+// 		})
+// 		for {
+// 			buf := <-c
+// 			if len(buf) == 0 {
+// 				break
+// 			}
+// 		}
+// 		if !IsTimeout(r.Wait()) {
+// 			t.Error("async IsTimeout fail")
+// 		}
+// 	}
+// }
 
-func Test_req6(t *testing.T) {
-	r := New()
-	{
-		c := make(chan []byte)
-		r.Reqf(Rval{
-			Url:        "http://" + addr + "/no",
-			Async:      true,
-			SaveToChan: c,
-		})
-		b := []byte{}
-		for {
-			buf := <-c
-			if len(buf) == 0 {
-				break
-			}
-			b = append(b, buf...)
-		}
-		if !bytes.Equal(b, []byte("abc强强强强")) {
-			t.Error("chan fail")
-		}
-	}
-}
+// func Test_req6(t *testing.T) {
+// 	r := New()
+// 	{
+// 		c := make(chan []byte)
+// 		r.Reqf(Rval{
+// 			Url:        "http://" + addr + "/no",
+// 			Async:      true,
+// 			SaveToChan: c,
+// 		})
+// 		b := []byte{}
+// 		for {
+// 			buf := <-c
+// 			if len(buf) == 0 {
+// 				break
+// 			}
+// 			b = append(b, buf...)
+// 		}
+// 		if !bytes.Equal(b, []byte("abc强强强强")) {
+// 			t.Error("chan fail")
+// 		}
+// 	}
+// }
 
 func Test_req11(t *testing.T) {
 	r := New()

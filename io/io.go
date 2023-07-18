@@ -54,16 +54,27 @@ type RWC struct {
 }
 
 func (t RWC) Write(p []byte) (n int, err error) {
-	return t.W(p)
+	if t.W != nil {
+		return t.W(p)
+	}
+	return 0, nil
 }
 func (t RWC) Read(p []byte) (n int, err error) {
-	return t.R(p)
+	if t.R != nil {
+		return t.R(p)
+	}
+	return 0, nil
 }
 func (t RWC) Close() error {
-	return t.C()
+	if t.C != nil {
+		return t.C()
+	}
+	return nil
 }
 
-func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writer, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
+// close reader by yourself
+// call Close() after writer fin
+func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.WriteCloser, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
 	var chanw atomic.Int64
 	chanw.Store(time.Now().Unix())
 	if len(panicf) == 0 {
@@ -76,26 +87,22 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 		for {
 			select {
 			case <-ctx.Done():
-				if old := chanw.Load(); old == -1 {
-					return
-				} else if now := time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
-					if old != 0 {
-						panicf[0](fmt.Sprintf("rw blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
-					}
+				// avoid write block
+				for i := 0; i < len(w); i++ {
+					w[i].Close()
+				}
+				if old, now := chanw.Load(), time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+					panicf[0](fmt.Sprintf("rw blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 				} else {
 					time.AfterFunc(to, func() {
-						if old := chanw.Load(); old == -1 {
-							return
-						} else if now := time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
-							panicf[0](fmt.Sprintf("rw blocking after close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
+						if chanw.Load() != -1 {
+							panicf[0](fmt.Sprintf("rw blocking after close %v, goruntime leak \n%v", to, callTree))
 						}
 					})
 				}
 				return
 			case now := <-timer.C:
-				if old := chanw.Load(); old == -1 {
-					return
-				} else if old > 0 && now.Unix()-old > int64(to.Seconds()) {
+				if old := chanw.Load(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
 					panicf[0](fmt.Sprintf("rw blocking after rw %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 					return
 				}
@@ -120,8 +127,10 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 			case <-ctx.Done():
 				err = context.Canceled
 			default:
-				if n, err = w.Write(p); n != 0 {
-					chanw.Store(time.Now().Unix())
+				for i := 0; i < len(w); i++ {
+					if n, err = w[i].Write(p); n != 0 {
+						chanw.Store(time.Now().Unix())
+					}
 				}
 			}
 			return

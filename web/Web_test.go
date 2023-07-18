@@ -2,7 +2,6 @@ package part
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,13 +84,13 @@ func Test_ClientBlock(t *testing.T) {
 	defer s.Shutdown()
 
 	m.Store("/to", func(w http.ResponseWriter, r *http.Request) {
-
-		rwc := pio.WithCtxTO(context.Background(), fmt.Sprintf("server handle %v by %v ", r.URL.Path, r.RemoteAddr), time.Second, w, r.Body, func(s string) {
-			fmt.Println(s)
-			if !strings.Contains(s, "write blocking after rw 2s > 1s, goruntime leak") {
-				t.Fatal(s)
-			}
-		})
+		rwc := pio.WithCtxTO(r.Context(), fmt.Sprintf("server handle %v by %v ", r.URL.Path, r.RemoteAddr), time.Second,
+			[]io.WriteCloser{pio.RWC{W: w.Write}}, r.Body, func(s string) {
+				fmt.Println(s)
+				if !strings.Contains(s, "write blocking after rw 2s > 1s, goruntime leak") {
+					t.Fatal(s)
+				}
+			})
 		defer rwc.Close()
 
 		type d struct {
