@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync/atomic"
@@ -140,4 +141,31 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Wr
 			return nil
 		},
 	}
+}
+
+var (
+	ErrWrite = errors.New("ErrWrite")
+	ErrRead  = errors.New("ErrRead")
+)
+
+// close reader by yourself
+func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w []io.WriteCloser, r io.Reader, panicf ...func(s string)) error {
+	rwc := WithCtxTO(ctx, callTree, to, w, r)
+	defer rwc.Close()
+	for buf := make([]byte, 2048); true; {
+		if n, e := rwc.Read(buf); n != 0 {
+			if n, e := rwc.Write(buf[:n]); n == 0 && e != nil {
+				if !errors.Is(e, io.EOF) {
+					return errors.Join(ErrWrite, e)
+				}
+				break
+			}
+		} else if e != nil {
+			if !errors.Is(e, io.EOF) {
+				return errors.Join(ErrRead, e)
+			}
+			break
+		}
+	}
+	return nil
 }

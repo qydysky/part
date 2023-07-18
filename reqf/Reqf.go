@@ -263,24 +263,8 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		writeLoopTO = 1000
 	}
 
-	rwc := pio.WithCtxTO(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser)
-	defer rwc.Close()
-
-	for buf := make([]byte, 2048); true; {
-		if n, e := rwc.Read(buf); n != 0 {
-			if n, e := rwc.Write(buf[:n]); n == 0 && e != nil {
-				if !errors.Is(e, io.EOF) {
-					err = errors.Join(err, ErrWriteRes, e)
-				}
-				break
-			}
-		} else if e != nil {
-			if !errors.Is(e, io.EOF) {
-				err = errors.Join(err, ErrReadRes, e)
-			}
-			break
-		}
-	}
+	// io copy
+	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser))
 
 	resp.Body.Close()
 
