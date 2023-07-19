@@ -40,8 +40,9 @@ type Rval struct {
 	Cookies []*http.Cookie
 	Ctx     context.Context
 
-	SaveToPath       string
-	SaveToPipeWriter *io.PipeWriter
+	SaveToPath string
+	// 为避免write阻塞导致panic，请使用此项目io包中的NewPipe()，或在ctx done时，自行关闭pipe writer reader
+	SaveToPipe *pio.IOpipe
 
 	Header map[string]string
 }
@@ -196,7 +197,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	if _, ok := Header["Accept-Encoding"]; !ok {
 		Header["Accept-Encoding"] = "gzip, deflate, br"
 	}
-	if val.SaveToPath != "" || val.SaveToPipeWriter != nil {
+	if val.SaveToPath != "" || val.SaveToPipe != nil {
 		Header["Accept-Encoding"] = "identity"
 	}
 	if _, ok := Header["User-Agent"]; !ok {
@@ -227,7 +228,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		err = fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 
-	var ws []io.WriteCloser
+	var ws []io.Writer
 	if val.SaveToPath != "" {
 		t.responFile, e = os.Create(val.SaveToPath)
 		if e != nil {
@@ -236,13 +237,11 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		}
 		ws = append(ws, t.responFile)
 	}
-	if val.SaveToPipeWriter != nil {
-		ws = append(ws, pio.RWC{W: val.SaveToPipeWriter.Write, C: func() error { return val.SaveToPipeWriter.CloseWithError(context.Canceled) }})
+	if val.SaveToPipe != nil {
+		ws = append(ws, val.SaveToPipe)
 	}
 	if !val.NoResponse {
-		//will clear t.Respon
-		t.responBuf.Reset()
-		ws = append(ws, pio.RWC{W: t.responBuf.Write, C: func() error { return nil }})
+		ws = append(ws, t.responBuf)
 	}
 
 	var resReadCloser = resp.Body
@@ -293,7 +292,7 @@ func (t *Req) IsLive() bool {
 	return t.state.Load() == running
 }
 
-func (t *Req) prepareRes(ctx context.Context, val *Rval) (context.Context, context.CancelFunc) {
+func (t *Req) prepareRes(ctx context.Context, val *Rval) (ctx1 context.Context, ctxf1 context.CancelFunc) {
 	if !val.NoResponse {
 		if t.responBuf == nil {
 			t.responBuf = new(bytes.Buffer)
@@ -307,10 +306,13 @@ func (t *Req) prepareRes(ctx context.Context, val *Rval) (context.Context, conte
 	}
 	t.Response = nil
 	t.err = nil
+
 	if val.Timeout > 0 {
-		return context.WithTimeout(ctx, time.Duration(val.Timeout*int(time.Millisecond)))
+		ctx1, ctxf1 = context.WithTimeout(ctx, time.Duration(val.Timeout*int(time.Millisecond)))
+	} else {
+		ctx1, ctxf1 = context.WithCancel(ctx)
 	}
-	return context.WithCancel(ctx)
+	return
 }
 
 func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc) {
@@ -325,18 +327,29 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 		}
 	}
 	if val.Ctx != nil {
-		return context.WithCancel(val.Ctx)
+		ctx, cancel = context.WithCancel(val.Ctx)
 	} else {
-		return context.WithCancel(context.Background())
+		ctx, cancel = context.WithCancel(context.Background())
 	}
+
+	if val.SaveToPipe != nil {
+		go func() {
+			<-ctx.Done()
+			if e := val.SaveToPipe.CloseWithError(context.Canceled); e != nil {
+				println(e)
+			}
+		}()
+	}
+
+	return
 }
 
 func (t *Req) clean(val *Rval) {
 	if t.responFile != nil {
 		t.responFile.Close()
 	}
-	if val.SaveToPipeWriter != nil {
-		val.SaveToPipeWriter.Close()
+	if val.SaveToPipe != nil {
+		val.SaveToPipe.Close()
 	}
 }
 

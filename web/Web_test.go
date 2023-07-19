@@ -85,7 +85,7 @@ func Test_ClientBlock(t *testing.T) {
 
 	m.Store("/to", func(w http.ResponseWriter, r *http.Request) {
 		rwc := pio.WithCtxTO(r.Context(), fmt.Sprintf("server handle %v by %v ", r.URL.Path, r.RemoteAddr), time.Second,
-			[]io.WriteCloser{pio.RWC{W: w.Write}}, r.Body, func(s string) {
+			[]io.Writer{w}, r.Body, func(s string) {
 				fmt.Println(s)
 				if !strings.Contains(s, "write blocking after rw 2s > 1s, goruntime leak") {
 					t.Fatal(s)
@@ -125,10 +125,10 @@ func Test_ClientBlock(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(reqf.Rval{
-			Url:              "http://127.0.0.1:10000/to",
-			SaveToPipeWriter: wc,
-			WriteLoopTO:      5000,
-			Async:            true,
+			Url:         "http://127.0.0.1:10000/to",
+			SaveToPipe:  &pio.IOpipe{R: rc, W: wc},
+			WriteLoopTO: 5000,
+			Async:       true,
 		})
 		<-c
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compress "github.com/qydysky/part/compress"
+	pio "github.com/qydysky/part/io"
 	web "github.com/qydysky/part/web"
 )
 
@@ -112,12 +113,12 @@ func Test14(t *testing.T) {
 
 	r := New()
 	if e := r.Reqf(Rval{
-		Url:              "http://" + addr + "/stream",
-		Ctx:              ctx,
-		NoResponse:       true,
-		SaveToPipeWriter: o,
-		Async:            true,
-		WriteLoopTO:      5*1000*2 + 1,
+		Url:         "http://" + addr + "/stream",
+		Ctx:         ctx,
+		NoResponse:  true,
+		SaveToPipe:  &pio.IOpipe{R: i, W: o},
+		Async:       true,
+		WriteLoopTO: 5*1000*2 + 1,
 	}); e != nil {
 		t.Log(e)
 	}
@@ -314,9 +315,9 @@ func Test_req9(t *testing.T) {
 			}
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/1min",
-			SaveToPipeWriter: wc,
-			Async:            true,
+			Url:        "http://" + addr + "/1min",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			Async:      true,
 		})
 		if r.Wait() != nil {
 			t.Fatal()
@@ -335,9 +336,9 @@ func Test_req8(t *testing.T) {
 			r.Cancel()
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/1min",
-			SaveToPipeWriter: wc,
-			Async:            true,
+			Url:        "http://" + addr + "/1min",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			Async:      true,
 		})
 		if !IsCancel(r.Wait()) {
 			t.Fatal("read from block response")
@@ -357,7 +358,7 @@ func Test_req10(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:              "http://" + addr + "/1min",
-			SaveToPipeWriter: wc,
+			SaveToPipe: wc,
 			Async:            true,
 		})
 		if !IsCancel(r.Wait()) {
@@ -380,9 +381,9 @@ func Test_req3(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/br",
-			SaveToPipeWriter: wc,
-			Async:            true,
+			Url:        "http://" + addr + "/br",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			Async:      true,
 		})
 		<-c
 	}
@@ -397,9 +398,9 @@ func Test_req3(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/gzip",
-			SaveToPipeWriter: wc,
-			Async:            true,
+			Url:        "http://" + addr + "/gzip",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			Async:      true,
 		})
 		<-c
 	}
@@ -414,8 +415,8 @@ func Test_req3(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/flate",
-			SaveToPipeWriter: wc,
+			Url:        "http://" + addr + "/flate",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
 		})
 		<-c
 	}
@@ -433,9 +434,9 @@ func Test_req3(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/flate",
-			SaveToPipeWriter: wc,
-			Async:            true,
+			Url:        "http://" + addr + "/flate",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			Async:      true,
 		})
 		<-c
 	}
@@ -463,10 +464,10 @@ func Test_req3(t *testing.T) {
 			wg.Done()
 		}()
 		r.Reqf(Rval{
-			Url:              "http://" + addr + "/flate",
-			SaveToPipeWriter: wc,
-			NoResponse:       true,
-			Async:            true,
+			Url:        "http://" + addr + "/flate",
+			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			NoResponse: true,
+			Async:      true,
 		})
 		r.Wait()
 		if len(r.Respon) != 0 {

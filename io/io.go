@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -48,6 +49,76 @@ func RW2Chan(r io.ReadCloser, w io.WriteCloser) (rc, wc chan []byte) {
 	return
 }
 
+func NewPipe() *IOpipe {
+	r, w := io.Pipe()
+	return &IOpipe{R: r, W: w}
+}
+
+type onceError struct {
+	sync.Mutex // guards following
+	err        error
+}
+
+func (a *onceError) Store(err error) {
+	a.Lock()
+	defer a.Unlock()
+	if a.err != nil {
+		return
+	}
+	a.err = err
+}
+func (a *onceError) Load() error {
+	a.Lock()
+	defer a.Unlock()
+	return a.err
+}
+
+type IOpipe struct {
+	R  *io.PipeReader
+	W  *io.PipeWriter
+	re onceError
+	we onceError
+}
+
+func (t *IOpipe) Write(p []byte) (n int, err error) {
+	if t.W != nil {
+		n, err = t.W.Write(p)
+		if errors.Is(err, io.ErrClosedPipe) {
+			err = errors.Join(err, t.we.Load())
+		}
+	}
+	return
+}
+func (t *IOpipe) Read(p []byte) (n int, err error) {
+	if t.R != nil {
+		n, err = t.R.Read(p)
+		if errors.Is(err, io.ErrClosedPipe) {
+			err = errors.Join(err, t.re.Load())
+		}
+	}
+	return
+}
+func (t *IOpipe) Close() (err error) {
+	if t.W != nil {
+		err = errors.Join(err, t.W.Close())
+	}
+	if t.R != nil {
+		err = errors.Join(err, t.R.Close())
+	}
+	return
+}
+func (t *IOpipe) CloseWithError(e error) (err error) {
+	if t.W != nil {
+		t.we.Store(e)
+		err = errors.Join(err, t.W.CloseWithError(e))
+	}
+	if t.R != nil {
+		t.re.Store(e)
+		err = errors.Join(err, t.R.CloseWithError(e))
+	}
+	return
+}
+
 type RWC struct {
 	R func(p []byte) (n int, err error)
 	W func(p []byte) (n int, err error)
@@ -74,8 +145,11 @@ func (t RWC) Close() error {
 }
 
 // close reader by yourself
+//
+// to avoid writer block after ctx done, you should close writer after ctx done
+//
 // call Close() after writer fin
-func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.WriteCloser, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
+func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Writer, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
 	var chanw atomic.Int64
 	chanw.Store(time.Now().Unix())
 	if len(panicf) == 0 {
@@ -88,10 +162,6 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Wr
 		for {
 			select {
 			case <-ctx.Done():
-				// avoid write block
-				for i := 0; i < len(w); i++ {
-					w[i].Close()
-				}
 				if old, now := chanw.Load(), time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
 					panicf[0](fmt.Sprintf("rw blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
 				} else {
@@ -129,10 +199,9 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Wr
 				err = context.Canceled
 			default:
 				for i := 0; i < len(w); i++ {
-					if n, err = w[i].Write(p); n != 0 {
-						chanw.Store(time.Now().Unix())
-					}
+					_, err = w[i].Write(p)
 				}
+				chanw.Store(time.Now().Unix())
 			}
 			return
 		},
@@ -149,7 +218,11 @@ var (
 )
 
 // close reader by yourself
-func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w []io.WriteCloser, r io.Reader, panicf ...func(s string)) error {
+//
+// to avoid writer block after ctx done, you should close writer after ctx done
+//
+// call Close() after writer fin
+func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w []io.Writer, r io.Reader, panicf ...func(s string)) error {
 	rwc := WithCtxTO(ctx, callTree, to, w, r)
 	defer rwc.Close()
 	for buf := make([]byte, 2048); true; {
