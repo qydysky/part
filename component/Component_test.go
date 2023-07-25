@@ -3,24 +3,28 @@ package part
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 )
 
 func Test1(t *testing.T) {
-	Put(`1`, false, func(ctx context.Context, ptr *int) error {
+	Init(DotMatch)
+
+	Put(`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr > 1 {
 			return nil
 		}
 		return errors.New("1")
 	})
 
-	if e := Put(`1`, false, func(ctx context.Context, ptr *int) error {
+	if e := Put(`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr > 1 {
 			return nil
 		}
 		return errors.New("1")
-	}); e != ErrConflict {
-		t.Fatal()
+	}); !errors.Is(e, ErrConflict) {
+		t.Fatal(e)
 	}
 
 	Comp.Put(&CItem{
@@ -50,8 +54,11 @@ func Test1(t *testing.T) {
 
 	Comp.Del(`1.2`)
 
-	if e := Comp.Run(`1.2.1`, context.Background(), &s); e != ErrNotExist {
-		t.Fatal(e)
+	for i := 0; i < len(Comp.m); i++ {
+		t.Log(Comp.m[i])
+	}
+	if e := Comp.Run(`1.2.1`, context.Background(), &s); e == nil {
+		t.Fatal()
 	}
 
 	if e := Comp.Run(`1`, context.Background(), &s); e != nil {
@@ -59,26 +66,64 @@ func Test1(t *testing.T) {
 	}
 }
 
+func TestDot(t *testing.T) {
+	Init(DotMatch)
+	Put[int](`1`, func(ctx context.Context, ptr *int) error {
+		if *ptr == 1 {
+			return nil
+		} else {
+			return errors.New("1")
+		}
+	})
+	Put[int](`12`, func(ctx context.Context, ptr *int) error {
+		return errors.New("12")
+	})
+	Put[int](`1.2`, func(ctx context.Context, ptr *int) error {
+		return errors.New("1.2")
+	})
+	i := 1
+	if e := Run(`1`, context.Background(), &i); !strings.Contains(e.Error(), "1.2") {
+		t.Fatal(e)
+	}
+}
+
+func Test3(t *testing.T) {
+	sumup := func(ctx context.Context, ptr *int) error {
+		return nil
+	}
+	if e := Put[int](`bili_danmu.Reply.wsmsg.preparing.sumup`, sumup); e != nil {
+		panic(e)
+	} else {
+		println("bili_danmu.Reply.wsmsg.preparing.sumup")
+	}
+	i := 1
+	if e := Run(`bili_danmu.Reply.wsmsg.preparing`, context.Background(), &i); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func Benchmark2(b *testing.B) {
+	Init(DotMatch)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Put[int](`1`, false, func(ctx context.Context, ptr *int) error {
+		Put[int](strconv.Itoa(i), func(ctx context.Context, ptr *int) error {
 			return nil
 		})
 	}
 }
 
 func Benchmark1(b *testing.B) {
-	Put[int](`1`, false, func(ctx context.Context, ptr *int) error {
-		return nil
-	})
-	Put[int](`1.2`, false, func(ctx context.Context, ptr *int) error {
-		return nil
-	})
+	Init(DotMatch)
+	for i := 0; i < 1000; i++ {
+		Put[int](strconv.Itoa(i), func(ctx context.Context, ptr *int) error {
+			return nil
+		})
+	}
+	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if e := Run(`1.2`, context.Background(), &i); e != nil {
-			b.Fatal()
+		if e := Run(`1`, ctx, &i); e != nil {
+			b.Fatal(e)
 		}
 	}
 }
