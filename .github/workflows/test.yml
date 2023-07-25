@@ -38,6 +38,7 @@ jobs:
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
 
     - name: Set Release Name
       run: |

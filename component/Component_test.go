@@ -88,6 +88,7 @@ func TestDot(t *testing.T) {
 }
 
 func Test3(t *testing.T) {
+	Init(DotMatch)
 	sumup := func(ctx context.Context, ptr *int) error {
 		return nil
 	}
