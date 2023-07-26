@@ -9,7 +9,7 @@ import (
 )
 
 func Test1(t *testing.T) {
-	Init(DotMatch)
+	Init(false, DotMatch)
 
 	Put(`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr > 1 {
@@ -67,7 +67,7 @@ func Test1(t *testing.T) {
 }
 
 func TestDot(t *testing.T) {
-	Init(DotMatch)
+	Init(false, DotMatch)
 	Put[int](`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr == 1 {
 			return nil
@@ -88,7 +88,7 @@ func TestDot(t *testing.T) {
 }
 
 func Test3(t *testing.T) {
-	Init(DotMatch)
+	Init(false, DotMatch)
 	sumup := func(ctx context.Context, ptr *int) error {
 		return nil
 	}
@@ -104,7 +104,7 @@ func Test3(t *testing.T) {
 }
 
 func Benchmark2(b *testing.B) {
-	Init(DotMatch)
+	Init(false, DotMatch)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Put[int](strconv.Itoa(i), func(ctx context.Context, ptr *int) error {
@@ -114,9 +114,9 @@ func Benchmark2(b *testing.B) {
 }
 
 func Benchmark1(b *testing.B) {
-	Init(DotMatch)
+	Init(false, DotMatch)
 	for i := 0; i < 1000; i++ {
-		Put[int](strconv.Itoa(i), func(ctx context.Context, ptr *int) error {
+		Put[int](`1`, func(ctx context.Context, ptr *int) error {
 			return nil
 		})
 	}

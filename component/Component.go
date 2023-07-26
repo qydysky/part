@@ -37,8 +37,9 @@ var (
 type components struct {
 	MatchF func(mkey, key string) bool
 
-	m  []*CItem
-	mm map[string]int
+	withLock bool
+	m        []*CItem
+	mm       map[string]int
 	sync.RWMutex
 }
 
@@ -47,16 +48,19 @@ type components struct {
 // strings.HasSuffix
 //
 // DotMatch
-func NewComp(matchf func(mkey, key string) bool) *components {
+func NewComp(withLock bool, matchf func(mkey, key string) bool) *components {
 	return &components{
-		MatchF: matchf,
-		mm:     make(map[string]int),
+		MatchF:   matchf,
+		withLock: withLock,
+		mm:       make(map[string]int),
 	}
 }
 
 func (t *components) Put(item *CItem) error {
-	t.Lock()
-	defer t.Unlock()
+	if t.withLock {
+		t.Lock()
+		defer t.Unlock()
+	}
 	if _, ok := t.mm[item.Key]; ok {
 		return errors.Join(ErrConflict, errors.New(item.Key))
 	}
@@ -71,7 +75,10 @@ func (t *components) Put(item *CItem) error {
 }
 
 func (t *components) Del(key string) {
-	t.Lock()
+	if t.withLock {
+		t.Lock()
+		defer t.Unlock()
+	}
 	for i := 0; i < len(t.m); i++ {
 		if t.MatchF(t.m[i].Key, key) {
 			delete(t.mm, t.m[i].Key)
@@ -82,12 +89,13 @@ func (t *components) Del(key string) {
 	for i := 0; i < len(t.m); i++ {
 		t.mm[t.m[i].Key] = i
 	}
-	t.Unlock()
 }
 
 func (t *components) Run(key string, ctx context.Context, ptr any) error {
-	t.RLock()
-	defer t.RUnlock()
+	if t.withLock {
+		t.RLock()
+		defer t.RUnlock()
+	}
 
 	var (
 		i   = 0
@@ -103,6 +111,7 @@ func (t *components) Run(key string, ctx context.Context, ptr any) error {
 			return errors.Join(ErrCItemErr, e)
 		}
 	}
+
 	if !got {
 		return errors.Join(ErrNotExist, errors.New(key))
 	}
@@ -126,12 +135,12 @@ func Run[T any](key string, ctx context.Context, ptr *T) error {
 	return Comp.Run(key, ctx, ptr)
 }
 
-func Init(f func(mkey, key string) bool) {
-	Comp = NewComp(f)
+func Init(withLock bool, f func(mkey, key string) bool) {
+	Comp = NewComp(withLock, f)
 }
 
 func DotMatch(mkey, key string) bool {
 	return mkey == key || (len(mkey) > len(key) && mkey[0:len(key)] == key && mkey[len(key)] == '.')
 }
 
-var Comp *components = NewComp(DotMatch)
+var Comp *components = NewComp(false, DotMatch)
