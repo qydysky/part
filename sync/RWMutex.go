@@ -3,117 +3,154 @@ package part
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 )
 
 const (
-	lock  = -1
-	ulock = 0
-	rlock = 0
+	lock  int32 = -1
+	ulock int32 = 0
+	rlock int32 = 1
 )
 
 type RWMutex struct {
 	rlc  atomic.Int32
-	want atomic.Int32
+	read atomic.Int32
+}
+
+func parse(i int32) string {
+	switch i {
+	case -1:
+		return "lock"
+	case 0:
+		return "ulock"
+	case 1:
+		return "rlock"
+	}
+	return "unknow"
+}
+
+// i == oldt -> i = t -> pass
+//
+// otherwish block until i == oldt
+func cas(i *atomic.Int32, oldt, t int32) (ok bool, loop func(to ...time.Duration) error) {
+	if i.CompareAndSwap(oldt, t) {
+		return true, func(to ...time.Duration) error { return nil }
+	} else {
+		var called atomic.Bool
+		return false, func(to ...time.Duration) error {
+			if !called.CompareAndSwap(false, true) {
+				panic("had called")
+			}
+			c := time.Now()
+			for !i.CompareAndSwap(oldt, t) {
+				if len(to) != 0 && time.Since(c) > to[0] {
+					return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
+				}
+				runtime.Gosched()
+			}
+			return nil
+		}
+	}
+}
+
+// i == t -> pass
+//
+// i == oldt -> i = t -> pass
+//
+// otherwish block until i == oldt
+func lcas(i *atomic.Int32, oldt, t int32) (ok bool, loop func(to ...time.Duration) error) {
+	if i.Load() == t || i.CompareAndSwap(oldt, t) {
+		return true, func(to ...time.Duration) error { return nil }
+	} else {
+		var called atomic.Bool
+		return false, func(to ...time.Duration) error {
+			if !called.CompareAndSwap(false, true) {
+				panic("had called")
+			}
+			c := time.Now()
+			for !i.CompareAndSwap(oldt, t) {
+				if len(to) != 0 && time.Since(c) > to[0] {
+					return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
+				}
+				runtime.Gosched()
+			}
+			return nil
+		}
+	}
+}
+
+// call inTimeCall() in time or panic(callTree)
+func tof(to time.Duration) (inTimeCall func() (called bool)) {
+	callTree := getCall(2)
+	return time.AfterFunc(to, func() {
+		panic("Locking timeout!\n" + callTree)
+	}).Stop
 }
 
 // to[0]: wait lock timeout to[1]: run lock timeout
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
-	getWant := m.want.CompareAndSwap(ulock, rlock)
-	var callC atomic.Bool
-	if len(to) > 0 {
-		var calls []string
-		if len(to) > 1 {
-			for i := 1; true; i++ {
-				if pc, file, line, ok := runtime.Caller(i); !ok {
-					break
-				} else {
-					calls = append(calls, fmt.Sprintf("%s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line))
-				}
-			}
-		}
-		c := time.Now()
-		for m.rlc.Load() < ulock || !getWant && !m.want.CompareAndSwap(ulock, rlock) {
-			if time.Since(c) > to[0] {
-				panic(fmt.Sprintf("timeout to wait lock while rlocking, rlc:%d, want:%d, getWant:%v", m.rlc.Load(), m.want.Load(), getWant))
-			}
-			runtime.Gosched()
-		}
-		if len(to) > 1 {
-			time.AfterFunc(to[1], func() {
-				if !callC.Load() {
-					panicS := fmt.Sprintf("timeout to run rlock %v > %v\n", time.Since(c), to[1])
-					for i := 0; i < len(calls); i++ {
-						panicS += fmt.Sprintf("call by %s\n", calls[i])
-					}
-					panic(panicS)
-				}
-			})
-		}
-	} else {
-		for m.rlc.Load() < ulock || !getWant && m.want.CompareAndSwap(ulock, rlock) {
-			runtime.Gosched()
-		}
+	_, rlcLoop := lcas(&m.rlc, ulock, rlock)
+	if e := rlcLoop(to...); e != nil {
+		panic(e)
 	}
-	m.rlc.Add(1)
+	m.read.Add(1)
+	var callC atomic.Bool
+	var done func() (called bool)
+	if len(to) > 1 {
+		done = tof(to[1])
+	}
 	return func() {
 		if !callC.CompareAndSwap(false, true) {
-			panic("had unrlock")
+			panic("had unlock")
 		}
-		if m.rlc.Add(-1) == ulock {
-			m.want.CompareAndSwap(rlock, ulock)
+		if done != nil {
+			done()
+		}
+		if m.read.Add(-1) == 0 {
+			_, rlcLoop := cas(&m.rlc, rlock, ulock)
+			if e := rlcLoop(to...); e != nil {
+				panic(e)
+			}
 		}
 	}
 }
 
 // to[0]: wait lock timeout to[1]: run lock timeout
 func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
-	getWant := m.want.CompareAndSwap(ulock, lock)
-	var callC atomic.Bool
-	if len(to) > 0 {
-		var calls []string
-		if len(to) > 1 {
-			for i := 1; true; i++ {
-				if pc, file, line, ok := runtime.Caller(i); !ok {
-					break
-				} else {
-					calls = append(calls, fmt.Sprintf("%s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line))
-				}
-			}
-		}
-		c := time.Now()
-		for m.rlc.Load() != ulock || !getWant && !m.want.CompareAndSwap(ulock, lock) {
-			if time.Since(c) > to[0] {
-				panic(fmt.Sprintf("timeout to wait rlock while locking, rlc:%d, want:%v, getWant:%v", m.rlc.Load(), m.want.Load(), getWant))
-			}
-			runtime.Gosched()
-		}
-		if len(to) > 1 {
-			time.AfterFunc(to[1], func() {
-				if !callC.Load() {
-					panicS := fmt.Sprintf("timeout to run lock %v > %v\n", time.Since(c), to[1])
-					for i := 0; i < len(calls); i++ {
-						panicS += fmt.Sprintf("call by %s\n", calls[i])
-					}
-					panic(panicS)
-				}
-			})
-		}
-	} else {
-		for m.rlc.Load() != ulock || !getWant && m.want.CompareAndSwap(ulock, lock) {
-			runtime.Gosched()
-		}
+	_, rlcLoop := cas(&m.rlc, ulock, lock)
+	if e := rlcLoop(to...); e != nil {
+		panic(e)
 	}
-	m.rlc.Add(-1)
+	var callC atomic.Bool
+	var done func() (called bool)
+	if len(to) > 1 {
+		done = tof(to[1])
+	}
 	return func() {
 		if !callC.CompareAndSwap(false, true) {
 			panic("had unlock")
 		}
-		if m.rlc.Add(1) == ulock {
-			m.want.CompareAndSwap(lock, ulock)
+		if done != nil {
+			done()
+		}
+		_, rlcLoop := cas(&m.rlc, lock, ulock)
+		if e := rlcLoop(to...); e != nil {
+			panic(e)
 		}
 	}
+}
+
+func getCall(i int) (calls string) {
+	for i += 1; true; i++ {
+		if pc, file, line, ok := runtime.Caller(i); !ok || strings.HasPrefix(file, runtime.GOROOT()) {
+			break
+		} else {
+			calls += fmt.Sprintf("call by %s\n\t%s:%d\n", runtime.FuncForPC(pc).Name(), file, line)
+		}
+	}
+	return
 }
