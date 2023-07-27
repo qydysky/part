@@ -93,11 +93,17 @@ func tof(to time.Duration) (inTimeCall func() (called bool)) {
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
-	_, rlcLoop := lcas(&m.rlc, ulock, rlock)
-	if e := rlcLoop(to...); e != nil {
-		panic(e)
+	if m.read.Add(1) == 1 {
+		_, rlcLoop := cas(&m.rlc, ulock, rlock)
+		if e := rlcLoop(to...); e != nil {
+			panic(e)
+		}
+	} else {
+		_, rlcLoop := lcas(&m.rlc, ulock, rlock)
+		if e := rlcLoop(to...); e != nil {
+			panic(e)
+		}
 	}
-	m.read.Add(1)
 	var callC atomic.Bool
 	var done func() (called bool)
 	if len(to) > 1 {

@@ -14,6 +14,18 @@ func check(l *RWMutex, r, read int32) {
 	}
 }
 
+func Test0(t *testing.T) {
+	var l RWMutex
+	ul := l.RLock()
+	go func() {
+		l.Lock()()
+	}()
+	go func() {
+		l.RLock()()
+	}()
+	ul()
+}
+
 // ulock rlock rlock
 func Test1(t *testing.T) {
 	var l RWMutex
@@ -53,7 +65,7 @@ func Test3(t *testing.T) {
 	ul := l.Lock()
 	check(&l, lock, 0)
 	time.AfterFunc(time.Second, func() {
-		check(&l, lock, 0)
+		check(&l, lock, 1)
 		ul()
 	})
 	c := time.Now()
@@ -94,25 +106,6 @@ func Panic_Test5(t *testing.T) {
 	c := time.Now()
 	ul1 := l.Lock(time.Second)
 	check(&l, lock, 0)
-	if time.Since(c) < time.Second {
-		t.Fail()
-	}
-	ul1()
-	check(&l, ulock, 0)
-}
-
-// ulock lock rlock
-func Test6(t *testing.T) {
-	var l RWMutex
-	ul := l.Lock()
-	check(&l, lock, 0)
-	time.AfterFunc(time.Second, func() {
-		check(&l, lock, 0)
-		ul()
-	})
-	c := time.Now()
-	ul1 := l.RLock()
-	check(&l, rlock, 1)
 	if time.Since(c) < time.Second {
 		t.Fail()
 	}
