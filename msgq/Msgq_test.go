@@ -166,7 +166,7 @@ func Benchmark_1(b *testing.B) {
 }
 
 func Test_RemoveInPush(t *testing.T) {
-	mq := NewTo(time.Second, time.Second*3)
+	mq := New(time.Second, time.Second*3)
 	mq.Pull_tag(FuncMap{
 		`r1`: func(a any) (disable bool) {
 			mq.ClearAll()
@@ -183,7 +183,7 @@ func Test_RemoveInPush(t *testing.T) {
 }
 
 func Test_3(t *testing.T) {
-	mq := NewTo(time.Millisecond*5, time.Millisecond*10)
+	mq := New(time.Millisecond*5, time.Millisecond*10)
 	go mq.Push_tag(`sss`, nil)
 	mq.Pull_tag(FuncMap{
 		`test`: func(a any) (disable bool) {

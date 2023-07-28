@@ -28,14 +28,8 @@ type msgqItem struct {
 
 type FuncMap map[string]func(any) (disable bool)
 
-func New() *Msgq {
-	m := new(Msgq)
-	m.funcs = list.New()
-	return m
-}
-
 // to[0]:timeout to wait to[1]:timeout to run
-func NewTo(to ...time.Duration) *Msgq {
+func New(to ...time.Duration) *Msgq {
 	m := new(Msgq)
 	m.funcs = list.New()
 	m.to = to
@@ -67,7 +61,9 @@ func (m *Msgq) Register_front(f func(any) (disable bool)) {
 }
 
 func (m *Msgq) Push(msg any) {
+	defer m.removeDisable()
 	ul := m.lock.RLock(m.to...)
+	defer ul()
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -80,16 +76,13 @@ func (m *Msgq) Push(msg any) {
 			m.someNeedRemove.Store(true)
 		}
 		mi.running.Add(-1)
-	}
-
-	ul()
-	if m.someNeedRemove.Load() {
-		m.removeDisable()
 	}
 }
 
 func (m *Msgq) PushLock(msg any) {
+	defer m.removeDisable()
 	ul := m.lock.Lock(m.to...)
+	defer ul()
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -102,11 +95,6 @@ func (m *Msgq) PushLock(msg any) {
 			m.someNeedRemove.Store(true)
 		}
 		mi.running.Add(-1)
-	}
-
-	ul()
-	if m.someNeedRemove.Load() {
-		m.removeDisable()
 	}
 }
 
@@ -119,10 +107,13 @@ func (m *Msgq) ClearAll() {
 }
 
 func (m *Msgq) removeDisable() {
+	if !m.someNeedRemove.CompareAndSwap(true, false) {
+		return
+	}
+
 	ul := m.lock.Lock(m.to...)
 	defer ul()
 
-	m.someNeedRemove.Store(false)
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
 		if mi.disable.Load() && mi.running.Load() == 0 {
@@ -164,7 +155,9 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
+		defer m.removeDisable()
 		ul := m.lock.RLock(m.to...)
+		defer ul()
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -180,11 +173,6 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 				m.someNeedRemove.Store(true)
 			}
 			mi.running.Add(-1)
-		}
-
-		ul()
-		if m.someNeedRemove.Load() {
-			m.removeDisable()
 		}
 	}
 }
@@ -217,7 +205,9 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
+		defer m.removeDisable()
 		ul := m.lock.Lock(m.to...)
+		defer ul()
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -233,11 +223,6 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 				m.someNeedRemove.Store(true)
 			}
 			mi.running.Add(-1)
-		}
-
-		ul()
-		if m.someNeedRemove.Load() {
-			m.removeDisable()
 		}
 	}
 }
@@ -336,13 +321,9 @@ type MsgType_tag_data[T any] struct {
 	Data *T
 }
 
-func NewType[T any]() *MsgType[T] {
-	return &MsgType[T]{m: New()}
-}
-
 // to[0]:timeout to wait to[1]:timeout to run
-func NewTypeTo[T any](to ...time.Duration) *MsgType[T] {
-	return &MsgType[T]{m: NewTo(to...)}
+func NewType[T any](to ...time.Duration) *MsgType[T] {
+	return &MsgType[T]{m: New(to...)}
 }
 
 func (m *MsgType[T]) ClearAll() {
@@ -377,7 +358,9 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 				Data: Data,
 			})
 		*/
+		defer m.m.removeDisable()
 		ul := m.m.lock.RLock(m.m.to...)
+		defer ul()
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -393,11 +376,6 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 				m.m.someNeedRemove.Store(true)
 			}
 			mi.running.Add(-1)
-		}
-
-		ul()
-		if m.m.someNeedRemove.Load() {
-			m.m.removeDisable()
 		}
 	}
 }
@@ -430,7 +408,9 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 				Data: Data,
 			})
 		*/
+		defer m.m.removeDisable()
 		ul := m.m.lock.Lock(m.m.to...)
+		defer ul()
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -446,11 +426,6 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 				m.m.someNeedRemove.Store(true)
 			}
 			mi.running.Add(-1)
-		}
-
-		ul()
-		if m.m.someNeedRemove.Load() {
-			m.m.removeDisable()
 		}
 	}
 }
