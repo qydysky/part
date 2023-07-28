@@ -53,7 +53,7 @@ func New(c Config) (o *Log_interface) {
 		f.New(c.File, 0, true).Create()
 	}
 	if o.To != 0 {
-		o.MQ = m.NewTypeTo[Msg_item](o.To)
+		o.MQ = m.NewType[Msg_item](o.To)
 	} else {
 		o.MQ = m.NewType[Msg_item]()
 	}
