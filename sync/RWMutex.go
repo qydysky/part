@@ -92,7 +92,7 @@ func tof(to time.Duration) (inTimeCall func() (called bool)) {
 // to[0]: wait lock timeout to[1]: run lock timeout
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
-func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
+func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
 	if m.read.Add(1) == 1 {
 		_, rlcLoop := cas(&m.rlc, ulock, rlock)
 		if e := rlcLoop(to...); e != nil {
@@ -109,7 +109,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 	if len(to) > 1 {
 		done = tof(to[1])
 	}
-	return func() {
+	return func(beforeUlock ...func()) {
 		if !callC.CompareAndSwap(false, true) {
 			panic("had unlock")
 		}
@@ -117,6 +117,9 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 			done()
 		}
 		if m.read.Add(-1) == 0 {
+			for i := 0; i < len(beforeUlock); i++ {
+				beforeUlock[i]()
+			}
 			_, rlcLoop := cas(&m.rlc, rlock, ulock)
 			if e := rlcLoop(to...); e != nil {
 				panic(e)
@@ -126,7 +129,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func()) {
 }
 
 // to[0]: wait lock timeout to[1]: run lock timeout
-func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
+func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
 	_, rlcLoop := cas(&m.rlc, ulock, lock)
 	if e := rlcLoop(to...); e != nil {
 		panic(e)
@@ -136,12 +139,15 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func()) {
 	if len(to) > 1 {
 		done = tof(to[1])
 	}
-	return func() {
+	return func(beforeUlock ...func()) {
 		if !callC.CompareAndSwap(false, true) {
 			panic("had unlock")
 		}
 		if done != nil {
 			done()
+		}
+		for i := 0; i < len(beforeUlock); i++ {
+			beforeUlock[i]()
 		}
 		_, rlcLoop := cas(&m.rlc, lock, ulock)
 		if e := rlcLoop(to...); e != nil {

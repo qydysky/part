@@ -78,6 +78,44 @@ func Test3(t *testing.T) {
 	check(&l, ulock, 0)
 }
 
+func Test6(t *testing.T) {
+	var c = make(chan int, 2)
+	var l RWMutex
+	ul := l.RLock()
+	time.AfterFunc(time.Millisecond*500, func() {
+		ul1 := l.RLock()
+		c <- 1
+		ul1()
+		c <- 2
+	})
+	ul(func() {
+		time.Sleep(time.Second)
+	})
+	c <- 0
+	if <-c != 0 {
+		t.Fatal()
+	}
+	if <-c != 1 {
+		t.Fatal()
+	}
+}
+
+func Test7(t *testing.T) {
+	var c = make(chan int, 2)
+	var l RWMutex
+	ul := l.RLock()
+	ul1 := l.RLock()
+	ul(func() {
+		c <- 0
+	})
+	ul1(func() {
+		c <- 1
+	})
+	if <-c != 1 {
+		t.Fatal()
+	}
+}
+
 // ulock rlock rlock
 func Panic_Test4(t *testing.T) {
 	var l RWMutex

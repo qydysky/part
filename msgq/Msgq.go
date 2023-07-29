@@ -61,9 +61,8 @@ func (m *Msgq) Register_front(f func(any) (disable bool)) {
 }
 
 func (m *Msgq) Push(msg any) {
-	defer m.removeDisable()
 	ul := m.lock.RLock(m.to...)
-	defer ul()
+	defer ul(m.removeDisable)
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -80,9 +79,8 @@ func (m *Msgq) Push(msg any) {
 }
 
 func (m *Msgq) PushLock(msg any) {
-	defer m.removeDisable()
 	ul := m.lock.Lock(m.to...)
-	defer ul()
+	defer ul(m.removeDisable)
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -110,9 +108,6 @@ func (m *Msgq) removeDisable() {
 	if !m.someNeedRemove.CompareAndSwap(true, false) {
 		return
 	}
-
-	ul := m.lock.Lock(m.to...)
-	defer ul()
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -155,9 +150,8 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
-		defer m.removeDisable()
 		ul := m.lock.RLock(m.to...)
-		defer ul()
+		defer ul(m.removeDisable)
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -205,9 +199,8 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
-		defer m.removeDisable()
 		ul := m.lock.Lock(m.to...)
-		defer ul()
+		defer ul(m.removeDisable)
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -358,9 +351,8 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 				Data: Data,
 			})
 		*/
-		defer m.m.removeDisable()
 		ul := m.m.lock.RLock(m.m.to...)
-		defer ul()
+		defer ul(m.m.removeDisable)
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -408,9 +400,8 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 				Data: Data,
 			})
 		*/
-		defer m.m.removeDisable()
 		ul := m.m.lock.Lock(m.m.to...)
-		defer ul()
+		defer ul(m.m.removeDisable)
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
