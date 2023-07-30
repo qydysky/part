@@ -26,12 +26,15 @@ import (
 )
 
 type Rval struct {
-	Url              string
-	PostStr          string
-	Timeout          int
-	Proxy            string
-	Retry            int
-	SleepTime        int
+	Url     string
+	PostStr string
+	Proxy   string
+	Retry   int
+	// Millisecond
+	Timeout int
+	// Millisecond
+	SleepTime int
+	// Millisecond
 	WriteLoopTO      int
 	JustResponseCode bool
 	NoResponse       bool
@@ -259,11 +262,18 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 
 	writeLoopTO := val.WriteLoopTO
 	if writeLoopTO == 0 {
-		writeLoopTO = 1000
+		if val.Timeout > 0 {
+			writeLoopTO = val.Timeout + 500
+		} else {
+			writeLoopTO = 1000
+		}
 	}
 
 	// io copy
-	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser))
+	var panicf = func(s string) {
+		err = errors.Join(err, errors.New(s))
+	}
+	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser, panicf))
 
 	resp.Body.Close()
 

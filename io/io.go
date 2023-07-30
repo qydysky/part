@@ -223,7 +223,7 @@ var (
 //
 // call Close() after writer fin
 func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w []io.Writer, r io.Reader, panicf ...func(s string)) error {
-	rwc := WithCtxTO(ctx, callTree, to, w, r)
+	rwc := WithCtxTO(ctx, callTree, to, w, r, panicf...)
 	defer rwc.Close()
 	for buf := make([]byte, 2048); true; {
 		if n, e := rwc.Read(buf); n != 0 {
