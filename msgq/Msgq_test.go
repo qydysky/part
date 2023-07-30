@@ -165,6 +165,19 @@ func Benchmark_1(b *testing.B) {
 	}
 }
 
+func Test_2(t *testing.T) {
+	mq := New()
+	cancel := mq.Pull_tag(FuncMap{
+		`del`: func(a any) (disable bool) {
+			t.Fatal()
+			return false
+		},
+	})
+	time.Sleep(time.Millisecond * 500)
+	cancel()
+	mq.PushLock_tag(`del`, nil)
+}
+
 func Test_1(t *testing.T) {
 	mq := New(time.Millisecond*5, time.Millisecond*10)
 	go mq.Push_tag(`del`, nil)
@@ -211,7 +224,7 @@ func Test_3(t *testing.T) {
 func Test_Pull_tag_chan(t *testing.T) {
 	mq := New()
 	ctx, cf := context.WithCancel(context.Background())
-	ch := mq.Pull_tag_chan(`a`, 2, ctx)
+	_, ch := mq.Pull_tag_chan(`a`, 2, ctx)
 	for i := 0; i < 5; i++ {
 		mq.Push_tag(`a`, i)
 	}
