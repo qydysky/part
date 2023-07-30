@@ -165,6 +165,18 @@ func Benchmark_1(b *testing.B) {
 	}
 }
 
+func Test_4(t *testing.T) {
+	mq := New()
+	cancel := mq.Pull_tag(FuncMap{
+		`del`: func(a any) (disable bool) {
+			return true
+		},
+	})
+	time.Sleep(time.Millisecond * 500)
+	mq.PushLock_tag(`del`, nil)
+	cancel()
+}
+
 func Test_2(t *testing.T) {
 	mq := New()
 	cancel := mq.Pull_tag(FuncMap{
