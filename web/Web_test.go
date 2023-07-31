@@ -85,7 +85,7 @@ func Test_ClientBlock(t *testing.T) {
 
 	m.Store("/to", func(w http.ResponseWriter, r *http.Request) {
 		rwc := pio.WithCtxTO(r.Context(), fmt.Sprintf("server handle %v by %v ", r.URL.Path, r.RemoteAddr), time.Second,
-			[]io.Writer{w}, r.Body, func(s string) {
+			w, r.Body, func(s string) {
 				fmt.Println(s)
 				if !strings.Contains(s, "write blocking after rw 2s > 1s, goruntime leak") {
 					t.Fatal(s)

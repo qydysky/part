@@ -149,7 +149,7 @@ func (t RWC) Close() error {
 // to avoid writer block after ctx done, you should close writer after ctx done
 //
 // call Close() after writer fin
-func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Writer, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
+func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writer, r io.Reader, panicf ...func(s string)) io.ReadWriteCloser {
 	var chanw atomic.Int64
 	chanw.Store(time.Now().Unix())
 	if len(panicf) == 0 {
@@ -198,9 +198,7 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w []io.Wr
 			case <-ctx.Done():
 				err = context.Canceled
 			default:
-				for i := 0; i < len(w); i++ {
-					_, err = w[i].Write(p)
-				}
+				_, err = w.Write(p)
 				chanw.Store(time.Now().Unix())
 			}
 			return
@@ -222,7 +220,7 @@ var (
 // to avoid writer block after ctx done, you should close writer after ctx done
 //
 // call Close() after writer fin
-func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w []io.Writer, r io.Reader, panicf ...func(s string)) error {
+func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w io.Writer, r io.Reader, panicf ...func(s string)) error {
 	rwc := WithCtxTO(ctx, callTree, to, w, r, panicf...)
 	defer rwc.Close()
 	for buf := make([]byte, 2048); true; {

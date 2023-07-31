@@ -273,7 +273,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	var panicf = func(s string) {
 		err = errors.Join(err, errors.New(s))
 	}
-	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), ws, resReadCloser, panicf))
+	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...), resReadCloser, panicf))
 
 	resp.Body.Close()
 
