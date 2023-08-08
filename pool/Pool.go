@@ -10,13 +10,8 @@ type Buf[T any] struct {
 	inUse   func(*T) bool
 	reuseF  func(*T) *T
 	poolF   func(*T) *T
-	buf     []poolItem[T]
+	mbuf    map[*T]bool
 	l       sync.RWMutex
-}
-
-type poolItem[T any] struct {
-	i      *T
-	pooled bool
 }
 
 // 创建池
@@ -37,49 +32,42 @@ func New[T any](NewF func() *T, InUse func(*T) bool, ReuseF func(*T) *T, PoolF f
 	t.reuseF = ReuseF
 	t.poolF = PoolF
 	t.maxsize = maxsize
+	t.mbuf = make(map[*T]bool)
 	return t
 }
 
-func (t *Buf[T]) PoolInUse() (inUse int) {
+// states[] 0:pooled, 1:nopooled, 2:inuse, 3:nouse, 4:sum
+func (t *Buf[T]) PoolState() (states []any) {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
-	for i := 0; i < len(t.buf); i++ {
-		if !t.buf[i].pooled && t.inUse(t.buf[i].i) {
-			inUse++
+	var pooled, nopooled, inuse, nouse, sum int
+
+	sum = len(t.mbuf)
+	for k, v := range t.mbuf {
+		if v {
+			pooled++
+		} else {
+			nopooled++
+		}
+		if t.inUse(k) {
+			inuse++
+		} else {
+			nouse++
 		}
 	}
 
-	return
-}
-
-func (t *Buf[T]) PoolSum() int {
-	t.l.RLock()
-	defer t.l.RUnlock()
-
-	return len(t.buf)
-}
-
-func (t *Buf[T]) Trim() {
-	t.l.Lock()
-	defer t.l.Unlock()
-
-	for i := 0; i < len(t.buf); i++ {
-		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
-			t.buf = append(t.buf[:i], t.buf[i+1:]...)
-			i--
-		}
-	}
+	return []any{pooled, nopooled, inuse, nouse, sum}
 }
 
 func (t *Buf[T]) Get() *T {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	for i := 0; i < len(t.buf); i++ {
-		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
-			t.buf[i].pooled = false
-			return t.reuseF(t.buf[i].i)
+	for k, v := range t.mbuf {
+		if v && !t.inUse(k) {
+			t.mbuf[k] = true
+			return t.reuseF(k)
 		}
 	}
 
@@ -94,19 +82,13 @@ func (t *Buf[T]) Put(item ...*T) {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	var cu = 0
-	for i := 0; i < len(t.buf); i++ {
-		if t.buf[i].pooled && !t.inUse(t.buf[i].i) {
-			t.buf[i].i = t.poolF(item[cu])
-			t.buf[i].pooled = true
-			cu++
-			if cu >= len(item) {
-				return
-			}
+	for i := 0; i < len(item); i++ {
+		if _, ok := t.mbuf[item[i]]; ok {
+			t.poolF(item[i])
+			t.mbuf[item[i]] = true
+		} else if t.maxsize > len(t.mbuf) {
+			t.poolF(item[i])
+			t.mbuf[item[i]] = true
 		}
-	}
-
-	for i := cu; i < len(item) && t.maxsize > len(t.buf); i++ {
-		t.buf = append(t.buf, poolItem[T]{t.poolF(item[i]), true})
 	}
 }

@@ -40,7 +40,7 @@ func TestXxx(t *testing.T) {
 	var c2p = uintptr(unsafe.Pointer(c2))
 	c2.d = append(c2.d, []byte("2")...)
 
-	if c1p == c2p || bytes.Equal(c1.d, c2.d) || b.PoolInUse() != 0 || b.PoolSum() != 0 {
+	if c1p == c2p || bytes.Equal(c1.d, c2.d) || b.PoolState()[2] != 0 || b.PoolState()[4] != 0 {
 		t.Fatal()
 	}
 
@@ -49,13 +49,13 @@ func TestXxx(t *testing.T) {
 	var c3 = b.Get()
 	var c3p = uintptr(unsafe.Pointer(c3))
 
-	if c1p == c3p || len(c1.d) == 0 || b.PoolInUse() != 0 || b.PoolSum() != 0 {
+	if c1p == c3p || len(c1.d) == 0 || b.PoolState()[2] != 0 || b.PoolState()[4] != 0 {
 		t.Fatal()
 	}
 
 	b.Put(c1)
 
-	if len(c1.d) == 0 || b.PoolInUse() != 0 || b.PoolSum() != 1 {
-		t.Fatal(len(c1.d) != 0, b.PoolInUse() != 0, b.PoolSum() != 1)
+	if len(c1.d) == 0 || b.PoolState()[2] != 0 || b.PoolState()[4] != 1 {
+		t.Fatal(len(c1.d) != 0, b.PoolState()[2] != 0, b.PoolState()[4] != 1)
 	}
 }

@@ -220,23 +220,67 @@ var (
 // to avoid writer block after ctx done, you should close writer after ctx done
 //
 // call Close() after writer fin
-func WithCtxCopy(ctx context.Context, callTree string, to time.Duration, w io.Writer, r io.Reader, panicf ...func(s string)) error {
-	rwc := WithCtxTO(ctx, callTree, to, w, r, panicf...)
-	defer rwc.Close()
-	for buf := make([]byte, 2048); true; {
-		if n, e := rwc.Read(buf); n != 0 {
-			if n, e := rwc.Write(buf[:n]); n == 0 && e != nil {
-				if !errors.Is(e, io.EOF) {
-					return errors.Join(ErrWrite, e)
+func WithCtxCopy(ctx context.Context, callTree string, copybuf []byte, to time.Duration, w io.Writer, r io.Reader, panicf ...func(s string)) error {
+	var chanw atomic.Int64
+	chanw.Store(time.Now().Unix())
+	if len(panicf) == 0 {
+		panicf = append(panicf, func(s string) { panic(s) })
+	}
+
+	go func() {
+		var timer = time.NewTicker(to)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				if old, now := chanw.Load(), time.Now(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+					panicf[0](fmt.Sprintf("rw blocking while close %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
+				} else {
+					time.AfterFunc(to, func() {
+						if chanw.Load() != -1 {
+							panicf[0](fmt.Sprintf("rw blocking after close %v, goruntime leak \n%v", to, callTree))
+						}
+					})
 				}
-				break
+				return
+			case now := <-timer.C:
+				if old := chanw.Load(); old > 0 && now.Unix()-old > int64(to.Seconds()) {
+					panicf[0](fmt.Sprintf("rw blocking after rw %vs > %v, goruntime leak \n%v", now.Unix()-old, to, callTree))
+					return
+				}
 			}
-		} else if e != nil {
-			if !errors.Is(e, io.EOF) {
-				return errors.Join(ErrRead, e)
+		}
+	}()
+
+	defer chanw.Store(-1)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Join(ErrRead, context.Canceled)
+		default:
+			n, e := r.Read(copybuf)
+			chanw.Store(time.Now().Unix())
+			if n != 0 {
+				select {
+				case <-ctx.Done():
+					return errors.Join(ErrRead, context.Canceled)
+				default:
+					n, e := w.Write(copybuf[:n])
+					chanw.Store(time.Now().Unix())
+					if n == 0 && e != nil {
+						if !errors.Is(e, io.EOF) {
+							return errors.Join(ErrWrite, e)
+						}
+						return nil
+					}
+				}
+			} else if e != nil {
+				if !errors.Is(e, io.EOF) {
+					return errors.Join(ErrRead, e)
+				}
+				return nil
 			}
-			break
 		}
 	}
-	return nil
 }
