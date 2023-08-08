@@ -66,7 +66,7 @@ func (t *Buf[T]) Get() *T {
 
 	for k, v := range t.mbuf {
 		if v && !t.inUse(k) {
-			t.mbuf[k] = true
+			t.mbuf[k] = false
 			return t.reuseF(k)
 		}
 	}
