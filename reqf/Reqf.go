@@ -81,7 +81,8 @@ type Req struct {
 	err        error
 	callTree   string
 
-	l sync.RWMutex
+	copyResBuf []byte
+	l          sync.RWMutex
 }
 
 func New() *Req {
@@ -273,7 +274,7 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	var panicf = func(s string) {
 		err = errors.Join(err, errors.New(s))
 	}
-	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...), resReadCloser, panicf))
+	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, t.copyResBuf[:], time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...), resReadCloser, panicf))
 
 	resp.Body.Close()
 
@@ -335,6 +336,9 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 		} else {
 			t.callTree += fmt.Sprintf("call by %s\n\t%s:%d\n", runtime.FuncForPC(pc).Name(), file, line)
 		}
+	}
+	if cap(t.copyResBuf) == 0 {
+		t.copyResBuf = make([]byte, 1<<17)
 	}
 	if val.Ctx != nil {
 		ctx, cancel = context.WithCancel(val.Ctx)
