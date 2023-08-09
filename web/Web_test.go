@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -16,7 +17,7 @@ import (
 
 func Test_Server(t *testing.T) {
 	s := New(&http.Server{
-		Addr:         "127.0.0.1:10000",
+		Addr:         "127.0.0.1:13000",
 		WriteTimeout: time.Second * time.Duration(10),
 	})
 	defer s.Shutdown()
@@ -31,10 +32,10 @@ func Test_Server(t *testing.T) {
 	r := reqf.New()
 	{
 		r.Reqf(reqf.Rval{
-			Url: "http://127.0.0.1:10000/no",
+			Url: "http://127.0.0.1:13000/no",
 		})
 		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Error()
+			t.Fatal(r.Respon)
 		}
 	}
 }
@@ -45,7 +46,7 @@ func Test_ServerSyncMap(t *testing.T) {
 		w.Write([]byte("1"))
 	})
 	s := NewSyncMap(&http.Server{
-		Addr: "127.0.0.1:10000",
+		Addr: "127.0.0.1:13000",
 	}, &m)
 	defer s.Shutdown()
 	m.Store("/1", func(w http.ResponseWriter, _ *http.Request) {
@@ -64,7 +65,7 @@ func Test_ServerSyncMap(t *testing.T) {
 	r := reqf.New()
 	{
 		r.Reqf(reqf.Rval{
-			Url: "http://127.0.0.1:10000/1",
+			Url: "http://127.0.0.1:13000/1",
 		})
 		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
 			t.Error(string(r.Respon))
@@ -78,7 +79,7 @@ func Test_ClientBlock(t *testing.T) {
 		w.Write([]byte("1"))
 	})
 	s := NewSyncMap(&http.Server{
-		Addr:         "127.0.0.1:10000",
+		Addr:         "127.0.0.1:13000",
 		WriteTimeout: time.Millisecond,
 	}, &m)
 	defer s.Shutdown()
@@ -125,7 +126,7 @@ func Test_ClientBlock(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(reqf.Rval{
-			Url:         "http://127.0.0.1:10000/to",
+			Url:         "http://127.0.0.1:13000/to",
 			SaveToPipe:  &pio.IOpipe{R: rc, W: wc},
 			WriteLoopTO: 5000,
 			Async:       true,
@@ -169,10 +170,25 @@ func Test_ServerSyncMapP(t *testing.T) {
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
 		ResStruct{0, "ok", d{"/"}}.Write(w)
 	})
+	m.Store("/conn", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if conn, ok := ctx.Value(&m).(net.Conn); ok {
+			ResStruct{0, "ok", d{A: conn.RemoteAddr().String()}}.Write(w)
+		} else {
+			ResStruct{0, "fail", d{"/"}}.Write(w)
+		}
+	})
 	time.Sleep(time.Second)
 
 	r := reqf.New()
 	res := ResStruct{}
+	r.Reqf(reqf.Rval{
+		Url: "http://127.0.0.1:9090/conn",
+	})
+	json.Unmarshal(r.Respon, &res)
+	if res.Message != "ok" {
+		t.Fatal("")
+	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:9090/",
 	})

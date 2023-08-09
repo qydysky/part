@@ -56,6 +56,9 @@ func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
 
 	o = new(WebSync)
 
+	conf.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+		return context.WithValue(ctx, m, c)
+	}
 	o.Server = conf
 	o.wrs = m
 
@@ -80,7 +83,8 @@ func (t *WebSync) Shutdown() {
 }
 
 type WebPath struct {
-	path  string
+	path string
+	// current net.Conn: conn, ok := r.Context().Value(&WebPath).(net.Conn)
 	f     func(w http.ResponseWriter, r *http.Request)
 	sameP *WebPath
 	next  *WebPath
