@@ -31,7 +31,7 @@ func NewComp() *components {
 func (t *components) Put(Key string, Deal func(ctx context.Context, ptr any) error) error {
 	_, loaded := t.m.LoadOrStore(Key, Deal)
 	if loaded {
-		return ErrConflict
+		return errors.Join(ErrConflict, errors.New(Key))
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ func (t *components) Run(key string, ctx context.Context, ptr any) error {
 	}
 	links := t.link[key]
 	if len(links) == 0 {
-		return ErrNoLink
+		return ErrNoExist
 	}
 	for i := 0; i < len(links); i++ {
 		if deal, ok := t.m.LoadV(links[i]).(func(ctx context.Context, ptr any) error); ok {
@@ -82,9 +82,8 @@ func Link(link map[string][]string) error {
 	return Comp.Link(link)
 }
 
-func PKG(sign ...string) (pkg string) {
-	type empty struct{}
-	pkg = reflect.TypeOf(empty{}).PkgPath()
+func PKG(t any, sign ...string) (pkg string) {
+	pkg = reflect.TypeOf(t).PkgPath()
 	for i := 0; i < len(sign); i++ {
 		pkg += "." + sign[i]
 	}
