@@ -16,6 +16,14 @@ func (t *Map) Store(k, v any) {
 	t.m.Store(k, v)
 }
 
+func (t *Map) LoadOrStore(k, v any) (actual any, loaded bool) {
+	actual, loaded = t.m.LoadOrStore(k, v)
+	if !loaded {
+		t.size.Add(1)
+	}
+	return
+}
+
 func (t *Map) Load(k any) (any, bool) {
 	return t.m.Load(k)
 }
