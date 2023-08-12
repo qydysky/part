@@ -82,8 +82,8 @@ func Link(link map[string][]string) error {
 	return Comp.Link(link)
 }
 
-func PKG(t any, sign ...string) (pkg string) {
-	pkg = reflect.TypeOf(t).PkgPath()
+func PKG[T any](sign ...string) (pkg string) {
+	pkg = reflect.TypeOf(*new(T)).PkgPath()
 	for i := 0; i < len(sign); i++ {
 		pkg += "." + sign[i]
 	}

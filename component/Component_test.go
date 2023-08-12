@@ -105,7 +105,7 @@ func Test3(t *testing.T) {
 
 func Test4(t *testing.T) {
 	type empty struct{}
-	if pkg := PKG(empty{}, `1`, `2`); pkg != `github.com/qydysky/part/component.1.2` {
+	if pkg := PKG[empty](`1`, `2`); pkg != `github.com/qydysky/part/component.1.2` {
 		t.Fatal(pkg)
 	}
 }
