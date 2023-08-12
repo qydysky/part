@@ -9,6 +9,7 @@ import (
 )
 
 func Test1(t *testing.T) {
+	Comp = NewComp()
 	Put(`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr > 1 {
 			return nil
@@ -60,6 +61,7 @@ func Test1(t *testing.T) {
 }
 
 func TestDot(t *testing.T) {
+	Comp = NewComp()
 	Put[int](`1`, func(ctx context.Context, ptr *int) error {
 		if *ptr == 1 {
 			return nil
@@ -83,6 +85,7 @@ func TestDot(t *testing.T) {
 }
 
 func Test3(t *testing.T) {
+	Comp = NewComp()
 	sumup := func(ctx context.Context, ptr *int) error {
 		return nil
 	}
@@ -97,6 +100,12 @@ func Test3(t *testing.T) {
 	i := 1
 	if e := Run(`bili_danmu.Reply.wsmsg.preparing`, context.Background(), &i); e != nil {
 		t.Fatal(e)
+	}
+}
+
+func Test4(t *testing.T) {
+	if pkg := PKG(`1`, `2`); pkg != `github.com/qydysky/part/component.1.2` {
+		t.Fatal(pkg)
 	}
 }
 

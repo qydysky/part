@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"reflect"
 	"sync/atomic"
 
 	psync "github.com/qydysky/part/sync"
@@ -79,6 +80,15 @@ func Run[T any](key string, ctx context.Context, ptr *T) error {
 
 func Link(link map[string][]string) error {
 	return Comp.Link(link)
+}
+
+func PKG(sign ...string) (pkg string) {
+	type empty struct{}
+	pkg = reflect.TypeOf(empty{}).PkgPath()
+	for i := 0; i < len(sign); i++ {
+		pkg += "." + sign[i]
+	}
+	return
 }
 
 var Comp *components = NewComp()
