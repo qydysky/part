@@ -40,9 +40,11 @@ func Test1(t *testing.T) {
 		return errors.New("1.2.1")
 	})
 
-	Comp.Link(map[string][]string{
+	if e := Comp.Link(map[string][]string{
 		`1`: {`1`},
-	})
+	}); e != nil {
+		t.Fatal(e)
+	}
 
 	var s = 3
 	if e := Comp.Run(`1`, context.Background(), &s); e != nil {
@@ -105,7 +107,7 @@ func Test3(t *testing.T) {
 
 func Test4(t *testing.T) {
 	type empty struct{}
-	if pkg := PKG[empty](`1`, `2`); pkg != `github.com/qydysky/part/component.1.2` {
+	if pkg := Sign[empty](`1`, `2`); pkg != `empty github.com/qydysky/part/component.1.2` {
 		t.Fatal(pkg)
 	}
 }

@@ -61,6 +61,7 @@ func (t *components) Run(key string, ctx context.Context, ptr any) error {
 func (t *components) Link(link map[string][]string) error {
 	if t.loadLink.CompareAndSwap(false, true) {
 		t.link = maps.Clone(link)
+		return nil
 	}
 	return ErrLinked
 }
@@ -82,10 +83,10 @@ func Link(link map[string][]string) error {
 	return Comp.Link(link)
 }
 
-func PKG[T any](sign ...string) (pkg string) {
-	pkg = reflect.TypeOf(*new(T)).PkgPath()
-	for i := 0; i < len(sign); i++ {
-		pkg += "." + sign[i]
+func Sign[T any](exsign ...string) (sign string) {
+	sign = reflect.TypeOf(*new(T)).PkgPath()
+	for i := 0; i < len(exsign); i++ {
+		sign += "." + exsign[i]
 	}
 	return
 }
