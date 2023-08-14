@@ -115,8 +115,6 @@ func (I *Log_interface) Level(log map[string]struct{}) (O *Log_interface) {
 // Open 日志不显示
 func (I *Log_interface) Log_show_control(show bool) (O *Log_interface) {
 	O = Copy(I)
-	//
-	O.Block(100)
 	O.Stdout = show
 	return
 }
@@ -128,8 +126,6 @@ func (I *Log_interface) LShow(show bool) (O *Log_interface) {
 // Open 日志输出至文件
 func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 	O = I
-	//
-	O.Block(100)
 	if O.File != `` && fileP != `` {
 		O.File = fileP
 		f.New(O.File, 0, true).Create()
@@ -142,8 +138,6 @@ func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 // Open 日志输出至DB
 func (I *Log_interface) LDB(db *sql.DB, insert string) (O *Log_interface) {
 	O = I
-	//
-	O.Block(100)
 	if db != nil && insert != `` {
 		O.DBConn = db
 		O.DBInsert = insert
@@ -156,13 +150,6 @@ func (I *Log_interface) LDB(db *sql.DB, insert string) (O *Log_interface) {
 
 func (I *Log_interface) LFile(fileP string) (O *Log_interface) {
 	return I.Log_to_file(fileP)
-}
-
-// Block 阻塞直到本轮日志输出完毕
-func (I *Log_interface) Block(ms int) (O *Log_interface) {
-	O = I
-	O.MQ.PushLock_tag(`block`, Msg_item{})
-	return
 }
 
 func (I *Log_interface) Close() {

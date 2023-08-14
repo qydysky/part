@@ -22,7 +22,7 @@ func Test_1(t *testing.T) {
 		Prefix_string: map[string]struct{}{`T:`: On, `I:`: On, `W:`: On, `E:`: On},
 	})
 
-	n.L(`T:`, `s`).L(`I:`, `s`).Block(1000)
+	n.L(`T:`, `s`).L(`I:`, `s`)
 	n.Log_to_file(`2.log`).L(`W:`, `s`).L(`E:`, `s`)
 
 	{
@@ -35,7 +35,6 @@ func Test_1(t *testing.T) {
 	}
 
 	n.Level(map[string]struct{}{`W:`: On}).L(`T:`, `s`).L(`I:`, `s`).L(`W:`, `s`).L(`E:`, `s`)
-	n.Block(1000)
 }
 
 var n *Log_interface
