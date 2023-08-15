@@ -9,7 +9,7 @@ import (
 
 func TestMain(t *testing.T) {
 	var s = "s"
-	if e := comp.Run[string](`test`, context.Background(), &s); e != nil {
+	if e := comp.Run[string](`test`, context.Background(), &s); e.Error() != "1" {
 		t.Fatal(e)
 	}
 }

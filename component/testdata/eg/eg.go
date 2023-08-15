@@ -2,6 +2,7 @@ package eg
 
 import (
 	"context"
+	"errors"
 
 	comp "github.com/qydysky/part/component"
 )
@@ -15,6 +16,8 @@ func init() {
 }
 
 func deal(ctx context.Context, ptr *string) error {
-	println(*ptr)
+	if *ptr == "s" {
+		return errors.New("1")
+	}
 	return nil
 }
