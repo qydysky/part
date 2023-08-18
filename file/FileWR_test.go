@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	part "github.com/qydysky/part/io"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/unicode"
 )
@@ -170,7 +171,7 @@ func TestCopy(t *testing.T) {
 	}
 
 	tf := New("t.txt", 0, true)
-	if e := sf.CopyTo(tf, 1, true); e != nil {
+	if e := sf.CopyTo(tf, part.CopyConfig{BytePerSec: 1}, true); e != nil {
 		t.Fatal(e)
 	}
 
@@ -226,7 +227,7 @@ func TestEncoderDecoder(t *testing.T) {
 
 	tf := New("UTF8.txt", 0, true)
 	tf.Config.Coder = unicode.UTF8
-	if e := sf.CopyTo(tf, 5, true); e != nil {
+	if e := sf.CopyTo(tf, part.CopyConfig{BytePerSec: 5}, true); e != nil {
 		t.Fatal(e)
 	}
 

@@ -284,3 +284,109 @@ func WithCtxCopy(ctx context.Context, callTree string, copybuf []byte, to time.D
 		}
 	}
 }
+
+type CopyConfig struct {
+	BytePerLoop, MaxLoop, MaxByte, BytePerSec uint64
+}
+
+// close by yourself
+//
+// watch out uint64(c.MaxLoop*c.BytePerLoop) overflow
+func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
+	var (
+		ticker *time.Ticker
+		leftN  uint64
+	)
+	if c.BytePerSec > 0 {
+		if c.BytePerLoop == 0 || c.BytePerLoop > c.BytePerSec {
+			c.BytePerLoop = c.BytePerSec
+		}
+		ticker = time.NewTicker(time.Second)
+		defer ticker.Stop()
+	}
+	if c.BytePerLoop == 0 {
+		c.BytePerLoop = 1 << 17
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			}
+		}
+	} else if c.BytePerLoop > 1<<17 {
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			} else {
+				c.BytePerLoop = 1 << 17
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			} else {
+				c.MaxByte = c.MaxLoop * c.BytePerLoop
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			}
+		}
+	} else {
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			} else {
+				c.MaxByte = c.MaxLoop * c.BytePerLoop
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+			}
+		}
+	}
+	buf := make([]byte, c.BytePerLoop)
+	readC := uint64(0)
+	for {
+		if n, err := r.Read(buf); n != 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				return err
+			}
+			if c.BytePerSec != 0 {
+				readC += uint64(n)
+			}
+		} else if err != nil {
+			if !errors.Is(err, io.EOF) {
+				return err
+			} else {
+				return nil
+			}
+		}
+
+		if c.MaxLoop > 0 {
+			c.MaxLoop -= 1
+			if c.MaxLoop == 0 {
+				return nil
+			} else if c.BytePerLoop == 1<<17 && leftN != 0 {
+				buf = buf[:leftN]
+			}
+		}
+		if c.BytePerSec != 0 && readC >= c.BytePerSec {
+			<-ticker.C
+			readC = 0
+		}
+	}
+}

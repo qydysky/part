@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
+	pio "github.com/qydysky/part/io"
 	encoder "golang.org/x/text/encoding"
 )
 
@@ -52,7 +52,7 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 	}
 }
 
-func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
+func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -77,10 +77,10 @@ func (t *File) CopyTo(to *File, byteInSec int64, tryLock bool) error {
 	}
 	defer to.l.Unlock()
 
-	return transferIO(t.read(), to.write(), byteInSec, -1)
+	return pio.Copy(t.read(), to.write(), copyIOConfig)
 }
 
-func (t *File) CopyToIoWriter(to io.Writer, byteInSec int64, tryLock bool) error {
+func (t *File) CopyToIoWriter(to io.Writer, copyIOConfig pio.CopyConfig) error {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -91,21 +91,7 @@ func (t *File) CopyToIoWriter(to io.Writer, byteInSec int64, tryLock bool) error
 	}
 	defer t.l.RUnlock()
 
-	return transferIO(t.read(), to, byteInSec, -1)
-}
-
-func (t *File) CopyToIoWriterUntil(to io.Writer, byteInSec, totalSec int64, tryLock bool) error {
-	t.getRWCloser()
-	if t.Config.AutoClose {
-		defer t.Close()
-	}
-
-	if !t.l.TryRLock() {
-		return ErrFailToLock
-	}
-	defer t.l.RUnlock()
-
-	return transferIO(t.read(), to, byteInSec, totalSec)
+	return pio.Copy(t.read(), to, copyIOConfig)
 }
 
 func (t *File) Write(data []byte, tryLock bool) (int, error) {
@@ -426,35 +412,6 @@ func newPath(path string, mode fs.FileMode) {
 			os.Mkdir(rawPath, mode)
 		}
 	}
-}
-
-func transferIO(r io.Reader, w io.Writer, byteInSec, totalSec int64) (e error) {
-	if byteInSec > 0 {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-
-		for buf := make([]byte, byteInSec); totalSec < 0 || totalSec > 0; totalSec -= 1 {
-			if n, err := r.Read(buf); n != 0 {
-				if _, werr := w.Write(buf[:n]); werr != nil {
-					return err
-				}
-			} else if err != nil {
-				if !errors.Is(err, io.EOF) {
-					return err
-				} else {
-					return nil
-				}
-			}
-			<-ticker.C
-		}
-	} else if _, err := io.Copy(w, r); err != nil {
-		if !errors.Is(err, io.EOF) {
-			return err
-		} else {
-			return nil
-		}
-	}
-	return nil
 }
 
 func (t *File) write() io.Writer {

@@ -1,9 +1,23 @@
 package part
 
 import (
+	"bytes"
 	"io"
 	"testing"
 )
+
+func Test_CopyIO(t *testing.T) {
+	var s = make([]byte, 1<<17+2)
+	s[1<<17-1] = '1'
+	s[1<<17] = '2'
+	s[1<<17+1] = '3'
+
+	var w = &bytes.Buffer{}
+
+	if e := Copy(bytes.NewReader(s), w, CopyConfig{1<<17 + 1, 1, 0, 0}); e != nil || w.Len() != 1<<17+1 || w.Bytes()[1<<17-1] != '1' || w.Bytes()[1<<17] != '2' {
+		t.Fatal(e)
+	}
+}
 
 func Test_rwc(t *testing.T) {
 	rwc := RWC{R: func(p []byte) (n int, err error) { return 1, nil }}
