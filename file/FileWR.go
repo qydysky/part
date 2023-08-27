@@ -21,6 +21,7 @@ var (
 	ErrFailToLock       = errors.New("ErrFailToLock")
 	ErrMaxReadSizeReach = errors.New("ErrMaxReadSizeReach")
 	ErrNoDir            = errors.New("ErrNoDir")
+	ErrArg              = errors.New("ErrArg")
 )
 
 type File struct {
@@ -126,7 +127,88 @@ func (t *File) Read(data []byte) (int, error) {
 	return t.read().Read(data)
 }
 
-func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (data []byte, e error) {
+// stop after untilBytes
+//
+// data not include untilBytes
+func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (data []byte, e error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return nil, ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	var (
+		reserve = len(untilBytes) - 1
+		tmpArea = make([]byte, reserve+perReadSize)
+		n       int
+		reader  = t.read()
+	)
+
+	{
+		var seekN int
+		if reserve != 0 {
+			//avoid spik
+			if _, e := t.file.Seek(-int64(reserve), int(AtCurrent)); e == nil {
+				seekN = reserve
+			}
+		}
+		n, e = reader.Read(tmpArea)
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:n], untilBytes); i != -1 {
+			if n-i-len(untilBytes) != 0 {
+				_, _ = t.file.Seek(-int64(n-i-len(untilBytes)), int(AtCurrent))
+			}
+			if i != 0 {
+				data = append(data, tmpArea[seekN:i]...)
+			}
+			return
+		} else {
+			data = append(data, tmpArea[seekN:n]...)
+		}
+	}
+
+	for maxReadSize > 0 {
+		if reserve != 0 {
+			copy(tmpArea, tmpArea[reserve:])
+		}
+		n, e = reader.Read(tmpArea[reserve:])
+
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:reserve+n], untilBytes); i != -1 {
+			if reserve+n-i-len(untilBytes) != 0 {
+				_, _ = t.file.Seek(-int64(reserve+n-i-len(untilBytes)), int(AtCurrent))
+			}
+			if i != 0 {
+				data = append(data, tmpArea[reserve:i]...)
+			}
+			break
+		} else {
+			data = append(data, tmpArea[reserve:n]...)
+		}
+	}
+
+	if maxReadSize <= 0 {
+		e = ErrMaxReadSizeReach
+	}
+
+	return
+}
+
+func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -151,53 +233,6 @@ func (t *File) ReadUntil(separation byte, perReadSize int, maxReadSize int) (dat
 		}
 
 		maxReadSize = maxReadSize - n
-
-		if i := bytes.Index(tmpArea[:n], []byte{separation}); i != -1 {
-			if n-i-1 != 0 {
-				t.file.Seek(-int64(n-i-1), int(AtCurrent))
-			}
-			if i != 0 {
-				data = append(data, tmpArea[:i]...)
-			}
-			break
-		} else {
-			data = append(data, tmpArea[:n]...)
-		}
-	}
-
-	if maxReadSize <= 0 {
-		e = ErrMaxReadSizeReach
-	}
-
-	return
-}
-
-func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) {
-	t.getRWCloser()
-	if t.Config.AutoClose {
-		defer t.Close()
-	}
-
-	if !t.l.TryRLock() {
-		return nil, ErrFailToLock
-	}
-	defer t.l.RUnlock()
-
-	var (
-		tmpArea = make([]byte, perReadSize)
-		n       = 0
-		reader  = t.read()
-	)
-
-	for maxReadSize > 0 {
-		n, e = reader.Read(tmpArea)
-
-		if n == 0 && e != nil {
-			return
-		}
-
-		maxReadSize = maxReadSize - n
-
 		data = append(data, tmpArea[:n]...)
 	}
 
@@ -217,7 +252,7 @@ const (
 )
 
 // Seek sets the offset for the next Read or Write on file to offset
-func (t *File) Seed(index int64, whence FileWhence) (e error) {
+func (t *File) SeekIndex(index int64, whence FileWhence) (e error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -230,7 +265,73 @@ func (t *File) Seed(index int64, whence FileWhence) (e error) {
 
 	t.cu, e = t.file.Seek(index, int(whence))
 
-	return nil
+	return
+}
+
+// stop before untilBytes
+func (t *File) SeekUntil(untilBytes []byte, whence FileWhence, perReadSize int, maxReadSize int) (e error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	var (
+		reserve = len(untilBytes) - 1
+		tmpArea = make([]byte, reserve+perReadSize)
+		n       int
+		reader  = t.read()
+	)
+
+	if reserve != 0 {
+		//avoid spik
+		_, _ = t.file.Seek(-int64(reserve), int(AtCurrent))
+	}
+
+	{
+		n, e = reader.Read(tmpArea)
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:n], untilBytes); i != -1 {
+			if n-i != 0 {
+				_, _ = t.file.Seek(-int64(n-i), int(AtCurrent))
+			}
+			return
+		}
+	}
+
+	for maxReadSize > 0 {
+		if reserve != 0 {
+			copy(tmpArea, tmpArea[reserve:])
+		}
+		n, e = reader.Read(tmpArea[reserve:])
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:reserve+n], untilBytes); i != -1 {
+			if reserve+n-i != 0 {
+				_, _ = t.file.Seek(-int64(reserve+n-i), int(AtCurrent))
+			}
+			break
+		}
+	}
+
+	if maxReadSize <= 0 {
+		e = ErrMaxReadSizeReach
+	}
+
+	return
 }
 
 func (t *File) Sync() (e error) {
@@ -409,7 +510,7 @@ func newPath(path string, mode fs.FileMode) {
 		}
 		rawPath += string(os.PathSeparator) + p
 		if _, err := os.Stat(rawPath); os.IsNotExist(err) {
-			os.Mkdir(rawPath, mode)
+			_ = os.Mkdir(rawPath, mode)
 		}
 	}
 }

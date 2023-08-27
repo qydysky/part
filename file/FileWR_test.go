@@ -98,7 +98,7 @@ func TestWriteReadDel(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0, AtOrigin); e != nil {
+	if e := f.SeekIndex(0, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 
@@ -124,13 +124,13 @@ func TestWriteReadDel(t *testing.T) {
 	}
 }
 
-func TestSeed(t *testing.T) {
+func TestSeek(t *testing.T) {
 	f := New("rwd.txt", 0, false)
 	if i, e := f.Write([]byte("12er4x3"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(1, AtOrigin); e != nil {
+	if e := f.SeekIndex(1, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 
@@ -143,7 +143,7 @@ func TestSeed(t *testing.T) {
 		}
 	}
 
-	if e := f.Seed(-1, AtEnd); e != nil {
+	if e := f.SeekIndex(-1, AtEnd); e != nil {
 		t.Fatal(e)
 	}
 
@@ -164,6 +164,52 @@ func TestSeed(t *testing.T) {
 	}
 }
 
+func TestSeek2(t *testing.T) {
+	f := New("rwd.txt", 0, false)
+	if f.IsExist() {
+		if e := f.Delete(); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if i, e := f.Write([]byte("12345sser4x3"), true); i == 0 || e != nil {
+		t.Fatal(e)
+	}
+
+	f.SeekIndex(0, AtOrigin)
+
+	if e := f.SeekUntil([]byte("sser"), AtCurrent, 3, 1<<20); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	}
+
+	if data, e := f.ReadAll(5, 1<<20); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("sser4x3")) {
+		t.Fatal(string(data), data)
+	}
+
+	if e := f.Close(); e != nil {
+		t.Fatal(e)
+	}
+
+	if e := f.Delete(); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestSeek3(t *testing.T) {
+	f := New("0.mp4", 0, false)
+	defer f.Close()
+	var boxBuf = make([]byte, 4)
+	if e := f.SeekUntil([]byte("mvhd"), AtCurrent, 1<<17, 1<<22); e != nil && !errors.Is(e, ErrMaxReadSizeReach) {
+		t.Fatal(e)
+	}
+	if _, e := f.Read(boxBuf); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(boxBuf, []byte("mvhd")) {
+		t.Fatalf("wrong box:%v", string(boxBuf))
+	}
+}
+
 func TestCopy(t *testing.T) {
 	sf := New("s.txt", 0, true)
 	if i, e := sf.Write([]byte("12er4x3"), true); i == 0 || e != nil {
@@ -181,7 +227,7 @@ func TestCopy(t *testing.T) {
 
 func TestReadUntil(t *testing.T) {
 	f := New("s.txt", 0, false)
-	if i, e := f.Write([]byte("18u3y7\ns99s9\n"), true); i == 0 || e != nil {
+	if i, e := f.Write([]byte("18u3y7\ns99s9\nuqienbs\n"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -189,23 +235,29 @@ func TestReadUntil(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if e := f.Seed(0, AtOrigin); e != nil {
+	if e := f.SeekIndex(0, AtOrigin); e != nil {
 		t.Fatal(e)
 	}
 
-	if data, e := f.ReadUntil('\n', 5, 20); e != nil {
+	if data, e := f.ReadUntil([]byte{'\n'}, 5, 20); e != nil {
 		t.Fatal(e)
 	} else if !bytes.Equal(data, []byte("18u3y7")) {
 		t.Fatal(string(data))
 	}
 
-	if data, e := f.ReadUntil('\n', 5, 20); e != nil {
+	if data, e := f.ReadUntil([]byte{'\n'}, 5, 20); e != nil {
 		t.Fatal(e)
 	} else if !bytes.Equal(data, []byte("s99s9")) {
 		t.Fatal(string(data))
 	}
 
-	if data, e := f.ReadUntil('\n', 5, 20); e == nil || !errors.Is(e, io.EOF) || len(data) != 0 {
+	if data, e := f.ReadUntil([]byte("s\n"), 5, 20); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("uqienb")) {
+		t.Fatal(string(data))
+	}
+
+	if data, e := f.ReadUntil([]byte{'\n'}, 5, 20); e == nil || !errors.Is(e, io.EOF) || len(data) != 0 {
 		t.Fatal(e)
 	}
 
@@ -231,7 +283,7 @@ func TestEncoderDecoder(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	if data, e := tf.ReadUntil('\n', 3, 100); e != nil && !errors.Is(e, io.EOF) {
+	if data, e := tf.ReadUntil([]byte{'\n'}, 3, 100); e != nil && !errors.Is(e, io.EOF) {
 		t.Fatal(string(data), e)
 	} else if !bytes.Equal(data, []byte("测1试s啊是3大家看s法$和")) {
 		t.Fatal(string(data))

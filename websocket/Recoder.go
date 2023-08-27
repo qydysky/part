@@ -123,7 +123,7 @@ func Play(filePath string) (s *Server, close func()) {
 
 			for sg.Islive() {
 				if data == nil {
-					if data, e = f.ReadUntil('\n', 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
+					if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 						panic(e)
 					}
 					if len(data) == 0 {

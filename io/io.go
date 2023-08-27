@@ -309,13 +309,19 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 		if c.MaxLoop == 0 {
 			if c.MaxByte != 0 {
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			}
 		} else {
 			if c.MaxByte != 0 {
 				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			}
 		}
 	} else if c.BytePerLoop > 1<<17 {
@@ -323,7 +329,10 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 			if c.MaxByte != 0 {
 				c.BytePerLoop = 1 << 17
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			} else {
 				c.BytePerLoop = 1 << 17
 			}
@@ -332,29 +341,44 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
 				c.BytePerLoop = 1 << 17
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			} else {
 				c.MaxByte = c.MaxLoop * c.BytePerLoop
 				c.BytePerLoop = 1 << 17
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			}
 		}
 	} else {
 		if c.MaxLoop == 0 {
 			if c.MaxByte != 0 {
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			}
 		} else {
 			if c.MaxByte != 0 {
 				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			} else {
 				c.MaxByte = c.MaxLoop * c.BytePerLoop
 				leftN = c.MaxByte % c.BytePerLoop
-				c.MaxLoop = c.MaxByte/c.BytePerLoop + 1
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
 			}
 		}
 	}
@@ -378,10 +402,10 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 
 		if c.MaxLoop > 0 {
 			c.MaxLoop -= 1
-			if c.MaxLoop == 0 {
-				return nil
-			} else if c.BytePerLoop == 1<<17 && leftN != 0 {
+			if c.MaxLoop == 1 && leftN != 0 {
 				buf = buf[:leftN]
+			} else if c.MaxLoop == 0 {
+				return nil
 			}
 		}
 		if c.BytePerSec != 0 && readC >= c.BytePerSec {
