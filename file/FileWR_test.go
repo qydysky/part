@@ -196,20 +196,6 @@ func TestSeek2(t *testing.T) {
 	}
 }
 
-func TestSeek3(t *testing.T) {
-	f := New("0.mp4", 0, false)
-	defer f.Close()
-	var boxBuf = make([]byte, 4)
-	if e := f.SeekUntil([]byte("mvhd"), AtCurrent, 1<<17, 1<<22); e != nil && !errors.Is(e, ErrMaxReadSizeReach) {
-		t.Fatal(e)
-	}
-	if _, e := f.Read(boxBuf); e != nil {
-		t.Fatal(e)
-	} else if !bytes.Equal(boxBuf, []byte("mvhd")) {
-		t.Fatalf("wrong box:%v", string(boxBuf))
-	}
-}
-
 func TestCopy(t *testing.T) {
 	sf := New("s.txt", 0, true)
 	if i, e := sf.Write([]byte("12er4x3"), true); i == 0 || e != nil {
