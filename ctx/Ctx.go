@@ -9,40 +9,43 @@ import (
 )
 
 var (
+	ptr       = &struct{}{}
 	ErrWaitTo = errors.New("ErrWaitTo")
-	ErrToLess = errors.New("ErrToLess")
 )
 
 type Ctx struct {
 	Ctx context.Context
 	i32 *atomic.Int32
-	to  time.Duration
 }
 
-// ctx,done := WithWaitTo(..)
-//
-//	go func(){
-//			done1 := ctx.Wait()
-//			defer done1()
-//	}()
-//
-// done()// wait done1
-func WithWaitTo(sctx context.Context, to time.Duration) (ctx *Ctx, done func() error) {
-	if ctx, ok := sctx.(*Ctx); ok {
-		if ctx.to < to {
-			panic(ErrToLess)
-		}
-		ctx.i32.Add(1)
+/*
+ctx,done := WithWait(ctx, time.Second)
+
+	go func(){
+			done1 := Wait(ctx)
+			defer done1()
+			do something..
+	}()
+
+done()// wait done1 or after one second
+*/
+func WithWait(sctx context.Context, to ...time.Duration) (dctx context.Context, done func() error) {
+	if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
+		ctxp.i32.Add(1)
 	}
-	ctx = &Ctx{Ctx: sctx, i32: &atomic.Int32{}, to: to}
+
+	ctx := &Ctx{i32: &atomic.Int32{}}
+	ctx.Ctx = context.WithValue(sctx, ptr, ctx)
+
+	dctx = ctx.Ctx
 	done = func() error {
 		<-ctx.Ctx.Done()
-		if ctx, ok := sctx.(*Ctx); ok {
-			defer ctx.i32.Add(-1)
+		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
+			defer ctxp.i32.Add(-1)
 		}
 		be := time.Now()
 		for !ctx.i32.CompareAndSwap(0, -1) {
-			if time.Since(be) > to {
+			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
 			runtime.Gosched()
@@ -52,26 +55,54 @@ func WithWaitTo(sctx context.Context, to time.Duration) (ctx *Ctx, done func() e
 	return
 }
 
-func (t Ctx) Deadline() (deadline time.Time, ok bool) {
-	return t.Ctx.Deadline()
-}
-
-func (t Ctx) Done() <-chan struct{} {
-	return t.Ctx.Done()
-}
-
-func (t Ctx) Err() error {
-	return t.Ctx.Err()
-}
-
-func (t Ctx) Value(key any) any {
-	return t.Ctx.Value(key)
-}
-
-func (t Ctx) Wait() (done func()) {
-	t.i32.Add(1)
-	<-t.Ctx.Done()
-	return func() {
-		t.i32.Add(-1)
+/*
+	func(ctx context.Context){
+			done := Wait(ctx)
+			defer done()
+			do something..
 	}
+*/
+func Wait(ctx context.Context) (done func()) {
+	if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+		ctxp.i32.Add(1)
+	}
+	<-ctx.Done()
+	return func() {
+		if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+			ctxp.i32.Add(-1)
+		}
+	}
+}
+
+/*
+	func(ctx context.Context){
+		ctx, done := WaitCtx(ctx)
+		defer done()
+
+		do something..
+		select {
+			case <-ctx:
+			defualt:
+		}
+		do something..
+	}
+*/
+func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
+	if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+		ctxp.i32.Add(1)
+	}
+	return ctx, func() {
+		if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+			ctxp.i32.Add(-1)
+		}
+	}
+}
+
+func Done(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+	}
+	return false
 }

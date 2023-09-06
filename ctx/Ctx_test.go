@@ -9,9 +9,9 @@ import (
 
 func TestMain(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	ctx1, done := WithWaitTo(ctx, time.Second)
+	ctx1, done := WithWait(ctx, time.Second)
 	go func() {
-		done := ctx1.Wait()
+		done := Wait(ctx1)
 		defer done()
 	}()
 	if done() != nil {
@@ -21,9 +21,9 @@ func TestMain(t *testing.T) {
 
 func TestMain2(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWaitTo(ctx, time.Second)
+	ctx1, done := WithWait(ctx, time.Second)
 	go func() {
-		done := ctx1.Wait()
+		done := Wait(ctx1)
 		time.Sleep(time.Second * 2)
 		defer done()
 	}()
@@ -35,11 +35,11 @@ func TestMain2(t *testing.T) {
 
 func TestMain3(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWaitTo(ctx, time.Second)
+	ctx1, done := WithWait(ctx, time.Second)
 	go func() {
-		ctx2, done := WithWaitTo(ctx1, time.Second)
+		ctx2, done := WithWait(ctx1, time.Second)
 		go func() {
-			done := ctx2.Wait()
+			done := Wait(ctx2)
 			defer done()
 		}()
 		if done() != nil {
@@ -54,11 +54,11 @@ func TestMain3(t *testing.T) {
 
 func TestMain4(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWaitTo(ctx, time.Second)
+	ctx1, done := WithWait(ctx, time.Second)
 	go func() {
-		ctx2, done := WithWaitTo(ctx1, time.Second)
+		ctx2, done := WithWait(ctx1, time.Second)
 		go func() {
-			done := ctx2.Wait()
+			done := Wait(ctx2)
 			time.Sleep(time.Second * 2)
 			defer done()
 		}()
