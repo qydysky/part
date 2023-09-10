@@ -71,9 +71,7 @@ func (t *Recorder) Start(filePath string) error {
 }
 
 func (t *Recorder) Stop() {
-	if t.stopflag.Islive() {
-		t.stopflag.Done()
-	}
+	t.stopflag.Done()
 	t.onlyOnce.UnSet()
 }
 

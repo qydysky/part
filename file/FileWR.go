@@ -95,6 +95,109 @@ func (t *File) CopyToIoWriter(to io.Writer, copyIOConfig pio.CopyConfig) error {
 	return pio.Copy(t.read(), to, copyIOConfig)
 }
 
+// stop after untilBytes
+//
+// data not include untilBytes
+func (t *File) CopyToUntil(to *File, untilBytes []byte, perReadSize int, maxReadSize int, tryLock bool) (e error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	to.getRWCloser()
+	if t.Config.AutoClose {
+		defer to.Close()
+	}
+
+	if tryLock {
+		if !to.l.TryLock() {
+			return ErrFailToLock
+		}
+	} else {
+		to.l.Lock()
+	}
+	defer to.l.Unlock()
+
+	var (
+		reserve = len(untilBytes) - 1
+		tmpArea = make([]byte, reserve+perReadSize)
+		n       int
+		reader  = t.read()
+	)
+
+	{
+		var seekN int
+		if reserve != 0 {
+			//avoid spik
+			if _, e := t.file.Seek(-int64(reserve), int(AtCurrent)); e == nil {
+				seekN = reserve
+			}
+		}
+		n, e = reader.Read(tmpArea)
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:n], untilBytes); i != -1 {
+			if n-i-len(untilBytes) != 0 {
+				_, _ = t.file.Seek(-int64(n-i-len(untilBytes)), int(AtCurrent))
+			}
+			if i != 0 {
+				if _, e := to.file.Write(tmpArea[seekN:i]); e != nil {
+					return e
+				}
+			}
+			return
+		} else {
+			if _, e := to.file.Write(tmpArea[seekN:n]); e != nil {
+				return e
+			}
+		}
+	}
+
+	for maxReadSize > 0 {
+		if reserve != 0 {
+			copy(tmpArea, tmpArea[reserve:])
+		}
+		n, e = reader.Read(tmpArea[reserve:])
+
+		if n == 0 && e != nil {
+			return
+		}
+
+		maxReadSize = maxReadSize - n
+
+		if i := bytes.Index(tmpArea[:reserve+n], untilBytes); i != -1 {
+			if reserve+n-i-len(untilBytes) != 0 {
+				_, _ = t.file.Seek(-int64(reserve+n-i-len(untilBytes)), int(AtCurrent))
+			}
+			if i != 0 {
+				if _, e := to.file.Write(tmpArea[reserve:i]); e != nil {
+					return e
+				}
+			}
+			break
+		} else {
+			if _, e := to.file.Write(tmpArea[reserve:n]); e != nil {
+				return e
+			}
+		}
+	}
+
+	if maxReadSize <= 0 {
+		e = ErrMaxReadSizeReach
+	}
+
+	return
+}
+
 func (t *File) Write(data []byte, tryLock bool) (int, error) {
 	t.getRWCloser()
 	if t.Config.AutoClose {
@@ -279,6 +382,10 @@ func (t *File) SeekUntil(untilBytes []byte, whence FileWhence, perReadSize int, 
 		return ErrFailToLock
 	}
 	defer t.l.RUnlock()
+
+	if whence == AtOrigin {
+		_, _ = t.file.Seek(0, int(whence))
+	}
 
 	var (
 		reserve = len(untilBytes) - 1
