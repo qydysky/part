@@ -29,7 +29,6 @@ type File struct {
 	file   *os.File
 	wr     io.Writer
 	rr     io.Reader
-	cu     int64
 	l      sync.RWMutex
 }
 
@@ -366,7 +365,7 @@ func (t *File) SeekIndex(index int64, whence FileWhence) (e error) {
 	}
 	defer t.l.Unlock()
 
-	t.cu, e = t.file.Seek(index, int(whence))
+	_, e = t.file.Seek(index, int(whence))
 
 	return
 }
@@ -453,6 +452,15 @@ func (t *File) Sync() (e error) {
 	defer t.l.RUnlock()
 
 	return t.file.Sync()
+}
+
+func (t *File) CurIndex() (ret int64, err error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	return t.file.Seek(0, int(AtCurrent))
 }
 
 func (t *File) Create(mode ...fs.FileMode) {
@@ -562,13 +570,12 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
 					panic(e)
 				} else {
-					if t.Config.CurIndex > 0 {
-						t.cu = t.Config.CurIndex
-						t.cu, e = f.Seek(t.cu, int(AtOrigin))
-						if e != nil {
-							panic(e)
-						}
-					}
+					// if t.Config.CurIndex > 0 {
+					// 	_, e = f.Seek(t.Config.CurIndex, int(AtOrigin))
+					// 	if e != nil {
+					// 		panic(e)
+					// 	}
+					// }
 					t.file = f
 				}
 			}
@@ -584,13 +591,13 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 					panic(e)
 				} else {
 					if t.Config.CurIndex != 0 {
-						t.cu = t.Config.CurIndex
+						cu := t.Config.CurIndex
 						whenc := AtOrigin
 						if t.Config.CurIndex < 0 {
-							t.cu = t.cu + 1
+							cu += 1
 							whenc = AtEnd
 						}
-						t.cu, e = f.Seek(t.cu, int(whenc))
+						_, e = f.Seek(cu, int(whenc))
 						if e != nil {
 							panic(e)
 						}
