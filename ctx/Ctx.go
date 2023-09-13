@@ -41,7 +41,7 @@ func WithWait(sctx context.Context, to ...time.Duration) (dctx context.Context, 
 	done = func() error {
 		<-ctx.Ctx.Done()
 		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
-			defer ctxp.i32.Add(-1)
+			defer func() { ctxp.i32.Add(-1) }()
 		}
 		be := time.Now()
 		for !ctx.i32.CompareAndSwap(0, -1) {

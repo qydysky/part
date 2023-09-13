@@ -68,6 +68,27 @@ func TestMain4(t *testing.T) {
 	}()
 	time.Sleep(time.Second)
 	if e := done(); !errors.Is(e, ErrWaitTo) {
-		t.Fail()
+		t.Fatal(e)
 	}
+}
+
+func TestMain5(t *testing.T) {
+	ctx, can := context.WithTimeout(context.Background(), time.Millisecond*500)
+	defer can()
+
+	ctx, done := WithWait(ctx)
+
+	var gr = func(ctx context.Context, to time.Duration) {
+		done := Wait(ctx)
+		defer done()
+		time.Sleep(to)
+	}
+
+	bg := time.Now()
+
+	go gr(ctx, 0)
+	// go gr(ctx, time.Second)
+	// go gr(ctx, time.Second*5)
+
+	t.Log(done(), time.Since(bg))
 }
