@@ -26,6 +26,7 @@ import (
 )
 
 type Rval struct {
+	Method  string
 	Url     string
 	PostStr string
 	Proxy   string
@@ -47,6 +48,8 @@ type Rval struct {
 	// 为避免write阻塞导致panic，请使用此项目io包中的NewPipe()，或在ctx done时，自行关闭pipe writer reader
 	SaveToPipe *pio.IOpipe
 
+	RawPipe *RawReqRes
+
 	Header map[string]string
 }
 
@@ -59,11 +62,14 @@ const (
 
 var (
 	ErrEmptyUrl         = errors.New("ErrEmptyUrl")
+	ErrMustAsync        = errors.New("ErrMustAsync")
+	ErrCantRetry        = errors.New("ErrCantRetry")
 	ErrNewRequest       = errors.New("ErrNewRequest")
 	ErrClientDo         = errors.New("ErrClientDo")
 	ErrResponFileCreate = errors.New("ErrResponFileCreate")
 	ErrWriteRes         = errors.New("ErrWriteRes")
 	ErrReadRes          = errors.New("ErrReadRes")
+	ErrPostStrOrRawPipe = errors.New("ErrPostStrOrRawPipe")
 )
 
 type Req struct {
@@ -96,56 +102,43 @@ func (t *Req) Reqf(val Rval) error {
 	pctx, cancelF := t.prepare(&val)
 	t.cancelP.Store(&cancelF)
 
-	// 同步
 	if !val.Async {
-		beginTime := time.Now()
-
-		for i := 0; i <= val.Retry; i++ {
-			ctx, cancel := t.prepareRes(pctx, &val)
-			t.err = t.Reqf_1(ctx, val)
-			cancel()
-			if t.err == nil || IsCancel(t.err) {
-				break
-			}
-			if val.SleepTime != 0 {
-				time.Sleep(time.Duration(val.SleepTime * int(time.Millisecond)))
-			}
-		}
-
-		cancelF()
-		t.updateUseDur(beginTime)
-		t.clean(&val)
-		t.state.Store(free)
-		t.l.Unlock()
-		return t.err
+		// 同步
+		return t.reqfM(pctx, cancelF, val)
+	} else {
+		//异步
+		go func() {
+			_ = t.reqfM(pctx, cancelF, val)
+		}()
 	}
 
-	//异步
-	go func() {
-		beginTime := time.Now()
-
-		for i := 0; i <= val.Retry; i++ {
-			ctx, cancel := t.prepareRes(pctx, &val)
-			t.err = t.Reqf_1(ctx, val)
-			cancel()
-			if t.err == nil || IsCancel(t.err) {
-				break
-			}
-			if val.SleepTime != 0 {
-				time.Sleep(time.Duration(val.SleepTime * int(time.Millisecond)))
-			}
-		}
-
-		cancelF()
-		t.updateUseDur(beginTime)
-		t.clean(&val)
-		t.state.Store(free)
-		t.l.Unlock()
-	}()
 	return nil
 }
 
-func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
+func (t *Req) reqfM(ctx context.Context, cancel context.CancelFunc, val Rval) error {
+	beginTime := time.Now()
+
+	for i := 0; i <= val.Retry; i++ {
+		ctx, cancel := t.prepareRes(ctx, &val)
+		t.err = t.reqf(ctx, val)
+		cancel()
+		if t.err == nil || IsCancel(t.err) {
+			break
+		}
+		if val.SleepTime != 0 {
+			time.Sleep(time.Duration(val.SleepTime * int(time.Millisecond)))
+		}
+	}
+
+	cancel()
+	t.updateUseDur(beginTime)
+	t.clean(&val)
+	t.state.Store(free)
+	t.l.Unlock()
+	return t.err
+}
+
+func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	var (
 		Header map[string]string = val.Header
 		client http.Client
@@ -173,17 +166,27 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 		return ErrEmptyUrl
 	}
 
-	Method := "GET"
 	var body io.Reader
+	if len(val.PostStr) > 0 && val.RawPipe != nil {
+		return ErrPostStrOrRawPipe
+	}
+	if val.Retry != 0 && val.RawPipe != nil {
+		return ErrCantRetry
+	}
+	if val.SaveToPipe != nil && !val.Async {
+		return ErrMustAsync
+	}
+	if val.RawPipe != nil {
+		body = val.RawPipe
+	}
 	if len(val.PostStr) > 0 {
-		Method = "POST"
 		body = strings.NewReader(val.PostStr)
 		if _, ok := Header["Content-Type"]; !ok {
 			Header["Content-Type"] = "application/x-www-form-urlencoded"
 		}
 	}
 
-	req, e := http.NewRequestWithContext(ctx, Method, val.Url, body)
+	req, e := http.NewRequestWithContext(ctx, val.Method, val.Url, body)
 	if e != nil {
 		return errors.Join(ErrNewRequest, e)
 	}
@@ -243,6 +246,9 @@ func (t *Req) Reqf_1(ctx context.Context, val Rval) (err error) {
 	}
 	if val.SaveToPipe != nil {
 		ws = append(ws, val.SaveToPipe)
+	}
+	if val.RawPipe != nil {
+		ws = append(ws, val.RawPipe)
 	}
 	if !val.NoResponse {
 		ws = append(ws, t.responBuf)
@@ -354,6 +360,21 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 			}
 		}()
 	}
+	if val.RawPipe != nil {
+		go func() {
+			<-ctx.Done()
+			if e := val.RawPipe.ResCloseWithError(context.Canceled); e != nil {
+				println(e)
+			}
+		}()
+	}
+
+	if val.Method == "" {
+		val.Method = "GET"
+		if len(val.PostStr) > 0 {
+			val.Method = "POST"
+		}
+	}
 
 	return
 }
@@ -364,6 +385,10 @@ func (t *Req) clean(val *Rval) {
 	}
 	if val.SaveToPipe != nil {
 		val.SaveToPipe.Close()
+	}
+	if val.RawPipe != nil {
+		val.RawPipe.ReqClose()
+		val.RawPipe.ResClose()
 	}
 }
 

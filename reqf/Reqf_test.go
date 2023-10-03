@@ -29,6 +29,9 @@ func init() {
 			code, _ := strconv.Atoi(r.URL.Query().Get(`code`))
 			w.WriteHeader(code)
 		},
+		`/reply`: func(w http.ResponseWriter, r *http.Request) {
+			io.Copy(w, r.Body)
+		},
 		`/no`: func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("abc强强强强"))
 		},
@@ -474,5 +477,37 @@ func Test_req3(t *testing.T) {
 			t.Error("io async fail", r.Respon)
 		}
 		wg.Wait()
+	}
+}
+
+func Test_req5(t *testing.T) {
+	r := New()
+	r.Reqf(Rval{
+		Url:     "http://" + addr + "/reply",
+		PostStr: "123",
+	})
+	if !bytes.Equal(r.Respon, []byte("123")) {
+		t.Fatal()
+	}
+
+	raw := NewRawReqRes()
+	buf := []byte("123")
+	r.Reqf(Rval{
+		Url:        "http://" + addr + "/reply",
+		Async:      true,
+		RawPipe:    raw,
+		NoResponse: true,
+	})
+	if _, e := raw.ReqWrite(buf); e != nil {
+		t.Fatal(e)
+	}
+	raw.ReqClose()
+	clear(buf)
+	if _, e := raw.ResRead(buf); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	}
+	if !bytes.Equal([]byte("123"), buf) {
+		t.Log(r.Respon, buf)
+		t.Fatal()
 	}
 }
