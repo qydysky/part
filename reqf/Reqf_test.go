@@ -413,14 +413,16 @@ func Test_req3(t *testing.T) {
 		go func() {
 			d, _ := io.ReadAll(rc)
 			if !bytes.Equal(d, []byte("abc强强强强")) {
-				t.Error("flate fail")
+				t.Error("flate fail", d)
 			}
 			close(c)
 		}()
-		r.Reqf(Rval{
+		if e := r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
 			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
-		})
+		}); e != nil {
+			t.Error(e)
+		}
 		<-c
 	}
 	{

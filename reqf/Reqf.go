@@ -62,7 +62,6 @@ const (
 
 var (
 	ErrEmptyUrl         = errors.New("ErrEmptyUrl")
-	ErrMustAsync        = errors.New("ErrMustAsync")
 	ErrCantRetry        = errors.New("ErrCantRetry")
 	ErrNewRequest       = errors.New("ErrNewRequest")
 	ErrClientDo         = errors.New("ErrClientDo")
@@ -104,22 +103,21 @@ func (t *Req) Reqf(val Rval) error {
 
 	if !val.Async {
 		// 同步
-		return t.reqfM(pctx, cancelF, val)
+		t.reqfM(pctx, cancelF, val)
+		return t.err
 	} else {
 		//异步
-		go func() {
-			_ = t.reqfM(pctx, cancelF, val)
-		}()
+		go t.reqfM(pctx, cancelF, val)
 	}
 
 	return nil
 }
 
-func (t *Req) reqfM(ctx context.Context, cancel context.CancelFunc, val Rval) error {
+func (t *Req) reqfM(ctxMain context.Context, cancelMain context.CancelFunc, val Rval) {
 	beginTime := time.Now()
 
 	for i := 0; i <= val.Retry; i++ {
-		ctx, cancel := t.prepareRes(ctx, &val)
+		ctx, cancel := t.prepareRes(ctxMain, &val)
 		t.err = t.reqf(ctx, val)
 		cancel()
 		if t.err == nil || IsCancel(t.err) {
@@ -130,12 +128,11 @@ func (t *Req) reqfM(ctx context.Context, cancel context.CancelFunc, val Rval) er
 		}
 	}
 
-	cancel()
+	cancelMain()
 	t.updateUseDur(beginTime)
 	t.clean(&val)
 	t.state.Store(free)
 	t.l.Unlock()
-	return t.err
 }
 
 func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
@@ -173,12 +170,10 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	if val.Retry != 0 && val.RawPipe != nil {
 		return ErrCantRetry
 	}
-	if val.SaveToPipe != nil && !val.Async {
-		return ErrMustAsync
-	}
 	if val.RawPipe != nil {
 		body = val.RawPipe
 	}
+
 	if len(val.PostStr) > 0 {
 		body = strings.NewReader(val.PostStr)
 		if _, ok := Header["Content-Type"]; !ok {
@@ -282,11 +277,11 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	}
 	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, t.copyResBuf[:], time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...), resReadCloser, panicf))
 
-	resp.Body.Close()
-
 	if t.responBuf != nil {
 		t.Respon = t.responBuf.Bytes()
 	}
+
+	resReadCloser.Close()
 
 	return
 }
