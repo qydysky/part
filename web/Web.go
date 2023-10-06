@@ -360,7 +360,7 @@ func (t withflush) Header() http.Header {
 }
 func (t withflush) Write(b []byte) (i int, e error) {
 	if t.raw != nil {
-		i, e = t.Write(b)
+		i, e = t.raw.Write(b)
 		if e != nil {
 			return
 		}
