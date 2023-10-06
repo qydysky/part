@@ -349,36 +349,35 @@ func (t *Cache) Cache(key string, aliveDur time.Duration, w http.ResponseWriter)
 }
 
 type withflush struct {
-	f  func()
-	h  func() http.Header
-	w  func([]byte) (int, error)
-	wh func(int)
+	raw http.ResponseWriter
 }
 
 func (t withflush) Header() http.Header {
-	return t.h()
+	if t.raw != nil {
+		return t.raw.Header()
+	}
+	return make(http.Header)
 }
 func (t withflush) Write(b []byte) (i int, e error) {
-	i, e = t.w(b)
-	if t.f != nil {
-		t.f()
+	if t.raw != nil {
+		i, e = t.Write(b)
+		if e != nil {
+			return
+		}
+		if flusher, ok := t.raw.(http.Flusher); ok {
+			flusher.Flush()
+		}
 	}
 	return
 }
 func (t withflush) WriteHeader(i int) {
-	t.wh(i)
+	if t.raw != nil {
+		t.raw.WriteHeader(i)
+	}
 }
 
 func WithFlush(w http.ResponseWriter) http.ResponseWriter {
-	if Flusher, ok := w.(http.Flusher); ok {
-		return withflush{
-			f:  Flusher.Flush,
-			h:  w.Header,
-			w:  w.Write,
-			wh: w.WriteHeader,
-		}
-	}
-	return w
+	return withflush{w}
 }
 
 func WithStatusCode(w http.ResponseWriter, code int) {
