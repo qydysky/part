@@ -9,7 +9,7 @@ import (
 
 func TestMain(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	ctx1, done := WithWait(ctx, time.Second)
+	ctx1, done := WithWait(ctx, 1, time.Second)
 	go func() {
 		done := Wait(ctx1)
 		defer done()
@@ -19,15 +19,27 @@ func TestMain(t *testing.T) {
 	}
 }
 
+func TestMain1(t *testing.T) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	ctx1, done := WithWait(ctx, 0, time.Second)
+	go func() {
+		done := Wait(ctx1)
+		defer done()
+		time.Sleep(100 * time.Millisecond)
+	}()
+	if e := done(); !errors.Is(e, ErrNothingWait) {
+		t.Fatal(e)
+	}
+}
+
 func TestMain2(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWait(ctx, time.Second)
+	ctx1, done := WithWait(ctx, 1, time.Second)
 	go func() {
 		done := Wait(ctx1)
 		time.Sleep(time.Second * 2)
 		defer done()
 	}()
-	time.Sleep(time.Second)
 	if e := done(); !errors.Is(e, ErrWaitTo) {
 		t.Fatal(e)
 	}
@@ -35,9 +47,9 @@ func TestMain2(t *testing.T) {
 
 func TestMain3(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWait(ctx, time.Second)
+	ctx1, done := WithWait(ctx, 1, time.Second)
 	go func() {
-		ctx2, done := WithWait(ctx1, time.Second)
+		ctx2, done := WithWait(ctx1, 1, time.Second)
 		go func() {
 			done := Wait(ctx2)
 			defer done()
@@ -54,9 +66,9 @@ func TestMain3(t *testing.T) {
 
 func TestMain4(t *testing.T) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	ctx1, done := WithWait(ctx, time.Second)
+	ctx1, done := WithWait(ctx, 1, time.Second)
 	go func() {
-		ctx2, done := WithWait(ctx1, time.Second)
+		ctx2, done := WithWait(ctx1, 1, time.Second)
 		go func() {
 			done := Wait(ctx2)
 			time.Sleep(time.Second * 2)
@@ -66,7 +78,6 @@ func TestMain4(t *testing.T) {
 			t.Fail()
 		}
 	}()
-	time.Sleep(time.Second)
 	if e := done(); !errors.Is(e, ErrWaitTo) {
 		t.Fatal(e)
 	}
@@ -76,7 +87,7 @@ func TestMain5(t *testing.T) {
 	ctx, can := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer can()
 
-	ctx, done := WithWait(ctx)
+	ctx, done := WithWait(ctx, 1)
 
 	var gr = func(ctx context.Context, to time.Duration) {
 		done := Wait(ctx)
