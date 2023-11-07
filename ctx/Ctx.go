@@ -91,3 +91,12 @@ func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
 		}
 	}
 }
+
+func Done(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+	}
+	return false
+}
