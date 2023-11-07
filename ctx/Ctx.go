@@ -105,22 +105,20 @@ type Value[T any] struct {
 	data T
 }
 
-func (t *Value[T]) get() T {
+func (t *Value[T]) Get() T {
 	return t.data
 }
 
-func (t *Value[T]) set(data T) {
+func (t *Value[T]) Set(data T) {
 	t.data = data
 }
 
-func (t *Value[T]) linkCtx(ctx context.Context) context.Context {
+func (t *Value[T]) LinkCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, t, t)
 }
 
-func putVal[T any](ctx context.Context, key *Value[T], v T) {
+func PutVal[T any](ctx context.Context, key *Value[T], v T) {
 	if pt, ok := ctx.Value(key).(*Value[T]); ok {
-		pt.set(v)
-	} else {
-		panic("")
+		pt.Set(v)
 	}
 }

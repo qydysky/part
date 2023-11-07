@@ -60,9 +60,9 @@ func TestMain2(t *testing.T) {
 func TestMain3(t *testing.T) {
 	ctx := context.Background()
 	val := Value[error]{}
-	ctx = val.linkCtx(ctx)
-	putVal(ctx, &val, errors.New("aaa"))
-	if val.get().Error() != "aaa" {
+	ctx = val.LinkCtx(ctx)
+	PutVal(ctx, &val, errors.New("aaa"))
+	if val.Get().Error() != "aaa" {
 		t.Fatal()
 	}
 }
