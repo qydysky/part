@@ -100,3 +100,27 @@ func Done(ctx context.Context) bool {
 	}
 	return false
 }
+
+type Value[T any] struct {
+	data T
+}
+
+func (t *Value[T]) get() T {
+	return t.data
+}
+
+func (t *Value[T]) set(data T) {
+	t.data = data
+}
+
+func (t *Value[T]) linkCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, t, t)
+}
+
+func putVal[T any](ctx context.Context, key *Value[T], v T) {
+	if pt, ok := ctx.Value(key).(*Value[T]); ok {
+		pt.set(v)
+	} else {
+		panic("")
+	}
+}

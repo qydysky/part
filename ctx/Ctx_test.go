@@ -56,3 +56,13 @@ func TestMain2(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestMain3(t *testing.T) {
+	ctx := context.Background()
+	val := Value[error]{}
+	ctx = val.linkCtx(ctx)
+	putVal(ctx, &val, errors.New("aaa"))
+	if val.get().Error() != "aaa" {
+		t.Fatal()
+	}
+}
