@@ -94,7 +94,7 @@ func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
 
 func Done(ctx context.Context) bool {
 	if ctx == nil {
-		return false
+		return true
 	}
 	select {
 	case <-ctx.Done():
