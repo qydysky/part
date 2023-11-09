@@ -104,6 +104,13 @@ func Done(ctx context.Context) bool {
 	return false
 }
 
+// errCtx := pctx.Value[error]{}
+//
+// cancelC = errCtx.LinkCtx(cancelC)
+//
+// pctx.PutVal(cancelC, &errCtx, fmt.Errorf("%vs未接收到有效数据", readTO))
+//
+// err := errCtx.Get()
 type Value[T any] struct {
 	data T
 }
@@ -124,4 +131,22 @@ func PutVal[T any](ctx context.Context, key *Value[T], v T) {
 	if pt, ok := ctx.Value(key).(*Value[T]); ok {
 		pt.Set(v)
 	}
+}
+
+var (
+	selfCancel     = "selfCancel"
+	ErrNotCarryYet = errors.New("ErrNotCarryYet")
+)
+
+func CarryCancel(ctx context.Context, cancelFunc context.CancelFunc) context.Context {
+	return context.WithValue(ctx, &selfCancel, cancelFunc)
+}
+
+func CallCancel(ctx context.Context) error {
+	if pt, ok := ctx.Value(&selfCancel).(context.CancelFunc); ok {
+		pt()
+	} else {
+		return ErrNotCarryYet
+	}
+	return nil
 }

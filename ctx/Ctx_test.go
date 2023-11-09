@@ -66,3 +66,17 @@ func TestMain3(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestMain4(t *testing.T) {
+	ctx := CarryCancel(context.WithCancel(context.Background()))
+	time.AfterFunc(time.Millisecond*500, func() {
+		if CallCancel(ctx) != nil {
+			t.Fail()
+		}
+	})
+	n := time.Now()
+	<-ctx.Done()
+	if time.Since(n) < time.Millisecond*500 {
+		t.Fail()
+	}
+}
