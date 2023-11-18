@@ -22,7 +22,7 @@ func NewComp[T any](deal func(ctx context.Context, ptr T) error) *Component[T] {
 }
 
 func (t *Component[T]) Run(ctx context.Context, ptr T) error {
-	if t.del.Load() {
+	if t.del.Load() || t.deal == nil {
 		return nil
 	}
 	return t.deal(ctx, ptr)
@@ -88,7 +88,7 @@ func (t *Components[T]) Run(ctx context.Context, ptr T) error {
 	}()
 
 	for i := 0; i < len(t.comps); i++ {
-		if t.comps[i].del.Load() {
+		if t.comps[i].del.Load() || t.comps[i].deal == nil {
 			continue
 		}
 		e := t.comps[i].deal(ctx, ptr)
@@ -133,6 +133,10 @@ func (t *Components[T]) Start(ctx context.Context, ptr T, concurrency ...int) er
 	wg.Add(len(t.comps))
 
 	for i := 0; i < len(t.comps); i++ {
+		if t.comps[i].del.Load() || t.comps[i].deal == nil {
+			wg.Done()
+			continue
+		}
 		if con != nil {
 			con <- struct{}{}
 		}
