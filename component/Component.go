@@ -135,6 +135,7 @@ func (t *Components[T]) Start(ctx context.Context, ptr T, concurrency ...int) er
 	for i := 0; i < len(t.comps); i++ {
 		if t.comps[i].del.Load() || t.comps[i].deal == nil {
 			wg.Done()
+			err <- nil
 			continue
 		}
 		if con != nil {
@@ -155,5 +156,16 @@ func (t *Components[T]) Start(ctx context.Context, ptr T, concurrency ...int) er
 
 	wg.Wait()
 
-	return nil
+	for {
+		select {
+		case e := <-err:
+			if errors.Is(e, ErrSelfDel) {
+				needDel = true
+			} else if e != nil {
+				return e
+			}
+		default:
+			return nil
+		}
+	}
 }
