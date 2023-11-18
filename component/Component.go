@@ -3,92 +3,153 @@ package part
 import (
 	"context"
 	"errors"
-	"maps"
-	"reflect"
+	"sync"
 	"sync/atomic"
-
-	psync "github.com/qydysky/part/sync"
 )
 
 var (
-	ErrNoLink    = errors.New("ErrNoLink")
-	ErrLinked    = errors.New("ErrLinked")
-	ErrNoExist   = errors.New("ErrNoExist")
-	ErrConflict  = errors.New("ErrConflict")
-	ErrWrongType = errors.New("ErrWrongType")
+	ErrStopRun = errors.New("ErrStopRun")
+	ErrSelfDel = errors.New("ErrSelfDel")
 )
 
-type components struct {
-	m        psync.Map
-	link     map[string][]string
-	loadLink atomic.Bool
+type Component[T any] struct {
+	del  atomic.Bool
+	deal func(ctx context.Context, ptr T) error
 }
 
-func NewComp() *components {
-	return &components{link: make(map[string][]string)}
+func NewComp[T any](deal func(ctx context.Context, ptr T) error) *Component[T] {
+	return &Component[T]{atomic.Bool{}, deal}
 }
 
-func (t *components) Put(Key string, Deal func(ctx context.Context, ptr any) error) error {
-	_, loaded := t.m.LoadOrStore(Key, Deal)
-	if loaded {
-		return errors.Join(ErrConflict, errors.New(Key))
+func (t *Component[T]) Run(ctx context.Context, ptr T) error {
+	if t.del.Load() {
+		return nil
 	}
-	return nil
+	return t.deal(ctx, ptr)
 }
 
-func (t *components) Del(Key string) {
-	t.m.Delete(Key)
+func (t *Component[T]) Del() {
+	t.del.Store(true)
 }
 
-func (t *components) Run(key string, ctx context.Context, ptr any) error {
-	if !t.loadLink.Load() {
-		return ErrNoLink
-	}
-	links := t.link[key]
-	if len(links) == 0 {
-		return ErrNoExist
-	}
-	for i := 0; i < len(links); i++ {
-		if deal, ok := t.m.LoadV(links[i]).(func(ctx context.Context, ptr any) error); ok {
-			if e := deal(ctx, ptr); e != nil {
-				return e
+type Components[T any] struct {
+	lock  sync.RWMutex
+	comps []*Component[T]
+}
+
+func NewComps[T any](c ...*Component[T]) *Components[T] {
+	return &Components[T]{comps: c}
+}
+
+func (t *Components[T]) Put(c ...*Component[T]) {
+	t.lock.Lock()
+	t.comps = append(t.comps, c...)
+	t.lock.Unlock()
+}
+
+func (t *Components[T]) Del(c ...*Component[T]) {
+	t.lock.Lock()
+	for i := 0; i < len(t.comps); i++ {
+		for j := 0; j < len(c); j++ {
+			if t.comps[i] == c[j] {
+				copy(t.comps[i:], t.comps[i+1:])
+				t.comps = t.comps[:len(t.comps)-1]
+				copy(c[i:], c[i+1:])
+				c = c[:len(c)-1]
+				break
 			}
 		}
 	}
+	t.lock.Unlock()
+}
+
+func (t *Components[T]) DelAll() {
+	t.lock.Lock()
+	clear(t.comps)
+	t.lock.Unlock()
+}
+
+func (t *Components[T]) Run(ctx context.Context, ptr T) error {
+	var needDel bool
+
+	t.lock.RLock()
+	defer func() {
+		t.lock.RUnlock()
+		if needDel {
+			t.lock.Lock()
+			for i := 0; i < len(t.comps); i++ {
+				if t.comps[i].del.Load() {
+					copy(t.comps[i:], t.comps[i+1:])
+					t.comps = t.comps[:len(t.comps)-1]
+				}
+			}
+			t.lock.Unlock()
+		}
+	}()
+
+	for i := 0; i < len(t.comps); i++ {
+		if t.comps[i].del.Load() {
+			continue
+		}
+		e := t.comps[i].deal(ctx, ptr)
+		if errors.Is(e, ErrSelfDel) {
+			t.comps[i].del.Store(true)
+			needDel = true
+		}
+		if errors.Is(e, ErrStopRun) {
+			return e
+		}
+	}
+
 	return nil
 }
 
-func (t *components) Link(link map[string][]string) error {
-	if t.loadLink.CompareAndSwap(false, true) {
-		t.link = maps.Clone(link)
-		return nil
-	}
-	return ErrLinked
-}
+func (t *Components[T]) Start(ctx context.Context, ptr T, concurrency ...int) error {
+	var needDel bool
 
-func Put[T any](key string, deal func(ctx context.Context, ptr *T) error) error {
-	return Comp.Put(key, func(ctx context.Context, ptr any) error {
-		if item, ok := ptr.(*T); ok {
-			return deal(ctx, item)
+	t.lock.RLock()
+	defer func() {
+		t.lock.RUnlock()
+		if needDel {
+			t.lock.Lock()
+			for i := 0; i < len(t.comps); i++ {
+				if t.comps[i].del.Load() {
+					copy(t.comps[i:], t.comps[i+1:])
+					t.comps = t.comps[:len(t.comps)-1]
+				}
+			}
+			t.lock.Unlock()
 		}
-		return errors.Join(ErrWrongType, errors.New(key))
-	})
-}
+	}()
 
-func Run[T any](key string, ctx context.Context, ptr *T) error {
-	return Comp.Run(key, ctx, ptr)
-}
-
-func Link(link map[string][]string) error {
-	return Comp.Link(link)
-}
-
-func Sign[T any](exsign ...string) (sign string) {
-	sign = reflect.TypeOf(*new(T)).PkgPath()
-	for i := 0; i < len(exsign); i++ {
-		sign += "." + exsign[i]
+	var (
+		wg  sync.WaitGroup
+		con chan struct{}
+		err = make(chan error, len(t.comps))
+	)
+	if len(concurrency) > 0 {
+		con = make(chan struct{}, concurrency[0])
 	}
-	return
-}
+	wg.Add(len(t.comps))
 
-var Comp *components = NewComp()
+	for i := 0; i < len(t.comps); i++ {
+		if con != nil {
+			con <- struct{}{}
+		}
+		go func(i int) {
+			e := t.comps[i].deal(ctx, ptr)
+			if errors.Is(e, ErrSelfDel) {
+				t.comps[i].del.Store(true)
+			}
+			err <- e
+			wg.Done()
+			if con != nil {
+				<-con
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	return nil
+}
