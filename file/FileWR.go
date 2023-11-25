@@ -94,6 +94,20 @@ func (t *File) CopyToIoWriter(to io.Writer, copyIOConfig pio.CopyConfig) error {
 	return pio.Copy(t.read(), to, copyIOConfig)
 }
 
+func (t *File) CopyFromIoReader(from io.Reader, copyIOConfig pio.CopyConfig) error {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	return pio.Copy(from, t.write(), copyIOConfig)
+}
+
 // stop after untilBytes
 //
 // data not include untilBytes
