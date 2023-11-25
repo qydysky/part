@@ -2,13 +2,45 @@ package part
 
 import (
 	"bytes"
+	"math"
 	"testing"
+	"time"
 	"unsafe"
 )
 
 type a struct {
 	d []byte
 	v bool
+}
+
+func Test1(t *testing.T) {
+	var newf = func() *a {
+		return &a{v: true}
+	}
+
+	var validf = func(t *a) bool {
+		return t.v
+	}
+
+	var reusef = func(t *a) *a {
+		t.d = t.d[:0]
+		t.v = true
+		return t
+	}
+
+	var poolf = func(t *a) *a {
+		return t
+	}
+
+	var b = New(newf, validf, reusef, poolf, 10)
+
+	for i := 0; i < 10; i++ {
+		b.Get()
+	}
+	time.Sleep(time.Millisecond * 1100)
+	if math.Abs(b.PoolState()[5].(float64)-7.5) > 2.5 {
+		t.Fatal(b.PoolState()[5])
+	}
 }
 
 func TestXxx(t *testing.T) {
