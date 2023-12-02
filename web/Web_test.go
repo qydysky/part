@@ -59,6 +59,9 @@ func Test_ServerSyncMap(t *testing.T) {
 
 		ResStruct{0, "ok", d{"0", []string{"0"}, map[string]int{"0": 1}}}.Write(w)
 	})
+	m.Store("/2/", func(w http.ResponseWriter, _ *http.Request) {
+		panic(1)
+	})
 
 	time.Sleep(time.Second)
 
@@ -70,6 +73,13 @@ func Test_ServerSyncMap(t *testing.T) {
 		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
 			t.Error(string(r.Respon))
 		}
+		m.Store("/2/", nil)
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13000/2/",
+		})
+		if r.Response.StatusCode != 404 {
+			t.Error(string(r.Respon))
+		}
 	}
 }
 
@@ -79,7 +89,7 @@ func Test_ClientBlock(t *testing.T) {
 		w.Write([]byte("1"))
 	})
 	s := NewSyncMap(&http.Server{
-		Addr:         "127.0.0.1:13000",
+		Addr:         "127.0.0.1:13001",
 		WriteTimeout: time.Millisecond,
 	}, &m)
 	defer s.Shutdown()
@@ -126,7 +136,7 @@ func Test_ClientBlock(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(reqf.Rval{
-			Url:         "http://127.0.0.1:13000/to",
+			Url:         "http://127.0.0.1:13001/to",
 			SaveToPipe:  &pio.IOpipe{R: rc, W: wc},
 			WriteLoopTO: 5000,
 			Async:       true,
@@ -155,7 +165,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	}
 
 	o := NewSyncMap(&http.Server{
-		Addr: "127.0.0.1:9090",
+		Addr: "127.0.0.1:13002",
 	}, &m)
 	defer o.Shutdown()
 	m.Store("/1/2", func(w http.ResponseWriter, _ *http.Request) {
@@ -183,56 +193,55 @@ func Test_ServerSyncMapP(t *testing.T) {
 	r := reqf.New()
 	res := ResStruct{}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/conn",
+		Url: "http://127.0.0.1:13002/conn",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if res.Message != "ok" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/",
+		Url: "http://127.0.0.1:13002/",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/1",
+		Url: "http://127.0.0.1:13002/1",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/1/",
+		Url: "http://127.0.0.1:13002/1/",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/2",
+		Url: "http://127.0.0.1:13002/2",
 	})
-	json.Unmarshal(r.Respon, &res)
-	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
+	if r.Response.StatusCode != 404 {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/1/23",
-	})
-	json.Unmarshal(r.Respon, &res)
-	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
-		t.Fatal("")
-	}
-	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/1/2/3",
+		Url: "http://127.0.0.1:13002/1/23",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
-		Url: "http://127.0.0.1:9090/1/2",
+		Url: "http://127.0.0.1:13002/1/2/3",
+	})
+	json.Unmarshal(r.Respon, &res)
+	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
+		t.Fatal("")
+	}
+	r.Reqf(reqf.Rval{
+		Url: "http://127.0.0.1:13002/1/2",
 	})
 	json.Unmarshal(r.Respon, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/2" {

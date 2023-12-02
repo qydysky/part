@@ -43,10 +43,10 @@ jobs:
 
     - name: Set Release Name
       run: |
-        echo "TIME=$(date +"%Y%m%d")" >> $GITHUB_ENV
+        echo "TIME=$(date +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
         echo "HASH=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
 
     - name: Upload a Release Asset
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v0.28.0+${{ env.TIME }}${{ env.HASH }}
+        tag_name: v0.28.${{ env.TIME }}

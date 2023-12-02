@@ -70,8 +70,11 @@ func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
 	go o.Server.ListenAndServe()
 
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if f, ok := o.wrs.Load(r.URL.Path); ok {
+		f, ok := o.wrs.Load(r.URL.Path)
+		if ok {
 			f(w, r)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
 	})
 
@@ -94,15 +97,13 @@ type WebPath struct {
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
 	t.RLock()
 	defer t.RUnlock()
-	if t.path == path || t.f == nil {
+	if t.path == path {
 		// 操作本节点
-		return t.f, true
+		return t.f, t.f != nil
 	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && (path[ltp] == '/' || t.path[ltp-1] == '/') {
 		// 操作sameP节点
 		if t.sameP != nil {
-			if f, ok := t.sameP.Load(path); ok {
-				return f, true
-			}
+			return t.sameP.Load(path)
 		}
 		if t.path[ltp-1] == '/' {
 			return t.f, true
@@ -115,9 +116,7 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 	} else {
 		// 操作next节点
 		if t.next != nil {
-			if f, ok := t.next.Load(path); ok {
-				return f, true
-			}
+			return t.next.Load(path)
 		}
 		return nil, false
 	}
@@ -126,7 +125,7 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
 	t.Lock()
 	defer t.Unlock()
-	if t.path == path || t.f == nil {
+	if t.path == path || (t.path == "" && t.f == nil) {
 		// 操作本节点
 		t.path = path
 		t.f = f
