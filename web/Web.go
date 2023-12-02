@@ -52,7 +52,7 @@ type WebSync struct {
 	wrs    *WebPath
 }
 
-func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
+func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync) {
 
 	o = new(WebSync)
 
@@ -67,10 +67,12 @@ func NewSyncMap(conf *http.Server, m *WebPath) (o *WebSync) {
 		o.Server.Handler = o.mux
 	}
 
+	matchFunc = append(matchFunc, o.wrs.Load)
+
 	go o.Server.ListenAndServe()
 
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		f, ok := o.wrs.Load(r.URL.Path)
+		f, ok := matchFunc[0](r.URL.Path)
 		if ok {
 			f(w, r)
 		} else {
@@ -106,7 +108,7 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 			return t.sameP.Load(path)
 		}
 		if t.path[ltp-1] == '/' {
-			return t.f, true
+			return t.f, t.f != nil
 		} else {
 			return nil, false
 		}
@@ -117,6 +119,38 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 		// 操作next节点
 		if t.next != nil {
 			return t.next.Load(path)
+		}
+		return nil, false
+	}
+}
+
+func (t *WebPath) LoadPerfix(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
+	t.RLock()
+	defer t.RUnlock()
+	if t.path == path {
+		// 操作本节点
+		return t.f, t.f != nil
+	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && (path[ltp] == '/' || t.path[ltp-1] == '/') {
+		// 操作sameP节点
+		if t.sameP != nil {
+			if f, ok := t.sameP.LoadPerfix(path); ok {
+				return f, f != nil
+			}
+		}
+		if t.path[ltp-1] == '/' {
+			return t.f, t.f != nil
+		} else {
+			return nil, false
+		}
+	} else if lp < ltp && t.path[:lp] == path && (path[lp-1] == '/' || t.path[lp] == '/') {
+		// 操作sameP节点
+		return nil, false
+	} else {
+		// 操作next节点
+		if t.next != nil {
+			if f, ok := t.next.LoadPerfix(path); ok {
+				return f, f != nil
+			}
 		}
 		return nil, false
 	}

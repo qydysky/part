@@ -40,6 +40,41 @@ func Test_Server(t *testing.T) {
 	}
 }
 
+func Test_Server2(t *testing.T) {
+	var m WebPath
+	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("/"))
+	})
+	m.Store("/1", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("/1"))
+	})
+	s := NewSyncMap(&http.Server{
+		Addr:         "127.0.0.1:13001",
+		WriteTimeout: time.Millisecond,
+	}, &m, m.LoadPerfix)
+	defer s.Shutdown()
+
+	time.Sleep(time.Second)
+
+	r := reqf.New()
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13001/1",
+		})
+		if !bytes.Equal(r.Respon, []byte("/1")) {
+			t.Fatal(r.Respon)
+		}
+	}
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13001/2",
+		})
+		if !bytes.Equal(r.Respon, []byte("/")) {
+			t.Fatal(r.Respon)
+		}
+	}
+}
+
 func Test_ServerSyncMap(t *testing.T) {
 	var m WebPath
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
@@ -71,6 +106,12 @@ func Test_ServerSyncMap(t *testing.T) {
 			Url: "http://127.0.0.1:13000/1",
 		})
 		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
+			t.Error(string(r.Respon))
+		}
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13000/2",
+		})
+		if r.Response.StatusCode != 404 {
 			t.Error(string(r.Respon))
 		}
 		m.Store("/2/", nil)
