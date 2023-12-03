@@ -64,6 +64,7 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
+			time.Sleep(time.Millisecond * 100)
 			runtime.Gosched()
 		}
 		if len(to) > 0 && time.Since(be) > to[0] {
