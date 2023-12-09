@@ -43,8 +43,9 @@ func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Reques
 	}
 }
 
-func (t *Web) Shutdown() {
-	t.Server.Shutdown(context.Background())
+func (t *Web) Shutdown(ctx ...context.Context) {
+	ctx = append(ctx, context.Background())
+	t.Server.Shutdown(ctx[0])
 }
 
 type WebSync struct {
@@ -84,15 +85,16 @@ func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (f
 		if ok {
 			f(w, r)
 		} else {
-			w.WriteHeader(http.StatusNotFound)
+			WithStatusCode(w, http.StatusNotFound)
 		}
 	})
 
 	return
 }
 
-func (t *WebSync) Shutdown() {
-	t.Server.Shutdown(context.Background())
+func (t *WebSync) Shutdown(ctx ...context.Context) {
+	ctx = append(ctx, context.Background())
+	t.Server.Shutdown(ctx[0])
 }
 
 type WebPath struct {
