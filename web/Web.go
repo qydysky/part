@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"strconv"
@@ -69,7 +70,14 @@ func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (f
 
 	matchFunc = append(matchFunc, o.wrs.Load)
 
-	go o.Server.ListenAndServe()
+	ln, err := net.Listen("tcp", conf.Addr)
+	if err != nil {
+		panic(err)
+	}
+	if conf.TLSConfig != nil {
+		ln = tls.NewListener(ln, conf.TLSConfig)
+	}
+	go o.Server.Serve(ln)
 
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		f, ok := matchFunc[0](r.URL.Path)

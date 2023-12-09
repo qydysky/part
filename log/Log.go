@@ -184,3 +184,16 @@ func (I *Log_interface) L(prefix string, i ...any) (O *Log_interface) {
 	})
 	return
 }
+
+func (I *Log_interface) Debug(msg string, args ...any) {
+	I.L(msg, args...)
+}
+func (I *Log_interface) Info(msg string, args ...any) {
+	I.L(msg, args...)
+}
+func (I *Log_interface) Warn(msg string, args ...any) {
+	I.L(msg, args...)
+}
+func (I *Log_interface) Error(msg string, args ...any) {
+	I.L(msg, args...)
+}
