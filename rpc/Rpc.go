@@ -2,6 +2,7 @@ package part
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"net/http"
 	"net/rpc"
@@ -48,7 +49,7 @@ type Pob struct {
 	c    *rpc.Client
 }
 
-func (t *Pob) Server(deal func(i, o *Gob) error) (shutdown func(), err error) {
+func (t *Pob) Server(deal func(i, o *Gob) error) (shutdown func(ctx ...context.Context), err error) {
 	var path web.WebPath
 	webSync := web.NewSyncMap(&http.Server{
 		Addr: t.Host,
