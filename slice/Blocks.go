@@ -4,16 +4,33 @@ import (
 	"errors"
 )
 
-type Blocks[T any] struct {
+type BlocksI[T any] interface {
+	// // eg
+	//
+	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
+	//		clear(tmpbuf)
+	//		// do something with tmpbuf
+	//		putBack()
+	//	}
+	Get() ([]T, func(), error)
+}
+
+type blocks[T any] struct {
+	_    noCopy
 	free chan int
 	size int
 	buf  []T
 }
 
+type noCopy struct{}
+
+func (*noCopy) Lock()   {}
+func (*noCopy) Unlock() {}
+
 var ErrOverflow = errors.New("ErrOverflow")
 
-func NewBlocks[T any](blockSize int, blockNum int) *Blocks[T] {
-	p := &Blocks[T]{
+func NewBlocks[T any](blockSize int, blockNum int) BlocksI[T] {
+	p := &blocks[T]{
 		size: blockSize,
 		free: make(chan int, blockNum+1),
 		buf:  make([]T, blockSize*blockNum),
@@ -24,14 +41,7 @@ func NewBlocks[T any](blockSize int, blockNum int) *Blocks[T] {
 	return p
 }
 
-// // eg
-//
-//	if tmpbuf, putBack, e := buf.Get(); e == nil {
-//		clear(tmpbuf)
-//		// do something with tmpbuf
-//		putBack()
-//	}
-func (t *Blocks[T]) Get() ([]T, func(), error) {
+func (t *blocks[T]) Get() ([]T, func(), error) {
 	select {
 	case offset := <-t.free:
 		offset *= t.size
