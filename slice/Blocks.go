@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-type blocks[T any] struct {
+type Blocks[T any] struct {
 	free chan int
 	size int
 	buf  []T
@@ -12,8 +12,8 @@ type blocks[T any] struct {
 
 var ErrOverflow = errors.New("ErrOverflow")
 
-func NewBlocks[T any](blockSize int, blockNum int) *blocks[T] {
-	p := &blocks[T]{
+func NewBlocks[T any](blockSize int, blockNum int) *Blocks[T] {
+	p := &Blocks[T]{
 		size: blockSize,
 		free: make(chan int, blockNum+1),
 		buf:  make([]T, blockSize*blockNum),
@@ -31,7 +31,7 @@ func NewBlocks[T any](blockSize int, blockNum int) *blocks[T] {
 //		// do something with tmpbuf
 //		putBack()
 //	}
-func (t *blocks[T]) Get() ([]T, func(), error) {
+func (t *Blocks[T]) Get() ([]T, func(), error) {
 	select {
 	case offset := <-t.free:
 		offset *= t.size
