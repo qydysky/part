@@ -44,9 +44,8 @@ func NewBlocks[T any](blockSize int, blockNum int) BlocksI[T] {
 func (t *blocks[T]) Get() ([]T, func(), error) {
 	select {
 	case offset := <-t.free:
-		offset *= t.size
-		return t.buf[offset : offset+t.size], func() {
-			clear(t.buf[offset : offset+t.size])
+		return t.buf[offset*t.size : (offset+1)*t.size], func() {
+			clear(t.buf[offset*t.size : (offset+1)*t.size])
 			t.free <- offset
 		}, nil
 	default:
