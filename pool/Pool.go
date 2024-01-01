@@ -46,12 +46,12 @@ func New[T any](NewF func() *T, InUse func(*T) bool, ReuseF func(*T) *T, PoolF f
 // Deprecated: s
 func (t *Buf[T]) PoolState() (states []any) {
 	state := t.State()
-	return []any{state.pooled, state.nopooled, state.inuse, state.nouse, state.sum, state.getPerSec}
+	return []any{state.Pooled, state.Nopooled, state.Inuse, state.Nouse, state.Sum, state.GetPerSec}
 }
 
 type BufState struct {
-	pooled, nopooled, inuse, nouse, sum int
-	getPerSec                           float64
+	Pooled, Nopooled, Inuse, Nouse, Sum int
+	GetPerSec                           float64
 }
 
 func (t *Buf[T]) State() BufState {
