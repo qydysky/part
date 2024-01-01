@@ -42,7 +42,19 @@ func New[T any](NewF func() *T, InUse func(*T) bool, ReuseF func(*T) *T, PoolF f
 }
 
 // states[] 0:pooled, 1:nopooled, 2:inuse, 3:nouse, 4:sum, 5:getPerSec
+//
+// Deprecated: s
 func (t *Buf[T]) PoolState() (states []any) {
+	state := t.State()
+	return []any{state.pooled, state.nopooled, state.inuse, state.nouse, state.sum, state.getPerSec}
+}
+
+type BufState struct {
+	pooled, nopooled, inuse, nouse, sum int
+	getPerSec                           float64
+}
+
+func (t *Buf[T]) State() BufState {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
@@ -68,7 +80,7 @@ func (t *Buf[T]) PoolState() (states []any) {
 		getPerSec += t.getPerSec / diff
 	}
 
-	return []any{pooled, nopooled, inuse, nouse, sum, getPerSec}
+	return BufState{pooled, nopooled, inuse, nouse, sum, getPerSec}
 }
 
 func (t *Buf[T]) Get() *T {
