@@ -116,6 +116,14 @@ func Test7(t *testing.T) {
 	}
 }
 
+func Panic_Test8(t *testing.T) {
+	var l RWMutex
+	ul := l.Lock(time.Second, time.Second)
+	ul(func() {
+		time.Sleep(time.Second * 10)
+	})
+}
+
 // ulock rlock rlock
 func Panic_Test4(t *testing.T) {
 	var l RWMutex

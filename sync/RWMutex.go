@@ -114,7 +114,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func()
 			panic("had unlock")
 		}
 		if done != nil {
-			done()
+			defer done()
 		}
 		if m.read.Add(-1) == 0 {
 			for i := 0; i < len(beforeUlock); i++ {
@@ -144,7 +144,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())
 			panic("had unlock")
 		}
 		if done != nil {
-			done()
+			defer done()
 		}
 		for i := 0; i < len(beforeUlock); i++ {
 			beforeUlock[i]()
