@@ -1,62 +1,45 @@
 package part
 
 import (
-	"errors"
-	"log"
 	"testing"
 	"time"
 )
 
+type test1 struct {
+	Data test1_1
+}
+type test1_1 struct {
+	Data int
+}
+
+type test2 struct {
+	Data test2_1
+}
+type test2_1 struct {
+	Data int
+}
+
 func TestMain(t *testing.T) {
-	pob := Pob{Host: "127.0.0.1:10902", Path: "/123"}
-	if shutdown, e := pob.Server(func(i, o *Gob) error {
-		switch i.Key {
-		case "+":
-			var ivv int
-			if e := i.Decode(&ivv); e != nil {
-				log.Fatal("d", e)
-			}
-			ivv += 1
-			if e := o.Encode(ivv); e != nil {
-				log.Fatal("e", e)
-			}
-		default:
-			return errors.New("no key")
-		}
+	pob := NewServer("127.0.0.1:10902")
+	defer pob.Shutdown()
+	if e := Register(pob, "/123", func(i *int, o *test1) error {
+		*i += 1
+		o.Data.Data = *i
 		return nil
 	}); e != nil {
 		t.Fatal(e)
-	} else {
-		defer shutdown()
 	}
 
 	time.Sleep(time.Second)
 
-	if c, e := pob.Client(); e != nil {
-		t.Fatal(e)
-	} else {
-		var gob = NewGob("+")
+	var i int = 9
+	var out test2
 
-		var i int = 9
-		if e := gob.Encode(&i); e != nil {
-			t.Fatal(e)
-		}
-		if e := gob.Decode(&i); e != nil {
-			t.Fatal(e)
-		}
-		if e := c.Call(gob); e != nil {
-			t.Fatal(e)
-		} else if gob.Key != "+" {
-			t.Fatal()
-		} else {
-			if e := gob.Decode(&i); e != nil {
-				t.Fatal(e)
-			}
-			if i != 10 {
-				t.Fatal()
-			}
-		}
-		c.Close()
+	if e := Call(&i, &out, "127.0.0.1:10902", "/123"); e != nil {
+		t.Fatal(e)
 	}
 
+	if out.Data.Data != 10 {
+		t.FailNow()
+	}
 }

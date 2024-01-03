@@ -4,31 +4,63 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"net/http"
 	"net/rpc"
 
 	web "github.com/qydysky/part/web"
 )
 
+var (
+	ErrSerGob    = errors.New("ErrSerGob")
+	ErrSerDecode = errors.New("ErrSerDecode")
+	ErrCliDecode = errors.New("ErrCliDecode")
+	ErrSerDeal   = errors.New("ErrSerDeal")
+	ErrCliDeal   = errors.New("ErrCliDeal")
+	ErrCliEncode = errors.New("ErrCliEncode")
+	ErrSerEncode = errors.New("ErrSerEncode")
+	ErrRegister  = errors.New("ErrRegister")
+	ErrDial      = errors.New("ErrDial")
+)
+
 type Gob struct {
-	Key  string
 	Data []byte
+	Err  error
 }
 
-func NewGob(k string) *Gob {
-	return &Gob{Key: k}
-}
+// func NewGob(ptr any) *Gob {
+// 	t := &Gob{}
+// 	var buf bytes.Buffer
+// 	t.Err = gob.NewEncoder(&buf).Encode(ptr)
+// 	t.Data = buf.Bytes()
+// 	return t
+// }
 
-func (t *Gob) Encode(e any) (err error) {
+func (t *Gob) encode(ptr any) *Gob {
 	var buf bytes.Buffer
-	err = gob.NewEncoder(&buf).Encode(e)
+	t.Err = gob.NewEncoder(&buf).Encode(ptr)
 	t.Data = buf.Bytes()
-	return
+	return t
 }
 
-func (t *Gob) Decode(e any) (err error) {
-	return gob.NewDecoder(bytes.NewReader(t.Data)).Decode(e)
+func (t *Gob) decode(ptr any) *Gob {
+	t.Err = gob.NewDecoder(bytes.NewReader(t.Data)).Decode(ptr)
+	return t
 }
+
+// func (t *Gob) RpcDeal(host, path string) *Gob {
+// 	if t.Err == nil {
+// 		if c, e := rpc.DialHTTPPath("tcp", host, path); e != nil {
+// 			t.Err = e
+// 		} else {
+// 			call := <-c.Go("DealGob.Deal", t, t, make(chan *rpc.Call, 1)).Done
+// 			if call.Error != nil {
+// 				t.Err = call.Error
+// 			}
+// 		}
+// 	}
+// 	return t
+// }
 
 type DealGob struct {
 	deal func(*Gob, *Gob) error
@@ -42,58 +74,72 @@ func (t *DealGob) Deal(i *Gob, o *Gob) error {
 	return t.deal(i, o)
 }
 
-type Pob struct {
-	Host string `json:"host"`
-	Path string `json:"path"`
-	s    *rpc.Server
-	c    *rpc.Client
+type Server struct {
+	webP     web.WebPath
+	Shutdown func(ctx ...context.Context)
 }
 
-func (t *Pob) Server(deal func(i, o *Gob) error) (shutdown func(ctx ...context.Context), err error) {
-	var path web.WebPath
+func NewServer(host string) *Server {
+	ser := &Server{}
 	webSync := web.NewSyncMap(&http.Server{
-		Addr: t.Host,
-	}, &path)
-	shutdown = webSync.Shutdown
+		Addr: host,
+	}, &ser.webP)
+	ser.Shutdown = webSync.Shutdown
+	return ser
+}
 
-	t.s = rpc.NewServer()
-	if e := t.s.Register(newDealGob(deal)); e != nil {
-		err = e
-		return
+func Register[T, E any](t *Server, path string, deal func(it *T, ot *E) error) error {
+	s := rpc.NewServer()
+	if e := s.Register(newDealGob(func(i, o *Gob) error {
+		if i.Err != nil {
+			return errors.Join(ErrSerGob, i.Err)
+		} else {
+			var it T
+			var ot E
+			if e := i.decode(&it).Err; e != nil {
+				return errors.Join(ErrSerDecode, e)
+			}
+			if e := deal(&it, &ot); e != nil {
+				return errors.Join(ErrSerDeal, e)
+			}
+			if e := o.encode(&ot).Err; e != nil {
+				return errors.Join(ErrSerEncode, e)
+			}
+			return nil
+		}
+	})); e != nil {
+		return errors.Join(ErrRegister, e)
 	}
-
-	path.Store(t.Path, func(w http.ResponseWriter, r *http.Request) {
-		t.s.ServeHTTP(w, r)
+	t.webP.Store(path, func(w http.ResponseWriter, r *http.Request) {
+		s.ServeHTTP(w, r)
 	})
-	return
+	return nil
 }
 
-func (t *Pob) Client() (pobClient *PobClient, err error) {
-	t.c, err = rpc.DialHTTPPath("tcp", t.Host, t.Path)
-	pobClient = &PobClient{t.c}
-	return
+func UnRegister(t *Server, path string) {
+	t.webP.Store(path, nil)
 }
 
-type PobClient struct {
-	c *rpc.Client
-}
-
-func (t *PobClient) Close() {
-	t.c.Close()
-}
-
-func (t *PobClient) CallIO(i, o *Gob) (err error) {
-	return t.c.Call("DealGob.Deal", i, o)
-}
-
-func (t *PobClient) GoIO(i, o *Gob, done chan *rpc.Call) *rpc.Call {
-	return t.c.Go("DealGob.Deal", i, o, done)
-}
-
-func (t *PobClient) Call(g *Gob) (err error) {
-	return t.c.Call("DealGob.Deal", g, g)
-}
-
-func (t *PobClient) Go(g *Gob, done chan *rpc.Call) *rpc.Call {
-	return t.c.Go("DealGob.Deal", g, g, done)
+func Call[T, E any](it *T, ot *E, host, path string) error {
+	var buf bytes.Buffer
+	if e := gob.NewEncoder(&buf).Encode(it); e != nil {
+		return errors.Join(ErrCliEncode, e)
+	} else {
+		if c, e := rpc.DialHTTPPath("tcp", host, path); e != nil {
+			return errors.Join(ErrDial, e)
+		} else {
+			t := &Gob{Data: buf.Bytes()}
+			call := <-c.Go("DealGob.Deal", t, t, make(chan *rpc.Call, 1)).Done
+			if call.Error != nil {
+				return errors.Join(ErrCliDeal, call.Error)
+			}
+			if t.Err != nil {
+				return errors.Join(ErrSerGob, t.Err)
+			}
+			if e := gob.NewDecoder(bytes.NewReader(t.Data)).Decode(ot); e != nil {
+				return errors.Join(ErrCliDecode, e)
+			}
+			return nil
+		}
+	}
 }
