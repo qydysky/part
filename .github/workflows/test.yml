@@ -8,7 +8,7 @@ on:
 
 jobs:
   mac-test:
-    name: Build
+    name: mac-test
     runs-on: macos-latest
     steps:
 
@@ -42,7 +42,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
 
   w-test:
-    name: Build
+    name: w-test
     runs-on: windows-latest
     steps:
 
@@ -76,7 +76,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
 
   u-test:
-    name: Build
+    name: u-test
     runs-on: ubuntu-latest
     steps:
 
@@ -109,10 +109,10 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
 
-  mac-build:
-    name: build_macos_go${{ matrix.go }}
+  test:
+    name: test
     needs: [u-test,w-test,mac-test]
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
     - name: Set Release Name
       run: |
