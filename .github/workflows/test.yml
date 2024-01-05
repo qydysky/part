@@ -7,10 +7,9 @@ on:
     branches: [ master ]
 
 jobs:
-
-  build:
+  mac-test:
     name: Build
-    runs-on: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: macos-latest
     steps:
 
     - name: Set up Go 1.x
@@ -42,6 +41,79 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
 
+  w-test:
+    name: Build
+    runs-on: windows-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: Test
+      run: |
+        go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/funcCtrl
+        go test -count 1 -timeout 30s -v -race github.com/qydysky/part/msgq
+        go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
+        go test -count 1 -timeout 7s -v -race github.com/qydysky/part/sync
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
+
+  u-test:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: Test
+      run: |
+        go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/funcCtrl
+        go test -count 1 -timeout 30s -v -race github.com/qydysky/part/msgq
+        go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
+        go test -count 1 -timeout 7s -v -race github.com/qydysky/part/sync
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
+
+  mac-build:
+    name: build_macos_go${{ matrix.go }}
+    needs: [u-test,w-test,mac-test]
+    runs-on: macos-latest
+    steps:
     - name: Set Release Name
       run: |
         echo "TIME=$(date +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
