@@ -120,7 +120,7 @@ func UnRegister(t *Server, path string) {
 	t.webP.Store(path, nil)
 }
 
-func Call[T, E any](it *T, ot *E, host, path string) error {
+func Call[T, E any](host, path string, it *T, ot *E) error {
 	var buf bytes.Buffer
 	if e := gob.NewEncoder(&buf).Encode(it); e != nil {
 		return errors.Join(ErrCliEncode, e)
@@ -143,3 +143,86 @@ func Call[T, E any](it *T, ot *E, host, path string) error {
 		}
 	}
 }
+
+// var (
+// 	ErrRegUnKnowMethod = errors.New("ErrRegUnKnowMethod")
+// )
+
+// type RegisterSer struct {
+// 	m        map[string]*registerItem
+// 	Shutdown func(ctx ...context.Context)
+// 	sync.RWMutex
+// }
+
+// type RegisterSerHost struct {
+// 	Act  string
+// 	Host string
+// 	Path string
+// }
+
+// type registerItem struct {
+// 	hosts map[string]struct{}
+// 	sync.RWMutex
+// }
+
+// func NewRegisterSer(host, path string) (ser *RegisterSer, e error) {
+// 	ser = &RegisterSer{m: make(map[string]*registerItem)}
+// 	s := NewServer(host)
+// 	ser.Shutdown = s.Shutdown
+// 	e = Register(s, path, func(it *RegisterSerHost, ot *struct{}) error {
+// 		if it.Act == "add" {
+// 			ser.RLock()
+// 			item, ok := ser.m[it.Path]
+// 			ser.RUnlock()
+// 			if ok {
+// 				item.Lock()
+// 				item.hosts[it.Host] = struct{}{}
+// 				item.Unlock()
+// 			} else {
+// 				ser.Lock()
+// 				l := make(map[string]struct{})
+// 				l[it.Host] = struct{}{}
+// 				ser.m[it.Path] = &registerItem{
+// 					hosts: l,
+// 				}
+// 				ser.Unlock()
+// 			}
+// 		} else if it.Act == "del" {
+// 			ser.RLock()
+// 			item, ok := ser.m[it.Path]
+// 			ser.RUnlock()
+// 			if ok {
+// 				item.Lock()
+// 				delete(item.hosts, it.Host)
+// 				item.Unlock()
+// 			}
+// 		} else {
+// 			return ErrRegUnKnowMethod
+// 		}
+// 		return nil
+// 	})
+// 	return
+// }
+
+// func RegisterSerReg(regHost, regPath string, info RegisterSerHost) error {
+// 	return Call(&info, &struct{}{}, regHost, regPath)
+// }
+
+// func RegisterSerCall[T any](ser *RegisterSer, it *T, path string) {
+// 	ser.RLock()
+// 	item, ok := ser.m[path]
+// 	ser.RUnlock()
+// 	if ok {
+// 		var hosts []string
+// 		item.RLock()
+// 		for host, _ := range item.hosts {
+// 			hosts = append(hosts, host)
+// 		}
+// 		item.RUnlock()
+
+// 		for len(hosts) > 0 {
+// 			_ = Call(it, &struct{}{}, hosts[0], path)
+// 			hosts = hosts[1:]
+// 		}
+// 	}
+// }
