@@ -3,6 +3,7 @@ package part
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	psync "github.com/qydysky/part/sync"
 	sys "github.com/qydysky/part/sys"
 )
@@ -104,6 +106,11 @@ type WebPath struct {
 	sameP *WebPath
 	next  *WebPath
 	sync.RWMutex
+}
+
+// WebSync
+func (t *WebPath) GetConn(r *http.Request) net.Conn {
+	return r.Context().Value(t).(net.Conn)
 }
 
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
@@ -417,6 +424,111 @@ func (t withflush) WriteHeader(i int) {
 	if t.raw != nil {
 		t.raw.WriteHeader(i)
 	}
+}
+
+type Exprier struct {
+	max int
+	m   psync.Map
+}
+
+var (
+	ErrExprie   = errors.New("ErrExprie")
+	ErrNoFound  = errors.New("ErrNoFound")
+	ErrOverflow = errors.New("ErrOverflow")
+)
+
+func NewExprier(max int) *Exprier {
+	return &Exprier{max: max}
+}
+
+func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
+	if t.max <= 0 {
+		return "noExprie", nil
+	}
+	if key != "" {
+		if _, ok := t.m.Load(key); ok {
+			t.m.Store(key, time.Now().Add(dur))
+			return key, nil
+		} else {
+			return key, ErrNoFound
+		}
+	} else if t.m.Len() >= t.max {
+		return "", ErrOverflow
+	} else {
+		key = strings.ToUpper(uuid.New().String())
+		t.m.Store(key, time.Now().Add(dur))
+		return key, nil
+	}
+}
+
+func (t *Exprier) Check(key string) error {
+	if t.max <= 0 {
+		return nil
+	}
+	if key == "" {
+		return ErrNoFound
+	}
+	ey, ok := t.m.LoadV(key).(time.Time)
+	if !ok {
+		return ErrNoFound
+	} else if time.Now().After(ey) {
+		t.m.Delete(key)
+		return ErrExprie
+	}
+	return nil
+}
+
+func (t *Exprier) LoopCheck(key string, checkDru time.Duration, conn net.Conn) (done func()) {
+	if t.max <= 0 {
+		return func() {}
+	}
+	if key == "" {
+		conn.Close()
+		return func() {}
+	}
+	ey, ok := t.m.LoadV(key).(time.Time)
+	if !ok {
+		conn.Close()
+		return func() {}
+	} else if time.Now().After(ey) {
+		t.m.Delete(key)
+		conn.Close()
+		return func() {}
+	}
+
+	c := make(chan struct{})
+	go func() {
+		for t.max > 0 {
+			ey, ok := t.m.LoadV(key).(time.Time)
+			if !ok {
+				conn.Close()
+			} else if time.Now().After(ey) {
+				t.m.Delete(key)
+				conn.Close()
+			}
+			select {
+			case <-c:
+				return
+			case <-time.After(checkDru):
+			}
+		}
+	}()
+	return func() {
+		close(c)
+	}
+}
+
+func (t *Exprier) Disable() {
+	t.max = 0
+	t.m.ClearAll()
+}
+
+func (t *Exprier) Drop(key string) {
+	t.m.Delete(key)
+}
+
+func (t *Exprier) Len() int {
+	return t.m.Len()
 }
 
 func WithFlush(w http.ResponseWriter) http.ResponseWriter {
