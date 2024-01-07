@@ -478,22 +478,22 @@ func (t *Exprier) Check(key string) error {
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, checkDru time.Duration, conn net.Conn) (done func()) {
+func (t *Exprier) LoopCheck(key string, checkDru time.Duration, whenfail func()) (done func(), e error) {
 	if t.max <= 0 {
-		return func() {}
+		return func() {}, nil
 	}
 	if key == "" {
-		conn.Close()
-		return func() {}
+		whenfail()
+		return func() {}, ErrNoFound
 	}
 	ey, ok := t.m.LoadV(key).(time.Time)
 	if !ok {
-		conn.Close()
-		return func() {}
+		whenfail()
+		return func() {}, ErrNoFound
 	} else if time.Now().After(ey) {
 		t.m.Delete(key)
-		conn.Close()
-		return func() {}
+		whenfail()
+		return func() {}, ErrExprie
 	}
 
 	c := make(chan struct{})
@@ -501,10 +501,12 @@ func (t *Exprier) LoopCheck(key string, checkDru time.Duration, conn net.Conn) (
 		for t.max > 0 {
 			ey, ok := t.m.LoadV(key).(time.Time)
 			if !ok {
-				conn.Close()
+				whenfail()
+				return
 			} else if time.Now().After(ey) {
 				t.m.Delete(key)
-				conn.Close()
+				whenfail()
+				return
 			}
 			select {
 			case <-c:
@@ -515,7 +517,7 @@ func (t *Exprier) LoopCheck(key string, checkDru time.Duration, conn net.Conn) (
 	}()
 	return func() {
 		close(c)
-	}
+	}, nil
 }
 
 func (t *Exprier) Disable() {
