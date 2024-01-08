@@ -427,7 +427,7 @@ func (t withflush) WriteHeader(i int) {
 }
 
 type Exprier struct {
-	max int
+	Max int
 	m   psync.Map
 }
 
@@ -437,12 +437,8 @@ var (
 	ErrOverflow = errors.New("ErrOverflow")
 )
 
-func NewExprier(max int) *Exprier {
-	return &Exprier{max: max}
-}
-
 func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
-	if t.max <= 0 {
+	if t.Max <= 0 {
 		return "noExprie", nil
 	}
 	if key != "" {
@@ -452,7 +448,7 @@ func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
 		} else {
 			return key, ErrNoFound
 		}
-	} else if t.m.Len() >= t.max {
+	} else if t.m.Len() >= t.Max {
 		return "", ErrOverflow
 	} else {
 		key = strings.ToUpper(uuid.New().String())
@@ -462,7 +458,7 @@ func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
 }
 
 func (t *Exprier) Check(key string) error {
-	if t.max <= 0 {
+	if t.Max <= 0 {
 		return nil
 	}
 	if key == "" {
@@ -478,50 +474,51 @@ func (t *Exprier) Check(key string) error {
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, checkDru time.Duration, whenfail func()) (done func(), e error) {
-	if t.max <= 0 {
-		return func() {}, nil
+func (t *Exprier) LoopCheck(key string, whenfail func(error)) (breakLoop func()) {
+	breakLoop = func() {}
+	if t.Max <= 0 {
+		return
 	}
 	if key == "" {
-		whenfail()
-		return func() {}, ErrNoFound
+		whenfail(ErrNoFound)
+		return
 	}
+
 	ey, ok := t.m.LoadV(key).(time.Time)
 	if !ok {
-		whenfail()
-		return func() {}, ErrNoFound
+		whenfail(ErrNoFound)
+		return
 	} else if time.Now().After(ey) {
 		t.m.Delete(key)
-		whenfail()
-		return func() {}, ErrExprie
+		whenfail(ErrExprie)
+		return
 	}
 
 	c := make(chan struct{})
+	breakLoop = func() { close(c) }
 	go func() {
-		for t.max > 0 {
+		for t.Max > 0 {
 			ey, ok := t.m.LoadV(key).(time.Time)
 			if !ok {
-				whenfail()
+				whenfail(ErrNoFound)
 				return
 			} else if time.Now().After(ey) {
 				t.m.Delete(key)
-				whenfail()
+				whenfail(ErrExprie)
 				return
 			}
 			select {
 			case <-c:
 				return
-			case <-time.After(checkDru):
+			case <-time.After(time.Until(ey)):
 			}
 		}
 	}()
-	return func() {
-		close(c)
-	}, nil
+	return
 }
 
 func (t *Exprier) Disable() {
-	t.max = 0
+	t.Max = 0
 	t.m.ClearAll()
 }
 
