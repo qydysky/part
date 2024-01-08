@@ -34,25 +34,15 @@ func parse(i int32) string {
 // i == oldt -> i = t -> pass
 //
 // otherwish block until i == oldt
-func cas(i *atomic.Int32, oldt, t int32) (ok bool, loop func(to ...time.Duration) error) {
-	if i.CompareAndSwap(oldt, t) {
-		return true, func(to ...time.Duration) error { return nil }
-	} else {
-		var called atomic.Bool
-		return false, func(to ...time.Duration) error {
-			if !called.CompareAndSwap(false, true) {
-				panic("had called")
-			}
-			c := time.Now()
-			for !i.CompareAndSwap(oldt, t) {
-				if len(to) != 0 && time.Since(c) > to[0] {
-					return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
-				}
-				runtime.Gosched()
-			}
-			return nil
+func cas(i *atomic.Int32, oldt, t int32, to ...time.Duration) error {
+	c := time.Now()
+	for !i.CompareAndSwap(oldt, t) {
+		if len(to) != 0 && time.Since(c) > to[0] {
+			return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
 		}
+		runtime.Gosched()
 	}
+	return nil
 }
 
 // i == t -> pass
@@ -60,25 +50,15 @@ func cas(i *atomic.Int32, oldt, t int32) (ok bool, loop func(to ...time.Duration
 // i == oldt -> i = t -> pass
 //
 // otherwish block until i == oldt
-func lcas(i *atomic.Int32, oldt, t int32) (ok bool, loop func(to ...time.Duration) error) {
-	if i.Load() == t || i.CompareAndSwap(oldt, t) {
-		return true, func(to ...time.Duration) error { return nil }
-	} else {
-		var called atomic.Bool
-		return false, func(to ...time.Duration) error {
-			if !called.CompareAndSwap(false, true) {
-				panic("had called")
-			}
-			c := time.Now()
-			for !i.CompareAndSwap(oldt, t) {
-				if len(to) != 0 && time.Since(c) > to[0] {
-					return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
-				}
-				runtime.Gosched()
-			}
-			return nil
+func lcas(i *atomic.Int32, oldt, t int32, to ...time.Duration) error {
+	c := time.Now()
+	for i.Load() != t && !i.CompareAndSwap(oldt, t) {
+		if len(to) != 0 && time.Since(c) > to[0] {
+			return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
 		}
+		runtime.Gosched()
 	}
+	return nil
 }
 
 // call inTimeCall() in time or panic(callTree)
@@ -94,13 +74,11 @@ func tof(to time.Duration) (inTimeCall func() (called bool)) {
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
 	if m.read.Add(1) == 1 {
-		_, rlcLoop := cas(&m.rlc, ulock, rlock)
-		if e := rlcLoop(to...); e != nil {
+		if e := cas(&m.rlc, ulock, rlock, to...); e != nil {
 			panic(e)
 		}
 	} else {
-		_, rlcLoop := lcas(&m.rlc, ulock, rlock)
-		if e := rlcLoop(to...); e != nil {
+		if e := lcas(&m.rlc, ulock, rlock, to...); e != nil {
 			panic(e)
 		}
 	}
@@ -120,8 +98,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func()
 			for i := 0; i < len(beforeUlock); i++ {
 				beforeUlock[i]()
 			}
-			_, rlcLoop := cas(&m.rlc, rlock, ulock)
-			if e := rlcLoop(to...); e != nil {
+			if e := cas(&m.rlc, rlock, ulock, to...); e != nil {
 				panic(e)
 			}
 		}
@@ -130,8 +107,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func()
 
 // to[0]: wait lock timeout to[1]: run lock timeout
 func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
-	_, rlcLoop := cas(&m.rlc, ulock, lock)
-	if e := rlcLoop(to...); e != nil {
+	if e := cas(&m.rlc, ulock, lock, to...); e != nil {
 		panic(e)
 	}
 	var callC atomic.Bool
@@ -149,8 +125,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())
 		for i := 0; i < len(beforeUlock); i++ {
 			beforeUlock[i]()
 		}
-		_, rlcLoop := cas(&m.rlc, lock, ulock)
-		if e := rlcLoop(to...); e != nil {
+		if e := cas(&m.rlc, lock, ulock, to...); e != nil {
 			panic(e)
 		}
 	}

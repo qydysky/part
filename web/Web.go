@@ -474,23 +474,23 @@ func (t *Exprier) Check(key string) error {
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, whenfail func(error)) (breakLoop func()) {
+func (t *Exprier) LoopCheck(key string, whenfail func(key string, e error)) (breakLoop func()) {
 	breakLoop = func() {}
 	if t.Max <= 0 {
 		return
 	}
 	if key == "" {
-		whenfail(ErrNoFound)
+		whenfail(key, ErrNoFound)
 		return
 	}
 
 	ey, ok := t.m.LoadV(key).(time.Time)
 	if !ok {
-		whenfail(ErrNoFound)
+		whenfail(key, ErrNoFound)
 		return
 	} else if time.Now().After(ey) {
 		t.m.Delete(key)
-		whenfail(ErrExprie)
+		whenfail(key, ErrExprie)
 		return
 	}
 
@@ -500,17 +500,17 @@ func (t *Exprier) LoopCheck(key string, whenfail func(error)) (breakLoop func())
 		for t.Max > 0 {
 			ey, ok := t.m.LoadV(key).(time.Time)
 			if !ok {
-				whenfail(ErrNoFound)
+				whenfail(key, ErrNoFound)
 				return
 			} else if time.Now().After(ey) {
 				t.m.Delete(key)
-				whenfail(ErrExprie)
+				whenfail(key, ErrExprie)
 				return
 			}
 			select {
 			case <-c:
 				return
-			case <-time.After(time.Until(ey)):
+			case <-time.After(time.Until(ey) + time.Second):
 			}
 		}
 	}()
