@@ -12,8 +12,9 @@ type Map struct {
 }
 
 func (t *Map) Store(k, v any) {
-	t.size.Add(1)
-	t.m.Store(k, v)
+	if _, loaded := t.m.Swap(k, v); !loaded {
+		t.size.Add(1)
+	}
 }
 
 func (t *Map) LoadOrStore(k, v any) (actual any, loaded bool) {
