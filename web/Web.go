@@ -448,12 +448,8 @@ func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
 		} else {
 			return key, ErrNoFound
 		}
-	} else if t.m.Len() >= t.Max {
-		return "", ErrOverflow
 	} else {
-		key = strings.ToUpper(uuid.New().String())
-		t.m.Store(key, time.Now().Add(dur))
-		return key, nil
+		return uuid.NewString(), nil
 	}
 }
 
@@ -474,7 +470,7 @@ func (t *Exprier) Check(key string) error {
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, whenfail func(key string, e error)) (breakLoop func()) {
+func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key string, e error)) (breakLoop func()) {
 	breakLoop = func() {}
 	if t.Max <= 0 {
 		return
@@ -483,19 +479,18 @@ func (t *Exprier) LoopCheck(key string, whenfail func(key string, e error)) (bre
 		whenfail(key, ErrNoFound)
 		return
 	}
-
-	ey, ok := t.m.LoadV(key).(time.Time)
-	if !ok {
-		whenfail(key, ErrNoFound)
-		return
-	} else if time.Now().After(ey) {
-		t.m.Delete(key)
-		whenfail(key, ErrExprie)
+	if t.m.Len() >= t.Max {
+		whenfail(key, ErrOverflow)
 		return
 	}
 
 	c := make(chan struct{})
-	breakLoop = func() { close(c) }
+	t.m.Store(key, time.Now().Add(dru))
+	breakLoop = func() {
+		t.m.Delete(key)
+		close(c)
+	}
+
 	go func() {
 		for t.Max > 0 {
 			ey, ok := t.m.LoadV(key).(time.Time)
