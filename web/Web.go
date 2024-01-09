@@ -489,8 +489,8 @@ func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key str
 	var close atomic.Bool
 	t.m.Store(key, time.Now().Add(dru))
 	breakLoop = func() {
-		t.m.Delete(key)
 		close.Store(true)
+		t.m.Delete(key)
 	}
 
 	go func() {
