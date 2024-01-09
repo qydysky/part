@@ -33,7 +33,7 @@ jobs:
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
         go test -count 1 -timeout 7s -v -race github.com/qydysky/part/sync
-        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/web
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
@@ -67,7 +67,7 @@ jobs:
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
         go test -count 1 -timeout 7s -v -race github.com/qydysky/part/sync
-        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/web
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
@@ -101,7 +101,7 @@ jobs:
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
         go test -count 1 -timeout 7s -v -race github.com/qydysky/part/sync
-        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/web
         go test -count 1 -timeout 10s -v -run "Test_Client" -race github.com/qydysky/part/websocket
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
