@@ -470,29 +470,31 @@ func (t *Exprier) Check(key string) error {
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key string, e error)) (breakLoop func()) {
+func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key string, e error)) (breakLoop func(), e error) {
 	breakLoop = func() {}
 	if t.Max <= 0 {
 		return
 	}
 	if key == "" {
+		e = ErrNoFound
 		whenfail(key, ErrNoFound)
 		return
 	}
 	if t.m.Len() >= t.Max {
+		e = ErrOverflow
 		whenfail(key, ErrOverflow)
 		return
 	}
 
-	c := make(chan struct{})
+	var close atomic.Bool
 	t.m.Store(key, time.Now().Add(dru))
 	breakLoop = func() {
 		t.m.Delete(key)
-		close(c)
+		close.Store(true)
 	}
 
 	go func() {
-		for t.Max > 0 {
+		for !close.Load() && t.Max > 0 {
 			ey, ok := t.m.LoadV(key).(time.Time)
 			if !ok {
 				whenfail(key, ErrNoFound)
@@ -502,11 +504,7 @@ func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key str
 				whenfail(key, ErrExprie)
 				return
 			}
-			select {
-			case <-c:
-				return
-			case <-time.After(time.Until(ey) + time.Second):
-			}
+			time.Sleep(time.Until(ey) + time.Second)
 		}
 	}()
 	return

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -306,4 +307,28 @@ func (t ResStruct) Write(w http.ResponseWriter) {
 		data, _ = json.Marshal(t)
 	}
 	w.Write(data)
+}
+
+func Test1(b *testing.T) {
+	exp := Exprier{Max: 10}
+
+	el := make(chan error, 100)
+	for i := 0; i < 20; i++ {
+		done, e := exp.LoopCheck(strconv.Itoa(i), time.Second*10, func(key string, e error) {
+			if e != nil {
+				el <- e
+				b.Log(key, e)
+			}
+		})
+		if e != nil {
+			b.Fatal(e)
+		}
+		done()
+	}
+
+	time.Sleep(time.Second * 3)
+
+	if len(el) > 0 {
+		b.Fatal(<-el)
+	}
 }
