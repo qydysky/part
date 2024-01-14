@@ -1,6 +1,10 @@
 package errors
 
-import "testing"
+import (
+	"errors"
+	"io"
+	"testing"
+)
 
 func TestXxx(t *testing.T) {
 	var err error
@@ -23,5 +27,16 @@ func TestXxx(t *testing.T) {
 
 	if !Catch(err, "a1") {
 		t.Fail()
+	}
+}
+
+func Test1(t *testing.T) {
+	e := Join(io.EOF, io.ErrClosedPipe)
+	e = Join(io.EOF, e)
+	if !errors.Is(e, io.ErrClosedPipe) {
+		t.FailNow()
+	}
+	if ErrorFormat(e, ErrSimplifyFunc) != "EOF\nEOF\nio: read/write o...\n" {
+		t.FailNow()
 	}
 }
