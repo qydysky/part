@@ -477,12 +477,10 @@ func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key str
 	}
 	if key == "" {
 		e = ErrNoFound
-		whenfail(key, ErrNoFound)
 		return
 	}
 	if t.m.Len() >= t.Max {
 		e = ErrOverflow
-		whenfail(key, ErrOverflow)
 		return
 	}
 
