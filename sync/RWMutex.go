@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
-const (
-	lock  int32 = -1
-	ulock int32 = 0
-	rlock int32 = 1
-)
+// const (
+// 	lock  int32 = -1
+// 	ulock int32 = 0
+// 	rlock int32 = 1
+// )
 
 var (
 	ErrTimeoutToLock  = errors.New("ErrTimeoutToLock")
@@ -21,7 +21,7 @@ var (
 )
 
 type RWMutex struct {
-	rlc       atomic.Int32
+	rlc       sync.RWMutex
 	PanicFunc func(any)
 }
 
@@ -91,11 +91,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func()
 		defer m.tof(to[0], ErrTimeoutToLock)()
 	}
 
-	for m.rlc.Load() < rlock && !m.rlc.CompareAndSwap(ulock, rlock) {
-		runtime.Gosched()
-	}
-
-	m.rlc.Add(1)
+	m.rlc.RLock()
 
 	return func(beforeUlock ...func()) {
 		if len(to) > 1 {
@@ -104,9 +100,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func()
 		for i := 0; i < len(beforeUlock); i++ {
 			beforeUlock[i]()
 		}
-		if m.rlc.Add(-1) == rlock {
-			m.rlc.CompareAndSwap(rlock, ulock)
-		}
+		m.rlc.RUnlock()
 	}
 }
 
@@ -117,9 +111,8 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())
 	if len(to) > 0 {
 		defer m.tof(to[0], ErrTimeoutToLock)()
 	}
-	for !m.rlc.CompareAndSwap(ulock, lock) {
-		runtime.Gosched()
-	}
+
+	m.rlc.Lock()
 
 	return func(beforeUlock ...func()) {
 		if len(to) > 1 {
@@ -128,7 +121,7 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())
 		for i := 0; i < len(beforeUlock); i++ {
 			beforeUlock[i]()
 		}
-		m.rlc.Store(ulock)
+		m.rlc.Unlock()
 	}
 }
 

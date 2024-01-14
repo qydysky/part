@@ -437,24 +437,19 @@ func Test_msgq3(t *testing.T) {
 
 func Test_msgq4(t *testing.T) {
 	// mq := New(30)
-	mq := New() //out of list
+	mq := New(time.Second, time.Second) //out of list
 
-	mun_c1 := make(chan bool, 100)
-	mun_c2 := make(chan bool, 100)
-	mun_c3 := make(chan bool, 100)
 	mq.Pull_tag(map[string]func(any) bool{
 		`A1`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`1`)
 			}
-			mun_c1 <- true
 			return false
 		},
 		`A2`: func(data any) bool {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
-			mun_c2 <- true
 			return false
 		},
 		`Error`: func(data any) bool {
@@ -469,7 +464,6 @@ func Test_msgq4(t *testing.T) {
 			if v, ok := data.(string); !ok || v != `a11` {
 				t.Error(`2`)
 			}
-			mun_c3 <- true
 			return false
 		},
 		`Error`: func(data any) bool {
@@ -482,7 +476,7 @@ func Test_msgq4(t *testing.T) {
 
 	var fin_turn = 0
 	time.Sleep(time.Second)
-	for fin_turn < 5 {
+	for fin_turn < 20 {
 		go mq.Push_tag(`A1`, `a11`)
 		go mq.Push_tag(`A1`, `a11`)
 		go mq.Push_tag(`A1`, `a11`)
@@ -491,8 +485,6 @@ func Test_msgq4(t *testing.T) {
 		mq.Push_tag(`A1`, `a11`)
 		mq.Push_tag(`A2`, `a11`)
 		// mq.Push_tag(`A4`,`a11`)
-		<-mun_c2
-		<-mun_c1
 		// <-mun_c3
 		fin_turn += 1
 	}

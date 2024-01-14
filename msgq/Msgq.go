@@ -168,8 +168,7 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
-		ul := m.lock.RLock(m.to...)
-		defer ul(m.removeDisable)
+		defer m.lock.RLock(m.to...)(m.removeDisable)
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)

@@ -2,15 +2,15 @@ package part
 
 import (
 	"errors"
-	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
 
 func check(l *RWMutex, r int32) {
-	if i := l.rlc.Load(); i != r {
-		panic(fmt.Errorf("%v %v", i, r))
-	}
+	// if i := l.rlc.Load(); i != r {
+	// 	panic(fmt.Errorf("%v %v", i, r))
+	// }
 }
 
 func Test0(t *testing.T) {
@@ -28,15 +28,15 @@ func Test0(t *testing.T) {
 // ulock rlock rlock
 func Test1(t *testing.T) {
 	var l RWMutex
-	check(&l, 0)
+	//check(&l, 0)
 	ul := l.RLock()
-	check(&l, 2)
+	//check(&l, 2)
 	ul1 := l.RLock()
-	check(&l, 3)
+	//check(&l, 3)
 	ul()
-	check(&l, 2)
+	//check(&l, 2)
 	ul1()
-	check(&l, 0)
+	//check(&l, 0)
 }
 
 func Test4(t *testing.T) {
@@ -76,38 +76,38 @@ func Test8(t *testing.T) {
 func Test2(t *testing.T) {
 	var l RWMutex
 	ul := l.RLock()
-	check(&l, 2)
+	//check(&l, 2)
 	time.AfterFunc(time.Second, func() {
-		check(&l, 2)
+		//check(&l, 2)
 		ul()
 	})
 	c := time.Now()
 	ul1 := l.Lock()
-	check(&l, -1)
+	//check(&l, -1)
 	if time.Since(c) < time.Second {
 		t.Fail()
 	}
 	ul1()
-	check(&l, 0)
+	//check(&l, 0)
 }
 
 // ulock lock rlock
 func Test3(t *testing.T) {
 	var l RWMutex
 	ul := l.Lock()
-	check(&l, -1)
+	//check(&l, -1)
 	time.AfterFunc(time.Second, func() {
-		check(&l, -1)
+		//check(&l, -1)
 		ul()
 	})
 	c := time.Now()
 	ul1 := l.RLock()
-	check(&l, 2)
+	//check(&l, 2)
 	if time.Since(c) < time.Second {
 		t.Fail()
 	}
 	ul1()
-	check(&l, 0)
+	//check(&l, 0)
 }
 
 func Test6(t *testing.T) {
@@ -154,6 +154,25 @@ func Test7(t *testing.T) {
 	}
 }
 
+func Test9(t *testing.T) {
+	n := time.Now()
+	var l RWMutex
+	for i := 0; i < 1000; i++ {
+		go l.RLock(time.Second, time.Second)()
+	}
+	t.Log(time.Since(n))
+}
+
+func Test10(t *testing.T) {
+	n := time.Now()
+	var l sync.RWMutex
+	for i := 0; i < 300; i++ {
+		l.RLock()
+		go l.RUnlock()
+	}
+	t.Log(time.Since(n))
+}
+
 func Panic_Test8(t *testing.T) {
 	var l RWMutex
 	ul := l.Lock(time.Second, time.Second)
@@ -165,16 +184,16 @@ func Panic_Test8(t *testing.T) {
 // ulock rlock rlock
 func Panic_Test4(t *testing.T) {
 	var l RWMutex
-	check(&l, 0)
+	//check(&l, 0)
 	ul := l.RLock(time.Second, time.Second)
-	check(&l, 1)
+	//check(&l, 1)
 	ul1 := l.RLock(time.Second, time.Second)
-	check(&l, 2)
+	//check(&l, 2)
 	time.Sleep(time.Millisecond * 1500)
 	ul()
-	check(&l, 1)
+	//check(&l, 1)
 	ul1()
-	check(&l, 0)
+	//check(&l, 0)
 	time.Sleep(time.Second * 3)
 }
 
@@ -182,19 +201,19 @@ func Panic_Test4(t *testing.T) {
 func Panic_Test5(t *testing.T) {
 	var l RWMutex
 	ul := l.RLock()
-	check(&l, 1)
+	//check(&l, 1)
 	time.AfterFunc(time.Millisecond*1500, func() {
-		check(&l, 1)
+		//check(&l, 1)
 		ul()
 	})
 	c := time.Now()
 	ul1 := l.Lock(time.Second)
-	check(&l, 0)
+	//check(&l, 0)
 	if time.Since(c) < time.Second {
 		t.Fail()
 	}
 	ul1()
-	check(&l, 0)
+	//check(&l, 0)
 }
 
 /*
@@ -212,6 +231,6 @@ PASS
 func BenchmarkRlock(b *testing.B) {
 	var lock1 RWMutex
 	for i := 0; i < b.N; i++ {
-		lock1.Lock()()
+		lock1.RLock()()
 	}
 }
