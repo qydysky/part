@@ -219,6 +219,7 @@ func (t *Limits) AddLimitItem(item *limitItem) {
 	t.g = append(t.g, item)
 }
 
+// Deprecated: 反直觉的方法
 func (t *Limits) ReachMax(r *http.Request) (isOverflow bool) {
 	if len(t.g) == 0 {
 		return
