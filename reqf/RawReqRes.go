@@ -2,6 +2,7 @@ package part
 
 import (
 	"io"
+	"sync/atomic"
 
 	pio "github.com/qydysky/part/io"
 )
@@ -9,86 +10,67 @@ import (
 type RawReqRes struct {
 	req  *pio.IOpipe
 	res  *pio.IOpipe
-	reqC chan struct{}
-	resC chan struct{}
+	reqC *atomic.Bool
+	resC *atomic.Bool
 }
 
 func NewRawReqRes() *RawReqRes {
-	return &RawReqRes{req: pio.NewPipe(), res: pio.NewPipe(), reqC: make(chan struct{}), resC: make(chan struct{})}
+	p := &RawReqRes{req: pio.NewPipe(), res: pio.NewPipe(), reqC: &atomic.Bool{}, resC: &atomic.Bool{}}
+	return p
 }
 
 func (t RawReqRes) ReqClose() error {
-	select {
-	case <-t.reqC:
-		return nil
-	default:
-		close(t.reqC)
+	if !t.reqC.Swap(true) {
 		return t.req.Close()
 	}
+	return nil
 }
 
 func (t RawReqRes) ReqCloseWithError(e error) error {
-	select {
-	case <-t.reqC:
-		return nil
-	default:
-		close(t.reqC)
+	if !t.reqC.Swap(true) {
 		return t.req.CloseWithError(e)
 	}
+	return nil
 }
 
 func (t RawReqRes) ResClose() error {
-	select {
-	case <-t.resC:
-		return nil
-	default:
-		close(t.resC)
+	if !t.resC.Swap(true) {
 		return t.res.Close()
 	}
+	return nil
 }
 
 func (t RawReqRes) ResCloseWithError(e error) error {
-	select {
-	case <-t.resC:
-		return nil
-	default:
-		close(t.resC)
+	if !t.resC.Swap(true) {
 		return t.res.CloseWithError(e)
 	}
+	return nil
 }
 
 func (t RawReqRes) Write(p []byte) (n int, err error) {
-	select {
-	case <-t.reqC:
+	if t.reqC.Load() {
 		return t.res.Write(p)
-	default:
-		return 0, io.EOF
 	}
+	return 0, io.EOF
 }
 
 func (t RawReqRes) Read(p []byte) (n int, err error) {
-	select {
-	case <-t.reqC:
-		return 0, io.EOF
-	default:
+	if !t.reqC.Load() {
 		return t.req.Read(p)
 	}
+	return 0, io.EOF
 }
 
 func (t RawReqRes) ReqWrite(p []byte) (n int, err error) {
-	select {
-	case <-t.reqC:
-		return 0, io.EOF
-	default:
+	if !t.reqC.Load() {
 		return t.req.Write(p)
 	}
+	return 0, io.EOF
 }
 
 func (t RawReqRes) ResRead(p []byte) (n int, err error) {
-	select {
-	case <-t.reqC:
+	if t.reqC.Load() {
 		return t.res.Read(p)
-	default:
-		return 0, io.EOF
 	}
+	return 0, io.EOF
 }
