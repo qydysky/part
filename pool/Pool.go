@@ -7,15 +7,23 @@ import (
 
 type Buf[T any] struct {
 	maxsize     int
-	newF        func() *T
-	inUse       func(*T) bool
-	reuseF      func(*T) *T
-	poolF       func(*T) *T
+	pf          PoolFunc[T]
 	mbuf        map[*T]bool
 	getPerSec   float64
 	periodCount float64
 	periodTime  time.Time
 	l           sync.RWMutex
+}
+
+type PoolFunc[T any] struct {
+	// func() *T 新值
+	New func() *T
+	// func(*T) bool 是否在使用
+	InUse func(*T) bool
+	// func(*T) *T 重用(出池)前处理
+	Reuse func(*T) *T
+	// func(*T) *T 入池前处理
+	Pool func(*T) *T
 }
 
 // 创建池
@@ -29,12 +37,9 @@ type Buf[T any] struct {
 // PoolF func(*T) *T 入池前处理
 //
 // maxsize int 池最大数量
-func New[T any](NewF func() *T, InUse func(*T) bool, ReuseF func(*T) *T, PoolF func(*T) *T, maxsize int) *Buf[T] {
+func New[T any](poolFunc PoolFunc[T], maxsize int) *Buf[T] {
 	t := new(Buf[T])
-	t.newF = NewF
-	t.inUse = InUse
-	t.reuseF = ReuseF
-	t.poolF = PoolF
+	t.pf = poolFunc
 	t.maxsize = maxsize
 	t.mbuf = make(map[*T]bool)
 	t.periodTime = time.Now()
@@ -68,7 +73,7 @@ func (t *Buf[T]) State() BufState {
 		} else {
 			nopooled++
 		}
-		if t.inUse(k) {
+		if t.pf.InUse(k) {
 			inuse++
 		} else {
 			nouse++
@@ -95,13 +100,13 @@ func (t *Buf[T]) Get() *T {
 	}
 
 	for k, v := range t.mbuf {
-		if v && !t.inUse(k) {
+		if v && !t.pf.InUse(k) {
 			t.mbuf[k] = false
-			return t.reuseF(k)
+			return t.pf.Reuse(k)
 		}
 	}
 
-	return t.newF()
+	return t.pf.New()
 }
 
 func (t *Buf[T]) Put(item ...*T) {
@@ -114,10 +119,10 @@ func (t *Buf[T]) Put(item ...*T) {
 
 	for i := 0; i < len(item); i++ {
 		if _, ok := t.mbuf[item[i]]; ok {
-			t.poolF(item[i])
+			t.pf.Pool(item[i])
 			t.mbuf[item[i]] = true
 		} else if t.maxsize > len(t.mbuf) {
-			t.poolF(item[i])
+			t.pf.Pool(item[i])
 			t.mbuf[item[i]] = true
 		}
 	}

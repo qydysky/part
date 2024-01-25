@@ -32,7 +32,7 @@ func Test1(t *testing.T) {
 		return t
 	}
 
-	var b = New(newf, validf, reusef, poolf, 10)
+	var b = New(PoolFunc[a]{newf, validf, reusef, poolf}, 10)
 
 	for i := 0; i < 10; i++ {
 		b.Get()
@@ -44,25 +44,20 @@ func Test1(t *testing.T) {
 }
 
 func TestXxx(t *testing.T) {
-	var newf = func() *a {
-		return &a{v: true}
-	}
-
-	var validf = func(t *a) bool {
-		return t.v
-	}
-
-	var reusef = func(t *a) *a {
-		t.d = t.d[:0]
-		t.v = true
-		return t
-	}
-
-	var poolf = func(t *a) *a {
-		return t
-	}
-
-	var b = New(newf, validf, reusef, poolf, 10)
+	var b = New(PoolFunc[a]{
+		New: func() *a {
+			return &a{v: true}
+		},
+		InUse: func(t *a) bool {
+			return t.v
+		},
+		Reuse: func(t *a) *a {
+			t.d = t.d[:0]
+			t.v = true
+			return t
+		}, Pool: func(t *a) *a {
+			return t
+		}}, 10)
 
 	var c1 = b.Get()
 	var c1p = uintptr(unsafe.Pointer(c1))
@@ -72,7 +67,13 @@ func TestXxx(t *testing.T) {
 	var c2p = uintptr(unsafe.Pointer(c2))
 	c2.d = append(c2.d, []byte("2")...)
 
-	if c1p == c2p || bytes.Equal(c1.d, c2.d) || b.State().Inuse != 0 || b.State().Sum != 0 {
+	if c1p == c2p {
+		t.Fatal()
+	} else if bytes.Equal(c1.d, c2.d) {
+		t.Fatal()
+	} else if b.State().Inuse != 0 {
+		t.Fatal()
+	} else if b.State().Sum != 0 {
 		t.Fatal()
 	}
 
