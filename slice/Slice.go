@@ -161,7 +161,7 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 }
 
 func DelFront[S ~[]T, T any](s *S, beforeIndex int) {
-	*s = (*s)[:copy(*s, (*s)[beforeIndex+1:])]
+	*s = (*s)[:copy(*s, (*s)[beforeIndex:])]
 }
 
 func AddFront[S ~[]*T, T any](s *S, t *T) {

@@ -89,7 +89,7 @@ func Test3(t *testing.T) {
 	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 3 {
 		t.Fatal()
 	}
-	DelFront(&s, 2)
+	DelFront(&s, 3)
 	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 0 {
 		t.Fatal()
 	}
