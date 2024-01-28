@@ -3,6 +3,7 @@ package part
 import (
 	"bytes"
 	"testing"
+	"unsafe"
 )
 
 func TestXxx(t *testing.T) {
@@ -76,6 +77,32 @@ func TestXxx2(t *testing.T) {
 		t.Fatal()
 	}
 	if !bytes.Equal(third, []byte("akjsdhfaksdjhf9834719203857")) {
+		t.Fatal()
+	}
+}
+
+func Test3(t *testing.T) {
+	i := 1
+	var s []*int
+	var p = unsafe.Pointer(&s)
+	s = append(s, &i, &i, &i)
+	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 3 {
+		t.Fatal()
+	}
+	s = DelFront(s, 2)
+	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 0 {
+		t.Fatal()
+	}
+	s = AddFront(s, &i)
+	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 1 {
+		t.Fatal()
+	}
+	s = AddBack(s, &i)
+	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 2 {
+		t.Fatal()
+	}
+	s = DelBack(s, 1)
+	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 1 {
 		t.Fatal()
 	}
 }
