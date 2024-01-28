@@ -160,21 +160,20 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	return
 }
 
-func DelFront[S ~[]*T, T any](s S, beforeIndex int) S {
-	return s[:copy(s, s[beforeIndex+1:])]
+func DelFront[S ~[]*T, T any](s *S, beforeIndex int) {
+	*s = (*s)[:copy(*s, (*s)[beforeIndex+1:])]
 }
 
-func AddFront[S ~[]*T, T any](s S, t *T) S {
-	s = append(s, nil)
-	s = s[:1+copy(s[1:], s)]
-	s[0] = t
-	return s
+func AddFront[S ~[]*T, T any](s *S, t *T) {
+	*s = append(*s, nil)
+	*s = (*s)[:1+copy((*s)[1:], *s)]
+	(*s)[0] = t
 }
 
-func DelBack[S ~[]*T, T any](s S, fromIndex int) S {
-	return s[:fromIndex]
+func DelBack[S ~[]*T, T any](s *S, fromIndex int) {
+	*s = (*s)[:fromIndex]
 }
 
-func AddBack[S ~[]*T, T any](s S, t *T) S {
-	return append(s, t)
+func AddBack[S ~[]*T, T any](s *S, t *T) {
+	*s = append(*s, t)
 }
