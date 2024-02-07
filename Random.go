@@ -1,13 +1,12 @@
 package part
 
 import (
-	goRand "math/rand"
 	goCRand "crypto/rand"
-  	"math/big"
-	"time"
+	"math/big"
+	goRand "math/rand/v2"
 )
 
-type random struct{
+type random struct {
 	RV []interface{}
 }
 
@@ -17,7 +16,7 @@ func Rand() *random {
 
 func (*random) TrueRandom(max int64) int64 {
 	var e error
-	if r,e := goCRand.Int(goCRand.Reader, big.NewInt(max)); e == nil {
+	if r, e := goCRand.Int(goCRand.Reader, big.NewInt(max)); e == nil {
 		return r.Int64()
 	}
 	Logf().E(e.Error())
@@ -25,8 +24,7 @@ func (*random) TrueRandom(max int64) int64 {
 }
 
 func (*random) FakeRandom(max int64) int64 {
-	r := goRand.New(goRand.NewSource(time.Now().UnixNano()))
-	return r.Int63n(max)
+	return goRand.Int64N(max)
 }
 
 func (t *random) MixRandom(min, max int64) int64 {
@@ -34,9 +32,11 @@ func (t *random) MixRandom(min, max int64) int64 {
 	if lenght == 0 {
 		return min
 	} else if lenght < 0 {
-		panic(`max < min`) 
+		panic(`max < min`)
 	}
 	r := t.TrueRandom(lenght)
-	if r != -1 {return min + r}
+	if r != -1 {
+		return min + r
+	}
 	return min + t.FakeRandom(lenght)
 }

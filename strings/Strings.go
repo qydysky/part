@@ -2,10 +2,9 @@ package part
 
 import (
 	"bytes"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -27,11 +26,10 @@ func Rand(typel RandType, leng int) string {
 
 	Letters := []rune(source)
 	LettersL := len(Letters)
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var bb bytes.Buffer
 	bb.Grow(leng)
 	for i := 0; i < leng; i++ {
-		bb.WriteRune(Letters[r.Intn(LettersL)])
+		bb.WriteRune(Letters[int(rand.Uint64N(uint64(LettersL)))])
 	}
 	return bb.String()
 
