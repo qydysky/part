@@ -2,6 +2,7 @@ package part
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,9 +10,9 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	ctx "github.com/qydysky/part/ctx"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
-	signal "github.com/qydysky/part/signal"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 type Recorder struct {
 	Server   *Server
 	onlyOnce funcCtrl.SkipFunc
-	stopflag *signal.Signal
+	stopflag context.Context
 }
 
 func (t *Recorder) Start(filePath string) error {
@@ -49,13 +50,14 @@ func (t *Recorder) Start(filePath string) error {
 
 		var startTimeStamp time.Time
 
-		t.stopflag = signal.Init()
+		t.stopflag = ctx.CarryCancel(context.WithCancel(context.Background()))
+
 		if startTimeStamp.IsZero() {
 			startTimeStamp = time.Now()
 		}
 		t.Server.Interface().Pull_tag(map[string]func(interface{}) bool{
 			`send`: func(data interface{}) bool {
-				if !t.stopflag.Islive() {
+				if ctx.Done(t.stopflag) {
 					return true
 				}
 				if tmp, ok := data.(Uinterface); ok {
@@ -65,18 +67,18 @@ func (t *Recorder) Start(filePath string) error {
 				return false
 			},
 		})
-		t.stopflag.Wait()
+		<-t.stopflag.Done()
 	}()
 	return nil
 }
 
 func (t *Recorder) Stop() {
-	t.stopflag.Done()
+	ctx.CallCancel(t.stopflag)
 	t.onlyOnce.UnSet()
 }
 
 func Play(filePath string) (s *Server, close func()) {
-	sg := signal.Init()
+	sg := ctx.CarryCancel(context.WithCancel(context.Background()))
 
 	s = New_server()
 
@@ -85,7 +87,7 @@ func Play(filePath string) (s *Server, close func()) {
 			Id:   0,
 			Data: `rev_close`,
 		})
-		sg.Done()
+		_ = ctx.CallCancel(sg)
 	}
 
 	go func() {
@@ -115,11 +117,16 @@ func Play(filePath string) (s *Server, close func()) {
 			},
 		})
 
-		for sg.Islive() {
-			<-timer.C
+		for !ctx.Done(sg) {
+			select {
+			case <-timer.C:
+			case <-sg.Done():
+				return
+			}
+
 			cu += 1
 
-			for sg.Islive() {
+			for !ctx.Done(sg) {
 				if data == nil {
 					if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
 						panic(e)
@@ -137,11 +144,10 @@ func Play(filePath string) (s *Server, close func()) {
 						Data: data[danmuIndex:],
 					})
 					data = nil
+				} else {
+					break
 				}
-
-				break
 			}
-
 		}
 	}()
 
