@@ -2,12 +2,13 @@ package part
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,29 @@ import (
 	pio "github.com/qydysky/part/io"
 	reqf "github.com/qydysky/part/reqf"
 )
+
+func Test_Exprier(t *testing.T) {
+	exp := NewExprier(1)
+	if key, e := exp.Reg(time.Second); e != nil {
+		t.Fail()
+	} else {
+		if _, e := exp.Check(key); e != nil {
+			t.Fail()
+		}
+		if k, e := exp.Reg(time.Second); e != nil {
+			t.Fail()
+		} else {
+			if _, e := exp.Check(key); !errors.Is(e, ErrNoFound) {
+				t.Fail()
+			}
+			key = k
+		}
+		time.Sleep(time.Second * 2)
+		if _, e := exp.Check(key); !errors.Is(e, ErrExpried) {
+			t.Fail()
+		}
+	}
+}
 
 func Test_Server(t *testing.T) {
 	s := New(&http.Server{
@@ -310,25 +334,26 @@ func (t ResStruct) Write(w http.ResponseWriter) {
 }
 
 func Test1(b *testing.T) {
-	exp := Exprier{Max: 10}
+	exp := NewExprier(20)
 
 	el := make(chan error, 100)
 	for i := 0; i < 20; i++ {
-		done, e := exp.LoopCheck(strconv.Itoa(i), time.Second*10, func(key string, e error) {
+		key, _ := exp.Reg(time.Second)
+		e := exp.LoopCheck(context.Background(), key, func(key string, e error) {
 			if e != nil {
 				el <- e
-				b.Log(key, e)
 			}
 		})
 		if e != nil {
 			b.Fatal(e)
 		}
-		done()
 	}
 
 	time.Sleep(time.Second * 3)
 
-	if len(el) > 0 {
-		b.Fatal(<-el)
+	for len(el) > 0 {
+		if !errors.Is(<-el, ErrExpried) {
+			b.Fatal()
+		}
 	}
 }

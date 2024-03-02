@@ -38,10 +38,12 @@ func (t *Map) Range(f func(key, value any) bool) {
 	t.m.Range(f)
 }
 
-func (t *Map) Delete(k any) {
+func (t *Map) Delete(k any) (ok bool) {
 	if _, ok := t.m.LoadAndDelete(k); ok {
 		t.size.Add(-1)
+		return true
 	}
+	return false
 }
 
 func (t *Map) ClearAll() {

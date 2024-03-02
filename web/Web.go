@@ -428,89 +428,107 @@ func (t withflush) WriteHeader(i int) {
 }
 
 type Exprier struct {
-	Max int
+	max int
 	m   psync.Map
+	mc  chan string
 }
 
 var (
-	ErrExprie   = errors.New("ErrExprie")
-	ErrNoFound  = errors.New("ErrNoFound")
-	ErrOverflow = errors.New("ErrOverflow")
+	ErrExpried = errors.New("ErrExpried")
+	ErrNoFound = errors.New("ErrNoFound")
 )
 
-func (t *Exprier) Reg(key string, dur time.Duration) (string, error) {
-	if t.Max <= 0 {
-		return "noExprie", nil
-	}
-	if key != "" {
-		if _, ok := t.m.Load(key); ok {
-			t.m.Store(key, time.Now().Add(dur))
-			return key, nil
-		} else {
-			return key, ErrNoFound
-		}
-	} else {
-		return uuid.NewString(), nil
+func NewExprier(max int) *Exprier {
+	return &Exprier{
+		max: max,
+		mc:  make(chan string, max),
 	}
 }
 
-func (t *Exprier) Check(key string) error {
-	if t.Max <= 0 {
-		return nil
+func (t *Exprier) SetMax(max int) {
+	t.max = max
+	t.mc = make(chan string, max)
+}
+
+func (t *Exprier) Reg(dur time.Duration, reNewKey ...string) (string, error) {
+	if t.max <= 0 {
+		return "noExprie", nil
+	}
+	if len(reNewKey) != 0 && reNewKey[0] != "" {
+		if _, ok := t.m.Load(reNewKey[0]); ok {
+			t.m.Store(reNewKey[0], time.Now().Add(dur))
+			return reNewKey[0], nil
+		} else {
+			return reNewKey[0], ErrNoFound
+		}
+	} else {
+		newkey := uuid.NewString()
+		select {
+		case t.mc <- newkey:
+			t.m.Store(newkey, time.Now().Add(dur))
+			return newkey, nil
+		default:
+			for {
+				select {
+				case key1 := <-t.mc:
+					if t.m.Delete(key1) {
+						t.mc <- newkey
+						t.m.Store(newkey, time.Now().Add(dur))
+						return newkey, nil
+					}
+				default:
+					t.mc <- newkey
+					return newkey, nil
+				}
+			}
+		}
+	}
+}
+
+func (t *Exprier) Check(key string) (time.Time, error) {
+	if t.max <= 0 {
+		return time.Now(), nil
 	}
 	if key == "" {
-		return ErrNoFound
+		return time.Now(), ErrNoFound
 	}
 	ey, ok := t.m.LoadV(key).(time.Time)
 	if !ok {
-		return ErrNoFound
+		return time.Now(), ErrNoFound
 	} else if time.Now().After(ey) {
 		t.m.Delete(key)
-		return ErrExprie
+		return time.Now(), ErrExpried
 	}
+	return ey, nil
+}
+
+func (t *Exprier) LoopCheck(ctx context.Context, key string, whenfail func(key string, e error)) (e error) {
+	if t.max <= 0 {
+		return nil
+	}
+	if _, e := t.Check(key); e != nil {
+		whenfail(key, e)
+		return e
+	}
+	go func() {
+		for {
+			if ey, e := t.Check(key); e != nil {
+				whenfail(key, e)
+				return
+			} else {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Until(ey) + time.Second):
+				}
+			}
+		}
+	}()
 	return nil
 }
 
-func (t *Exprier) LoopCheck(key string, dru time.Duration, whenfail func(key string, e error)) (breakLoop func(), e error) {
-	breakLoop = func() {}
-	if t.Max <= 0 {
-		return
-	}
-	if key == "" {
-		e = ErrNoFound
-		return
-	}
-	if t.m.Len() >= t.Max {
-		e = ErrOverflow
-		return
-	}
-
-	var close atomic.Bool
-	t.m.Store(key, time.Now().Add(dru))
-	breakLoop = func() {
-		close.Store(true)
-		t.m.Delete(key)
-	}
-
-	go func() {
-		for !close.Load() && t.Max > 0 {
-			ey, ok := t.m.LoadV(key).(time.Time)
-			if !ok {
-				whenfail(key, ErrNoFound)
-				return
-			} else if time.Now().After(ey) {
-				t.m.Delete(key)
-				whenfail(key, ErrExprie)
-				return
-			}
-			time.Sleep(time.Until(ey) + time.Second)
-		}
-	}()
-	return
-}
-
 func (t *Exprier) Disable() {
-	t.Max = 0
+	t.max = 0
 	t.m.ClearAll()
 }
 
