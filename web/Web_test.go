@@ -65,6 +65,39 @@ func Test_Server(t *testing.T) {
 	}
 }
 
+func failIfNot[T comparable](t *testing.T, a, b T) {
+	t.Logf("a:'%v' b:'%v'", a, b)
+	if a != b {
+		t.Fail()
+	}
+}
+
+func Test_path(t *testing.T) {
+	var m WebPath
+	var res string
+	var f1 = func(_ http.ResponseWriter, _ *http.Request) { res += "f1" }
+	var f2 = func(_ http.ResponseWriter, _ *http.Request) { res += "f2" }
+	m.Store("/1", f2)
+	m.Store("/1/", f1)
+	failIfNot(t, res, "")
+	if sf1, ok := m.LoadPerfix("/1/"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1")
+	if sf1, ok := m.LoadPerfix("/1"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1f2")
+	if sf1, ok := m.LoadPerfix("/121"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1f2")
+	if sf1, ok := m.LoadPerfix("/1/1"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1f2f1")
+}
+
 func Test_Server2(t *testing.T) {
 	var m WebPath
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {

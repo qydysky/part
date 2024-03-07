@@ -105,7 +105,7 @@ type WebPath struct {
 	f     func(w http.ResponseWriter, r *http.Request)
 	sameP *WebPath
 	next  *WebPath
-	sync.RWMutex
+	l     sync.RWMutex
 }
 
 // WebSync
@@ -114,8 +114,8 @@ func (t *WebPath) GetConn(r *http.Request) net.Conn {
 }
 
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 	if t.path == path {
 		// 操作本节点
 		return t.f, t.f != nil
@@ -142,12 +142,12 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 }
 
 func (t *WebPath) LoadPerfix(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
-	t.RLock()
-	defer t.RUnlock()
+	t.l.RLock()
+	defer t.l.RUnlock()
 	if t.path == path {
 		// 操作本节点
 		return t.f, t.f != nil
-	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && (path[ltp] == '/' || t.path[ltp-1] == '/') {
+	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && t.path[ltp-1] == '/' {
 		// 操作sameP节点
 		if t.sameP != nil {
 			if f, ok := t.sameP.LoadPerfix(path); ok {
@@ -174,8 +174,8 @@ func (t *WebPath) LoadPerfix(path string) (func(w http.ResponseWriter, r *http.R
 }
 
 func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
-	t.Lock()
-	defer t.Unlock()
+	t.l.Lock()
+	defer t.l.Unlock()
 	if t.path == path || (t.path == "" && t.f == nil) {
 		// 操作本节点
 		t.path = path
