@@ -102,11 +102,12 @@ func (t *WebSync) Shutdown(ctx ...context.Context) {
 type WebPath struct {
 	Path string `json:"path"`
 	// current net.Conn: conn, ok := r.Context().Value(&WebPath).(net.Conn)
-	f    func(w http.ResponseWriter, r *http.Request)
-	Per  *WebPath `json:"-"`
-	Same *WebPath `json:"same"`
-	Next *WebPath `json:"next"`
-	l    sync.RWMutex
+	f       func(w http.ResponseWriter, r *http.Request)
+	PerSame *WebPath `json:"-"`
+	Per     *WebPath `json:"-"`
+	Same    *WebPath `json:"same"`
+	Next    *WebPath `json:"next"`
+	l       sync.RWMutex
 }
 
 // WebSync
@@ -134,7 +135,7 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 
 	if key, left, fin := parsePath(path); t.Path == key {
 		if fin {
-			return t.f, true
+			return t.f, t.f != nil
 		} else {
 			if t.Same != nil {
 				return t.Same.Load(left)
@@ -199,6 +200,11 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if f == nil {
+		t.Delete(path)
+		return
+	}
+
 	t.l.Lock()
 	defer t.l.Unlock()
 
@@ -209,7 +215,7 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 			t.f = f
 			return
 		} else {
-			t.Same = &WebPath{}
+			t.Same = &WebPath{PerSame: t}
 			t.Same.Store(left, f)
 			return
 		}
@@ -225,7 +231,7 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 				t.Same.Store(left, f)
 				return
 			} else {
-				t.Same = &WebPath{}
+				t.Same = &WebPath{PerSame: t}
 				t.Same.Store(left, f)
 				return
 			}
@@ -240,6 +246,40 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 				Per: t,
 			}
 			t.Next.Store(path, f)
+		}
+	}
+}
+
+func (t *WebPath) Delete(path string) (deleteMe bool) {
+	if len(path) == 0 || path[0] != '/' {
+		return
+	}
+
+	t.l.Lock()
+	defer t.l.Unlock()
+
+	if key, left, fin := parsePath(path); t.Path == key {
+		if fin {
+			t.f = nil
+			return t.f == nil && t.Next == nil && t.Same == nil
+		} else {
+			if t.Same != nil {
+				if t.Same.Delete(left) {
+					t.Same = nil
+				}
+				return t.f == nil && t.Next == nil && t.Same == nil
+			} else {
+				return false
+			}
+		}
+	} else {
+		if t.Next != nil {
+			if t.Next.Delete(path) {
+				t.Next = nil
+			}
+			return t.f == nil && t.Next == nil && t.Same == nil
+		} else {
+			return false
 		}
 	}
 }

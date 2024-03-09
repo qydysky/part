@@ -183,7 +183,11 @@ func Test_Store(t *testing.T) {
 
 	webPath.Store("/", f("a"))
 	webPath.Store("/1", f("b"))
+	webPath.Store("/2", f("b"))
 	webPath.Store("/1/1", f("c"))
+	webPath.Store("/1/2", f("d"))
+	webPath.Delete("/2")
+	webPath.Delete("/1/2")
 	if m, e := json.Marshal(webPath); e != nil {
 		t.Fatal(e)
 	} else if string(m) != `{"path":"/","same":null,"next":{"path":"/1","same":{"path":"/1","same":null,"next":null},"next":null}}` {
