@@ -142,14 +142,56 @@ func Test_Store(t *testing.T) {
 			t.Fatal()
 		}
 	}
-	var checkPerfix = func(webPath *WebPath) {
+	var checkOnePerfix = func(webPath *WebPath) {
 		res = ""
-		if _, ok := webPath.LoadPerfix("/1/2"); ok {
+		if _, ok := webPath.LoadOnePerfix("/1/2"); ok {
 			t.Fatal()
 		}
 
-		if _, ok := webPath.LoadPerfix("/1/"); ok {
+		if _, ok := webPath.LoadOnePerfix("/1/"); ok {
 			t.Fatal()
+		}
+
+		if f, ok := webPath.LoadOnePerfix("/2"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadOnePerfix("/1/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadOnePerfix("/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadOnePerfix("/"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if res != "acba" {
+			t.Fatal()
+		}
+	}
+	var checkPerfix = func(webPath *WebPath) {
+		res = ""
+		if f, ok := webPath.LoadPerfix("/1/2"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadPerfix("/1/"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
 		}
 
 		if f, ok := webPath.LoadPerfix("/2"); !ok {
@@ -176,10 +218,22 @@ func Test_Store(t *testing.T) {
 			f(nil, nil)
 		}
 
-		if res != "acba" {
-			t.Fatal()
+		if res != "aaacba" {
+			t.Fatal(res)
 		}
 	}
+
+	webPath.Store("/", f("a"))
+	webPath.Store("/1", f("b"))
+	webPath.Store("/1/", f("b"))
+	webPath.Store("/1/1", f("b"))
+	if m, e := json.Marshal(webPath); e != nil {
+		t.Fatal(e)
+	} else if string(m) != `{"path":"/","same":null,"next":{"path":"/1","same":{"path":"/","same":null,"next":{"path":"/1","same":null,"next":null}},"next":null}}` {
+		t.Fatal(string(m))
+	}
+	webPath.Reset()
+	t.Log(0)
 
 	webPath.Store("/", f("a"))
 	webPath.Store("/1", f("b"))
@@ -195,8 +249,10 @@ func Test_Store(t *testing.T) {
 	}
 
 	checkFull(&webPath)
+	checkOnePerfix(&webPath)
 	checkPerfix(&webPath)
 	webPath.Reset()
+	t.Log(1)
 
 	webPath.Store("/1", f("b"))
 	webPath.Store("/", f("a"))
@@ -208,8 +264,10 @@ func Test_Store(t *testing.T) {
 	}
 
 	checkFull(&webPath)
+	checkOnePerfix(&webPath)
 	checkPerfix(&webPath)
 	webPath.Reset()
+	t.Log(2)
 
 	webPath.Store("/1/1", f("c"))
 	webPath.Store("/", f("a"))
@@ -221,6 +279,7 @@ func Test_Store(t *testing.T) {
 	}
 
 	checkFull(&webPath)
+	checkOnePerfix(&webPath)
 	checkPerfix(&webPath)
 	webPath.Reset()
 }

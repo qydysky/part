@@ -125,6 +125,11 @@ func (t *WebPath) GetConn(r *http.Request) net.Conn {
 	return r.Context().Value(t).(net.Conn)
 }
 
+// O /../../1 => /../../1
+//
+// X /../../1 => /../../
+//
+// X /../../1 => /../
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
 	if len(path) == 0 || path[0] != '/' {
 		return nil, false
@@ -152,7 +157,12 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http.Request), ok bool) {
+// O /../../1 => /../../1
+//
+// O /../../1 => /../../
+//
+// X /../../1 => /../
+func (t *WebPath) LoadOnePerfix(path string) (f func(w http.ResponseWriter, r *http.Request), ok bool) {
 	if len(path) == 0 || path[0] != '/' {
 		return nil, false
 	}
@@ -165,7 +175,7 @@ func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http
 			f = t.f
 		}
 		if t.Same != nil {
-			if f1, ok := t.Same.LoadPerfix(left); ok {
+			if f1, ok := t.Same.LoadOnePerfix(left); ok {
 				f = f1
 			}
 			return f, f != nil
@@ -177,13 +187,63 @@ func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http
 			f = t.f
 		}
 		if t.Next != nil {
-			if f1, ok := t.Next.LoadPerfix(path); ok {
+			if f1, ok := t.Next.LoadOnePerfix(path); ok {
 				f = f1
 			}
 			return f, f != nil
 		} else {
 			return f, f != nil
 		}
+	}
+}
+
+// O /../../1 => /../../1
+//
+// O /../../1 => /../../
+//
+// O /../../1 => /../
+func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http.Request), ok bool) {
+	if len(path) == 0 || path[0] != '/' {
+		return nil, false
+	}
+
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	if key, left, fin := parsePath(path); t.Path == "/" {
+		f = t.f
+		if t.Path != key {
+			if t.Next != nil {
+				if f1, ok := t.Next.LoadPerfix(path); ok {
+					f = f1
+				}
+			}
+		}
+		return f, f != nil
+	} else if t.Path == key {
+		if fin {
+			f = t.f
+			return f, f != nil
+		}
+		if t.Same != nil {
+			if f1, ok := t.Same.LoadPerfix(left); ok {
+				f = f1
+				return f, f != nil
+			}
+		}
+		if t.Next != nil {
+			if f1, ok := t.Next.LoadPerfix(path); ok {
+				f = f1
+			}
+		}
+		return f, f != nil
+	} else {
+		if t.Next != nil {
+			if f1, ok := t.Next.LoadPerfix(path); ok {
+				f = f1
+			}
+		}
+		return f, f != nil
 	}
 }
 
