@@ -100,12 +100,23 @@ func (t *WebSync) Shutdown(ctx ...context.Context) {
 }
 
 type WebPath struct {
-	path string
+	Path string `json:"path"`
 	// current net.Conn: conn, ok := r.Context().Value(&WebPath).(net.Conn)
-	f     func(w http.ResponseWriter, r *http.Request)
-	sameP *WebPath
-	next  *WebPath
-	l     sync.RWMutex
+	f    func(w http.ResponseWriter, r *http.Request)
+	Per  *WebPath `json:"-"`
+	Same *WebPath `json:"same"`
+	Next *WebPath `json:"next"`
+	l    sync.RWMutex
+}
+
+// WebSync
+func (t *WebPath) Reset() {
+	t.l.Lock()
+	defer t.l.Unlock()
+	t.Path = ""
+	t.Per = nil
+	t.Same = nil
+	t.Next = nil
 }
 
 // WebSync
@@ -114,98 +125,121 @@ func (t *WebPath) GetConn(r *http.Request) net.Conn {
 }
 
 func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
+	if len(path) == 0 || path[0] != '/' {
+		return nil, false
+	}
+
 	t.l.RLock()
 	defer t.l.RUnlock()
-	if t.path == path {
-		// 操作本节点
-		return t.f, t.f != nil
-	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && (path[ltp] == '/' || t.path[ltp-1] == '/') {
-		// 操作sameP节点
-		if t.sameP != nil {
-			return t.sameP.Load(path)
+
+	if key, left, fin := parsePath(path); t.Path == key {
+		if fin {
+			return t.f, true
+		} else {
+			if t.Same != nil {
+				return t.Same.Load(left)
+			} else {
+				return nil, false
+			}
 		}
-		if t.path[ltp-1] == '/' {
-			return t.f, t.f != nil
+	} else {
+		if t.Next != nil {
+			return t.Next.Load(path)
 		} else {
 			return nil, false
 		}
-	} else if lp < ltp && t.path[:lp] == path && (path[lp-1] == '/' || t.path[lp] == '/') {
-		// 操作sameP节点
-		return nil, false
-	} else {
-		// 操作next节点
-		if t.next != nil {
-			return t.next.Load(path)
-		}
-		return nil, false
 	}
 }
 
-func (t *WebPath) LoadPerfix(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
+func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http.Request), ok bool) {
+	if len(path) == 0 || path[0] != '/' {
+		return nil, false
+	}
+
 	t.l.RLock()
 	defer t.l.RUnlock()
-	if t.path == path {
-		// 操作本节点
-		return t.f, t.f != nil
-	} else if lp, ltp := len(path), len(t.path); lp > ltp && path[:ltp] == t.path && t.path[ltp-1] == '/' {
-		// 操作sameP节点
-		if t.sameP != nil {
-			if f, ok := t.sameP.LoadPerfix(path); ok {
-				return f, f != nil
-			}
+
+	if key, left, fin := parsePath(path); t.Path == key {
+		if t.Path == "/" || fin {
+			f = t.f
 		}
-		if t.path[ltp-1] == '/' {
-			return t.f, t.f != nil
+		if t.Same != nil {
+			if f1, ok := t.Same.LoadPerfix(left); ok {
+				f = f1
+			}
+			return f, f != nil
 		} else {
-			return nil, false
+			return f, f != nil
 		}
-	} else if lp < ltp && t.path[:lp] == path && (path[lp-1] == '/' || t.path[lp] == '/') {
-		// 操作sameP节点
-		return nil, false
 	} else {
-		// 操作next节点
-		if t.next != nil {
-			if f, ok := t.next.LoadPerfix(path); ok {
-				return f, f != nil
-			}
+		if t.Path == "/" && fin {
+			f = t.f
 		}
-		return nil, false
+		if t.Next != nil {
+			if f1, ok := t.Next.LoadPerfix(path); ok {
+				f = f1
+			}
+			return f, f != nil
+		} else {
+			return f, f != nil
+		}
+	}
+}
+
+func parsePath(path string) (key string, left string, fin bool) {
+	if pi := 1 + strings.Index(path[1:], "/"); pi != 0 {
+		return path[:pi], path[pi:], false
+	} else {
+		return path, "", true
 	}
 }
 
 func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
+	if len(path) == 0 || path[0] != '/' {
+		return
+	}
+
 	t.l.Lock()
 	defer t.l.Unlock()
-	if t.path == path || (t.path == "" && t.f == nil) {
-		// 操作本节点
-		t.path = path
-		t.f = f
-	} else if len(path) > len(t.path) && path[:len(t.path)] == t.path && (path[len(t.path)-1] == '/' || t.path[len(t.path)-1] == '/') {
-		// 操作sameP节点
-		if t.sameP != nil {
-			t.sameP.Store(path, f)
+
+	if key, left, fin := parsePath(path); t.Path == "" {
+		t.Path = key
+		// self
+		if fin {
+			t.f = f
+			return
 		} else {
-			t.sameP = &WebPath{
-				path: path,
-				f:    f,
+			t.Same = &WebPath{}
+			t.Same.Store(left, f)
+			return
+		}
+	} else if t.Path == key {
+		// same or self
+		if fin {
+			// self
+			t.f = f
+			return
+		} else {
+			// same
+			if t.Same != nil {
+				t.Same.Store(left, f)
+				return
+			} else {
+				t.Same = &WebPath{}
+				t.Same.Store(left, f)
+				return
 			}
 		}
-	} else if len(path) < len(t.path) && t.path[:len(path)] == path && (path[len(path)-1] == '/' || t.path[len(path)-1] == '/') {
-		// 操作sameP节点
-		tmp := WebPath{path: t.path, f: t.f, sameP: t.sameP, next: t.next}
-		t.path = path
-		t.f = f
-		t.sameP = &tmp
-		t.next = nil
 	} else {
-		// 操作next节点
-		if t.next != nil {
-			t.next.Store(path, f)
+		// next
+		if t.Next != nil {
+			t.Next.Store(path, f)
+			return
 		} else {
-			t.next = &WebPath{
-				path: path,
-				f:    f,
+			t.Next = &WebPath{
+				Per: t,
 			}
+			t.Next.Store(path, f)
 		}
 	}
 }

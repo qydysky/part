@@ -98,6 +98,129 @@ func Test_path(t *testing.T) {
 	failIfNot(t, res, "f1f2f1")
 }
 
+func Test_Store(t *testing.T) {
+	var webPath = WebPath{}
+	var res = ""
+	var f = func(i string) func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
+			res += i
+		}
+	}
+	var checkFull = func(webPath *WebPath) {
+		res = ""
+		if _, ok := webPath.Load("/1/2"); ok {
+			t.Fatal()
+		}
+
+		if _, ok := webPath.Load("/1/"); ok {
+			t.Fatal()
+		}
+
+		if _, ok := webPath.Load("/2"); ok {
+			t.Fatal()
+		}
+
+		if f, ok := webPath.Load("/1/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.Load("/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.Load("/"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if res != "cba" {
+			t.Fatal()
+		}
+	}
+	var checkPerfix = func(webPath *WebPath) {
+		res = ""
+		if _, ok := webPath.LoadPerfix("/1/2"); ok {
+			t.Fatal()
+		}
+
+		if _, ok := webPath.LoadPerfix("/1/"); ok {
+			t.Fatal()
+		}
+
+		if f, ok := webPath.LoadPerfix("/2"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadPerfix("/1/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadPerfix("/1"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if f, ok := webPath.LoadPerfix("/"); !ok {
+			t.Fatal()
+		} else {
+			f(nil, nil)
+		}
+
+		if res != "acba" {
+			t.Fatal()
+		}
+	}
+
+	webPath.Store("/", f("a"))
+	webPath.Store("/1", f("b"))
+	webPath.Store("/1/1", f("c"))
+	if m, e := json.Marshal(webPath); e != nil {
+		t.Fatal(e)
+	} else if string(m) != `{"path":"/","same":null,"next":{"path":"/1","same":{"path":"/1","same":null,"next":null},"next":null}}` {
+		t.Fatal(string(m))
+	}
+
+	checkFull(&webPath)
+	checkPerfix(&webPath)
+	webPath.Reset()
+
+	webPath.Store("/1", f("b"))
+	webPath.Store("/", f("a"))
+	webPath.Store("/1/1", f("c"))
+	if m, e := json.Marshal(webPath); e != nil {
+		t.Fatal(e)
+	} else if string(m) != `{"path":"/1","same":{"path":"/1","same":null,"next":null},"next":{"path":"/","same":null,"next":null}}` {
+		t.Fatal(string(m))
+	}
+
+	checkFull(&webPath)
+	checkPerfix(&webPath)
+	webPath.Reset()
+
+	webPath.Store("/1/1", f("c"))
+	webPath.Store("/", f("a"))
+	webPath.Store("/1", f("b"))
+	if m, e := json.Marshal(webPath); e != nil {
+		t.Fatal(e)
+	} else if string(m) != `{"path":"/1","same":{"path":"/1","same":null,"next":null},"next":{"path":"/","same":null,"next":null}}` {
+		t.Fatal(string(m))
+	}
+
+	checkFull(&webPath)
+	checkPerfix(&webPath)
+	webPath.Reset()
+}
+
 func Test_Server2(t *testing.T) {
 	var m WebPath
 	m.Store("/", func(w http.ResponseWriter, _ *http.Request) {
