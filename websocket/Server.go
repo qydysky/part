@@ -37,14 +37,14 @@ func New_server() *Server {
 func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 	upgrader := websocket.Upgrader{}
 
+	o = make(chan uintptr, 1)
+
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		close(o)
 		t.ws_mq.Push_tag(`error`, err)
 		return
 	}
-
-	o = make(chan uintptr, 1)
 
 	//从池中获取本会话id
 	User := t.userpool.Get()
