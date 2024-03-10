@@ -39,6 +39,7 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o chan uintptr) {
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		t.ws_mq.Push_tag(`error`, err)
 		return
 	}
