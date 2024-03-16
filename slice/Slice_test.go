@@ -106,3 +106,34 @@ func Test3(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func Test4(t *testing.T) {
+	var c = New[byte]()
+	var w = make(chan struct{})
+
+	c.Append([]byte("12345"))
+
+	buf, unlock := c.GetPureBufRLock()
+
+	go func() {
+		w <- struct{}{}
+		c.Reset()
+		t.Log(c.Append([]byte("22345")))
+		t.Log(c.buf)
+		w <- struct{}{}
+	}()
+
+	<-w
+
+	if !bytes.Equal(buf, []byte("12345")) {
+		t.Fatal()
+	}
+
+	unlock()
+
+	<-w
+
+	if !bytes.Equal(buf, []byte("22345")) {
+		t.Fatal(buf)
+	}
+}

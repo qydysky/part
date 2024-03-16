@@ -151,6 +151,18 @@ func (t *Buf[T]) GetPureBuf() (buf []T) {
 	return t.buf[:t.bufsize]
 }
 
+// must call unlock
+//
+// buf will no modify before unlock
+//
+// modify func(eg Reset) with block until unlock
+//
+// unsafe
+func (t *Buf[T]) GetPureBufRLock() (buf []T, unlock func()) {
+	t.l.RLock()
+	return t.buf[:t.bufsize], t.l.RUnlock
+}
+
 func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	t.l.RLock()
 	defer t.l.RUnlock()
