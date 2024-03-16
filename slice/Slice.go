@@ -58,6 +58,12 @@ func (t *Buf[T]) Reset() {
 	t.modified.t += 1
 }
 
+func (t *Buf[T]) AppendTo(to *Buf[T]) error {
+	buf, unlock := t.GetPureBufRLock()
+	defer unlock()
+	return to.Append(buf)
+}
+
 func (t *Buf[T]) Append(data []T) error {
 	t.l.Lock()
 	defer t.l.Unlock()
