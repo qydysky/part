@@ -40,6 +40,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
 
   w-test:
     name: w-test
