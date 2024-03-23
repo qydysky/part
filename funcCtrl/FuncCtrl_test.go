@@ -132,7 +132,7 @@ func Test_BlockFuncN(t *testing.T) {
 		cc += <-c
 	}
 	if cc != "010212" {
-		t.Fatal()
+		t.Fatal(cc)
 	}
 	// t.Log(cc)
 }

@@ -111,6 +111,11 @@ func (t *BlockFuncN) UnBlock(failF ...func()) {
 	t.n.Add(-1)
 }
 
+func (t *BlockFuncN) BlockF(failF ...func()) (unBlock func(failF ...func())) {
+	t.Block(failF...)
+	return t.UnBlock
+}
+
 func (t *BlockFuncN) BlockAll(failF ...func()) {
 	for !t.n.CompareAndSwap(0, -1) {
 		for i := 0; i < len(failF); i++ {
@@ -120,8 +125,16 @@ func (t *BlockFuncN) BlockAll(failF ...func()) {
 	}
 }
 
-func (t *BlockFuncN) UnBlockAll() {
-	if !t.n.CompareAndSwap(-1, 0) {
-		panic("must BlockAll First")
+func (t *BlockFuncN) UnBlockAll(failF ...func()) {
+	for !t.n.CompareAndSwap(-1, 0) {
+		for i := 0; i < len(failF); i++ {
+			failF[i]()
+		}
+		runtime.Gosched()
 	}
+}
+
+func (t *BlockFuncN) BlockAllF(failF ...func()) (unBlock func(failF ...func())) {
+	t.BlockAll(failF...)
+	return t.UnBlockAll
 }

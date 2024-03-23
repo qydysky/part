@@ -75,6 +75,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
 
   u-test:
     name: u-test
@@ -109,6 +110,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
 
   test:
     name: test
@@ -121,6 +123,6 @@ jobs:
         echo "HASH=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
 
     - name: Upload a Release Asset
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v0.28.${{ env.TIME }}
