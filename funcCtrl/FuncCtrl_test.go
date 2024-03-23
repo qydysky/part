@@ -102,12 +102,9 @@ func Test_BlockFuncN(t *testing.T) {
 	var c = make(chan string, 8)
 	var cc string
 
-	var b = &BlockFuncN{
-		Max: 2,
-	}
+	var b = NewBlockFuncN(2)
 	var a = func(i string) {
-		b.Block()
-		defer b.UnBlock()
+		defer b.Block()()
 		c <- i
 		time.Sleep(time.Second)
 		c <- i
@@ -125,8 +122,7 @@ func Test_BlockFuncN(t *testing.T) {
 		t.Fatal()
 	}
 
-	b.BlockAll()
-	b.UnBlockAll()
+	b.BlockAll()()
 
 	for len(c) > 0 {
 		cc += <-c

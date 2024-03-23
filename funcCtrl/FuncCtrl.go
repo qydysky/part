@@ -2,7 +2,6 @@ package part
 
 import (
 	"context"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -79,62 +78,27 @@ func (t *BlockFunc) UnBlock() {
 }
 
 type BlockFuncN struct { //新的等待旧的 个数
-	n   atomic.Int64
-	Max int64
+	n chan struct{}
 }
 
-func (t *BlockFuncN) Block(failF ...func()) {
-	for {
-		now := t.n.Load()
-		if now < t.Max && now >= 0 {
-			break
-		}
-		for i := 0; i < len(failF); i++ {
-			failF[i]()
-		}
-		runtime.Gosched()
-	}
-	t.n.Add(1)
+func NewBlockFuncN(max int) *BlockFuncN {
+	return &BlockFuncN{n: make(chan struct{}, max)}
 }
 
-func (t *BlockFuncN) UnBlock(failF ...func()) {
-	for {
-		now := t.n.Load()
-		if now > 0 {
-			break
-		}
-		for i := 0; i < len(failF); i++ {
-			failF[i]()
-		}
-		runtime.Gosched()
-	}
-	t.n.Add(-1)
-}
-
-func (t *BlockFuncN) BlockF(failF ...func()) (unBlock func(failF ...func())) {
-	t.Block(failF...)
-	return t.UnBlock
-}
-
-func (t *BlockFuncN) BlockAll(failF ...func()) {
-	for !t.n.CompareAndSwap(0, -1) {
-		for i := 0; i < len(failF); i++ {
-			failF[i]()
-		}
-		runtime.Gosched()
+func (t *BlockFuncN) Block() (unBlock func()) {
+	t.n <- struct{}{}
+	return func() {
+		<-t.n
 	}
 }
 
-func (t *BlockFuncN) UnBlockAll(failF ...func()) {
-	for !t.n.CompareAndSwap(-1, 0) {
-		for i := 0; i < len(failF); i++ {
-			failF[i]()
-		}
-		runtime.Gosched()
+func (t *BlockFuncN) BlockAll() (unBlock func()) {
+	for i := cap(t.n); i > 0; i-- {
+		t.n <- struct{}{}
 	}
-}
-
-func (t *BlockFuncN) BlockAllF(failF ...func()) (unBlock func(failF ...func())) {
-	t.BlockAll(failF...)
-	return t.UnBlockAll
+	return func() {
+		for i := cap(t.n); i > 0; i-- {
+			<-t.n
+		}
+	}
 }
