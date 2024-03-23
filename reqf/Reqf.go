@@ -272,10 +272,18 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	}
 
 	// io copy
-	var panicf = func(s string) {
-		err = errors.Join(err, errors.New(s))
+	errChan := make(chan error, 3)
+	errChan <- pio.WithCtxCopy(
+		req.Context(),
+		t.callTree,
+		t.copyResBuf[:],
+		time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...),
+		resReadCloser,
+		func(s string) { errChan <- errors.New(s) },
+	)
+	for len(errChan) > 0 {
+		err = errors.Join(err, <-errChan)
 	}
-	err = errors.Join(err, pio.WithCtxCopy(req.Context(), t.callTree, t.copyResBuf[:], time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...), resReadCloser, panicf))
 
 	if t.responBuf != nil {
 		t.Respon = t.responBuf.Bytes()
