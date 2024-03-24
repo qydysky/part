@@ -2,7 +2,6 @@ package errors
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Error struct {
@@ -26,6 +25,7 @@ func Catch(e error, action string) bool {
 	return false
 }
 
+// Grow will overwrite reason but save action for catch
 func Grow(e error, son Error) Error {
 	if v, ok := e.(Error); ok {
 		son.son = v
@@ -103,10 +103,9 @@ func ErrorFormat(e error, format ...func(error) string) (s string) {
 
 var (
 	ErrSimplifyFunc = func(e error) string {
-		if es := e.Error(); len(es) > 20 {
-			return fmt.Sprintf("%.16s...\n", es)
-		} else {
-			return es + "\n"
-		}
+		return e.Error() + "\n"
+	}
+	ErrInLineFunc = func(e error) string {
+		return " > " + e.Error()
 	}
 )
