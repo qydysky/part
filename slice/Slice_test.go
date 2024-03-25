@@ -36,10 +36,10 @@ func TestXxx(t *testing.T) {
 	if !b.IsEmpty() || b.Size() != 0 || !bytes.Equal(bc, []byte("abc")) || !bytes.Equal(b.GetPureBuf(), []byte("")) {
 		t.Fatal()
 	}
-	if e := b.RemoveFront(1); e == nil || e.Error() != "尝试移除的数值大于长度" {
+	if e := b.RemoveFront(1); e == nil || e != ErrOverLen {
 		t.Fatal()
 	}
-	if e := b.Append([]byte("abcdef")); e == nil || e.Error() != "超出设定maxsize" {
+	if e := b.Append([]byte("abcdef")); e == nil || e != ErrOverMax {
 		t.Fatal()
 	}
 	b.Clear()

@@ -1,9 +1,10 @@
 package part
 
 import (
-	"errors"
 	"sync"
 	"unsafe"
+
+	perrors "github.com/qydysky/part/errors"
 )
 
 type Buf[T any] struct {
@@ -64,12 +65,14 @@ func (t *Buf[T]) AppendTo(to *Buf[T]) error {
 	return to.Append(buf)
 }
 
+var ErrOverMax = perrors.New("slices.Append", "ErrOverMax")
+
 func (t *Buf[T]) Append(data []T) error {
 	t.l.Lock()
 	defer t.l.Unlock()
 
 	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
-		return errors.New("超出设定maxsize")
+		return ErrOverMax
 	} else if len(t.buf) == 0 {
 		t.buf = make([]T, len(data))
 	} else {
@@ -83,6 +86,8 @@ func (t *Buf[T]) Append(data []T) error {
 	return nil
 }
 
+var ErrOverLen = perrors.New("slices.Remove", "ErrOverLen")
+
 func (t *Buf[T]) RemoveFront(n int) error {
 	if n <= 0 {
 		return nil
@@ -92,7 +97,7 @@ func (t *Buf[T]) RemoveFront(n int) error {
 	defer t.l.Unlock()
 
 	if t.bufsize < n {
-		return errors.New("尝试移除的数值大于长度")
+		return ErrOverLen
 	} else if t.bufsize == n {
 		t.bufsize = 0
 	} else {
@@ -112,7 +117,7 @@ func (t *Buf[T]) RemoveBack(n int) error {
 	defer t.l.Unlock()
 
 	if t.bufsize < n {
-		return errors.New("尝试移除的数值大于长度")
+		return ErrOverLen
 	} else if t.bufsize == n {
 		t.bufsize = 0
 	} else {
@@ -138,12 +143,14 @@ func (t *Buf[T]) GetModified() Modified {
 	return t.modified
 }
 
+var ErrNoSameBuf = perrors.New("slices.HadModified", "ErrNoSameBuf")
+
 func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
 	if t.modified.p != mt.p {
-		err = errors.New("不能对比不同buf")
+		err = ErrNoSameBuf
 	}
 	modified = t.modified.t != mt.t
 	return
