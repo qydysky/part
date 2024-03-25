@@ -11,21 +11,21 @@ func TestXxx(t *testing.T) {
 
 	err = New("r0", "a0")
 
-	if !Catch(err, "a0") {
+	if !Catch(err, "r0") {
 		t.Fail()
 	}
 
-	if Catch(err, "a1") {
+	if Catch(err, "r1") {
 		t.Fail()
 	}
 
 	err = Grow(err, New("r1", "a1"))
 
-	if !Catch(err, "a0") {
+	if !Catch(err, "r0") {
 		t.Fail()
 	}
 
-	if !Catch(err, "a1") {
+	if !Catch(err, "r1") {
 		t.Fail()
 	}
 }
