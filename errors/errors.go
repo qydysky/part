@@ -14,6 +14,11 @@ func (t Error) Error() string {
 	return t.Reason
 }
 
+func (t Error) WithReason(reason string) Error {
+	t.Reason = reason
+	return t
+}
+
 func Catch(e error, action string) bool {
 	if v, ok := e.(Error); ok {
 		if v.action == action {

@@ -55,3 +55,17 @@ func Test1(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func Test3(t *testing.T) {
+	e := New("1")
+	if e.Error() != "" {
+		t.FailNow()
+	}
+	e1 := e.WithReason("2")
+	if e.Error() != "" {
+		t.FailNow()
+	}
+	if e1.Error() != "2" {
+		t.FailNow()
+	}
+}
