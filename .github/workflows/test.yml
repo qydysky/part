@@ -41,6 +41,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
 
   w-test:
     name: w-test
@@ -76,6 +77,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
 
   u-test:
     name: u-test
@@ -111,6 +113,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
 
   test:
     name: test
