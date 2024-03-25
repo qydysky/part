@@ -97,7 +97,7 @@ func ErrorFormat(e error, format ...func(error) string) (s string) {
 			if len(format) > 0 {
 				s += format[0](v)
 			} else {
-				s += e.Error() + "\n"
+				s += v.Error() + "\n"
 			}
 		}
 	} else if len(format) > 0 {

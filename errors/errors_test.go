@@ -32,12 +32,13 @@ func TestXxx(t *testing.T) {
 
 func Test2(t *testing.T) {
 	e := Join(New("r0", "a0"), New("r1", "a1"))
+	t.Log(ErrorFormat(e))
 	t.Log(ErrorFormat(e, ErrSimplifyFunc))
 	t.Log(ErrorFormat(e, ErrInLineFunc))
-	if ErrorFormat(e, ErrSimplifyFunc) != "r0\nr1\n" {
+	if ErrorFormat(e, ErrSimplifyFunc) != "a0\na1\n" {
 		t.FailNow()
 	}
-	if ErrorFormat(e, ErrInLineFunc) != " > r0 > r1" {
+	if ErrorFormat(e, ErrInLineFunc) != " > a0 > a1" {
 		t.FailNow()
 	}
 }
