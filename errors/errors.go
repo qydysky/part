@@ -6,12 +6,12 @@ import (
 
 type Error struct {
 	son    interface{}
-	reason string
+	Reason string
 	action string
 }
 
 func (t Error) Error() string {
-	return t.reason
+	return t.Reason
 }
 
 func Catch(e error, action string) bool {
@@ -31,17 +31,20 @@ func Grow(e error, son Error) Error {
 		son.son = v
 	} else {
 		son.son = Error{
-			reason: v.Error(),
+			Reason: v.Error(),
 		}
 	}
 	return son
 }
 
-func New(reason string, action string) Error {
-	return Error{
-		reason: reason,
+func New(action string, reason ...string) (e Error) {
+	e = Error{
 		action: action,
 	}
+	if len(reason) > 0 {
+		e.Reason = reason[0]
+	}
+	return
 }
 
 func Join(e ...error) error {
