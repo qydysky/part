@@ -86,6 +86,25 @@ func (t *Buf[T]) Append(data []T) error {
 	return nil
 }
 
+func (t *Buf[T]) SetFrom(data []T) error {
+	t.l.Lock()
+	defer t.l.Unlock()
+
+	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
+		return ErrOverMax
+	} else if len(t.buf) == 0 {
+		t.buf = make([]T, len(data))
+	} else {
+		diff := len(t.buf) - t.bufsize - len(data)
+		if diff < 0 {
+			t.buf = append(t.buf, make([]T, -diff)...)
+		}
+	}
+	t.bufsize = copy(t.buf, data)
+	t.modified.t += 1
+	return nil
+}
+
 var ErrOverLen = perrors.New("slices.Remove", "ErrOverLen")
 
 func (t *Buf[T]) RemoveFront(n int) error {

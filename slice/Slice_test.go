@@ -56,6 +56,47 @@ func TestXxx(t *testing.T) {
 	}
 }
 
+func TestXxx3(t *testing.T) {
+	var (
+		c  = New[byte]()
+		m  = New[byte]()
+		s  = New[byte]()
+		b1 = []byte("01234")
+	)
+	s.Append(b1)
+
+	buf, ul := s.GetPureBufRLock()
+	m.Append(buf)
+	if e := m.AppendTo(c); e != nil {
+		t.Fatal(e)
+	}
+	m.Reset()
+	ul()
+
+	buf1, ul1 := c.GetPureBufRLock()
+	if !bytes.Equal(buf1, []byte("01234")) {
+		t.Fatal()
+	}
+	ul1()
+}
+
+func TestXxx4(t *testing.T) {
+	var (
+		c  = New[byte]()
+		b1 = []byte("01234333")
+		b2 = []byte("01234")
+	)
+	c.Append(b1)
+	b1[0] = 'a'
+	c.SetFrom(b2)
+
+	buf, ul := c.GetPureBufRLock()
+	if !bytes.Equal(buf, []byte("01234")) {
+		t.Fatal()
+	}
+	ul()
+}
+
 func TestXxx2(t *testing.T) {
 	var c = New[byte]()
 	c.Append([]byte("12345"))
