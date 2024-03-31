@@ -171,6 +171,9 @@ func (I *Log_interface) Base_add(i ...any) (O *Log_interface) {
 	O.Base_string = append(O.Base_string, i...)
 	return
 }
+func (I *Log_interface) BaseAdd(i ...any) (O *Log_interface) {
+	return I.Base_add(i...)
+}
 func (I *Log_interface) L(prefix string, i ...any) (O *Log_interface) {
 	O = I
 	if _, ok := O.Prefix_string[prefix]; !ok {
