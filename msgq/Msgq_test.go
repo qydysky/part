@@ -165,6 +165,40 @@ func Benchmark_1(b *testing.B) {
 	}
 }
 
+func Benchmark_3(b *testing.B) {
+	mq := NewType[int]()
+	mq.Pull_tag_async_order(FuncMapType[int]{
+		`del`: func(a int) (disable bool) {
+			return false
+		},
+	})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mq.Push_tag(`del`, i)
+	}
+}
+
+func Test_5(t *testing.T) {
+	c := make(chan int, 1000)
+	mq := NewType[int]()
+	cancel := mq.Pull_tag_async_order(FuncMapType[int]{
+		`del`: func(a int) (disable bool) {
+			c <- a
+			return false
+		},
+	})
+	time.Sleep(time.Millisecond * 500)
+	for i := 0; i < 100; i++ {
+		mq.Push_tag(`del`, i)
+	}
+	cancel()
+	for i := 0; i < 100; i++ {
+		if i != <-c {
+			t.FailNow()
+		}
+	}
+}
+
 func Test_4(t *testing.T) {
 	mq := New()
 	cancel := mq.Pull_tag(FuncMap{
