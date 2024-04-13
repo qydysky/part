@@ -387,11 +387,11 @@ func ForwardUdp(targetaddr, network, listenaddr string, acceptCIDRs []string) (c
 				continue
 			}
 
-			var accpet bool
-			for i := 0; i < len(matchfunc); i++ {
-				accpet = accpet || matchfunc[i](cliAddr.IP)
+			var deny bool
+			for i := 0; !deny && i < len(matchfunc); i++ {
+				deny = deny && !matchfunc[i](cliAddr.IP)
 			}
-			if !accpet {
+			if deny {
 				//返回Deny
 				select {
 				default:
