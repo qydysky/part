@@ -209,11 +209,11 @@ func Forward(targetaddr, network, listenaddr string, acceptCIDRs []string) (clos
 
 			ip := net.ParseIP(strings.Split(proxyconn.RemoteAddr().String(), ":")[0])
 
-			var accpet bool
-			for i := 0; i < len(matchfunc); i++ {
-				accpet = accpet || matchfunc[i](ip)
+			var deny bool
+			for i := 0; !deny && i < len(matchfunc); i++ {
+				deny = deny && !matchfunc[i](ip)
 			}
-			if !accpet {
+			if deny {
 				//返回Deny
 				select {
 				default:
