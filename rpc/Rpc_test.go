@@ -20,7 +20,7 @@ type test2_1 struct {
 }
 
 func TestMain(t *testing.T) {
-	pob := NewServer("127.0.0.1:10902")
+	pob := NewServer("127.0.0.1:10904")
 	defer pob.Shutdown()
 	if e := Register(pob, "/123", func(i *int, o *test1) error {
 		*i += 1
@@ -35,12 +35,54 @@ func TestMain(t *testing.T) {
 	var i int = 9
 	var out test2
 
-	if e := Call("127.0.0.1:10902", "/123", &i, &out); e != nil {
+	if e := Call("127.0.0.1:10904", "/123", &i, &out); e != nil {
 		t.Fatal(e)
 	}
 
 	if out.Data.Data != 10 {
 		t.FailNow()
+	}
+}
+
+func TestMain2(t *testing.T) {
+	pob := NewServer("127.0.0.1:10903")
+	defer pob.Shutdown()
+	if e := Register(pob, "/add", func(i *int, o *int) error {
+		*o = *i + 1
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+
+	var in int = 1
+	var out int
+	if e := Call("127.0.0.1:10903", "/add", &in, &out); e != nil {
+		t.Fatal(e)
+	}
+
+	if out != 2 {
+		t.FailNow()
+	}
+}
+
+func Benchmark1(b *testing.B) {
+	pob := NewServer("127.0.0.1:10903")
+	defer pob.Shutdown()
+	if e := Register(pob, "/add", func(i *int, o *int) error {
+		*o = *i + 1
+		return nil
+	}); e != nil {
+		b.Fatal(e)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var in int = 1
+		var out int
+		if e := Call("127.0.0.1:10903", "/add", &in, &out); e != nil || out != 2 {
+			b.Fatal(e)
+		}
 	}
 }
 

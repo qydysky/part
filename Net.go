@@ -66,13 +66,13 @@ const (
 	ErrorMsg = iota
 	AcceptMsg
 	DenyMsg
-	PortMsg
+	LisnMsg
 )
 
 // when Type is ErrorMsg, Msg is set to error
 // when Type is AcceptMsg, Msg is set to net.Addr
 // when Type is DenyMsg, Msg is set to net.Addr
-// when Type is PortMsg, Msg is set to Listen Port(int)
+// when Type is LisnMsg, Msg is set to net.Addr
 type ForwardMsg struct {
 	Type int
 	Msg  interface{}
@@ -162,12 +162,12 @@ func Forward(targetaddr, network, listenaddr string, acceptCIDRs []string) (clos
 		close(closec)
 	}
 
-	//返回监听端口
+	//返回监听地址
 	select {
 	default:
 	case msg_chan <- ForwardMsg{
-		Type: PortMsg,
-		Msg:  listener.Addr().(*net.TCPAddr).Port,
+		Type: LisnMsg,
+		Msg:  listener.Addr(),
 	}:
 	}
 
@@ -310,8 +310,8 @@ func ForwardUdp(targetaddr, network, listenaddr string, acceptCIDRs []string) (c
 	select {
 	default:
 	case msg_chan <- ForwardMsg{
-		Type: PortMsg,
-		Msg:  serConn.LocalAddr().(*net.UDPAddr).Port,
+		Type: LisnMsg,
+		Msg:  serConn.LocalAddr(),
 	}:
 	}
 

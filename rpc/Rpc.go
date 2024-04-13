@@ -121,14 +121,13 @@ func UnRegister(t *Server, path string) {
 }
 
 func Call[T, E any](host, path string, it *T, ot *E) error {
-	var buf bytes.Buffer
-	if e := gob.NewEncoder(&buf).Encode(it); e != nil {
+	t := &Gob{}
+	if e := t.encode(it).Err; e != nil {
 		return errors.Join(ErrCliEncode, e)
 	} else {
 		if c, e := rpc.DialHTTPPath("tcp", host, path); e != nil {
 			return errors.Join(ErrDial, e)
 		} else {
-			t := &Gob{Data: buf.Bytes()}
 			call := <-c.Go("DealGob.Deal", t, t, make(chan *rpc.Call, 1)).Done
 			if call.Error != nil {
 				return errors.Join(ErrCliDeal, call.Error)
@@ -136,7 +135,7 @@ func Call[T, E any](host, path string, it *T, ot *E) error {
 			if t.Err != nil {
 				return errors.Join(ErrSerGob, t.Err)
 			}
-			if e := gob.NewDecoder(bytes.NewReader(t.Data)).Decode(ot); e != nil {
+			if e := t.decode(ot).Err; e != nil {
 				return errors.Join(ErrCliDecode, e)
 			}
 			return nil
