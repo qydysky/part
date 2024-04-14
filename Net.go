@@ -14,7 +14,6 @@ import (
 
 	"github.com/miekg/dns"
 	pool "github.com/qydysky/part/pool"
-	psync "github.com/qydysky/part/sync"
 )
 
 var (
@@ -365,8 +364,7 @@ func (t udpLis) Addr() net.Addr {
 }
 
 type ConnPool struct {
-	connMap *psync.Map
-	pool    *pool.Buf[ConnPoolItem]
+	pool *pool.Buf[ConnPoolItem]
 }
 
 type ConnPoolItem struct {
@@ -376,7 +374,6 @@ type ConnPoolItem struct {
 
 func NewConnPool(size int, genConn func() *net.Conn) *ConnPool {
 	return &ConnPool{
-		connMap: new(psync.Map),
 		pool: pool.New(pool.PoolFunc[ConnPoolItem]{
 			New: func() *ConnPoolItem {
 				return &ConnPoolItem{p: genConn()}
@@ -397,15 +394,9 @@ func NewConnPool(size int, genConn func() *net.Conn) *ConnPool {
 }
 
 func (t *ConnPool) Get(id string) (i net.Conn, putBack func()) {
-	if conn, ok := t.connMap.LoadV(id).(*ConnPoolItem); ok {
-		return *conn.p, func() {}
-	} else {
-		conn = t.pool.Get()
-		t.connMap.Store(id, conn)
-		return *conn.p, func() {
-			t.connMap.Delete(id)
-			t.pool.Put(conn)
-		}
+	conn := t.pool.Get()
+	return *conn.p, func() {
+		t.pool.Put(conn)
 	}
 }
 
