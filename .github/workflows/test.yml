@@ -38,6 +38,7 @@ jobs:
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
@@ -74,6 +75,7 @@ jobs:
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
@@ -110,6 +112,7 @@ jobs:
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sql
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
