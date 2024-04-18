@@ -11,6 +11,7 @@ var pkgInterfaceMap = make(map[string]any)
 var (
 	ErrEmptyPkgId = errors.New("ErrEmptyPkgId")
 	ErrRegistered = errors.New("ErrRegistered")
+	ErrGet        = errors.New("ErrGet")
 )
 
 func PkgId() string {
@@ -35,9 +36,9 @@ func Register[TargetInterface any](pkgId string, _interface TargetInterface) err
 func Get[TargetInterface any](pkgId string, defaultInterface ...TargetInterface) (_interface TargetInterface) {
 	if tmp, ok := pkgInterfaceMap[pkgId].(TargetInterface); ok {
 		return tmp
-	}
-	if len(defaultInterface) > 0 {
+	} else if len(defaultInterface) > 0 {
 		return defaultInterface[0]
+	} else {
+		panic(ErrGet)
 	}
-	return
 }
