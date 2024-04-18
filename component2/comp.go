@@ -33,11 +33,12 @@ func Register[TargetInterface any](pkgId string, _interface TargetInterface) err
 	return nil
 }
 
-func Get[TargetInterface any](pkgId string, defaultInterface ...TargetInterface) (_interface TargetInterface) {
+func Get[TargetInterface any](pkgId string, init ...func(TargetInterface) TargetInterface) (_interface TargetInterface) {
 	if tmp, ok := pkgInterfaceMap[pkgId].(TargetInterface); ok {
+		for i := 0; i < len(init); i++ {
+			tmp = init[i](tmp)
+		}
 		return tmp
-	} else if len(defaultInterface) > 0 {
-		return defaultInterface[0]
 	} else {
 		panic(ErrGet)
 	}
