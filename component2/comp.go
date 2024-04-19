@@ -14,27 +14,27 @@ var (
 	ErrGet        = errors.New("ErrGet")
 )
 
-func PkgId() string {
+func PkgId(varId ...string) string {
 	if pc, _, _, ok := runtime.Caller(1); ok {
-		return strings.TrimSuffix(runtime.FuncForPC(pc).Name(), ".init")
+		return strings.Join(append([]string{strings.TrimSuffix(runtime.FuncForPC(pc).Name(), ".init")}, varId...), ".")
 	}
 	return ""
 }
 
-func Register[TargetInterface any](pkgId string, _interface TargetInterface) error {
-	if pkgId == "" {
+func Register[TargetInterface any](id string, _interface TargetInterface) error {
+	if id == "" {
 		return ErrEmptyPkgId
 	}
-	if _interfaceReg, ok := pkgInterfaceMap[pkgId]; ok && _interfaceReg != nil {
+	if _interfaceReg, ok := pkgInterfaceMap[id]; ok && _interfaceReg != nil {
 		return ErrRegistered
 	} else {
-		pkgInterfaceMap[pkgId] = _interface
+		pkgInterfaceMap[id] = _interface
 	}
 	return nil
 }
 
-func Get[TargetInterface any](pkgId string, init ...func(TargetInterface) TargetInterface) (_interface TargetInterface) {
-	if tmp, ok := pkgInterfaceMap[pkgId].(TargetInterface); ok {
+func Get[TargetInterface any](id string, init ...func(TargetInterface) TargetInterface) (_interface TargetInterface) {
+	if tmp, ok := pkgInterfaceMap[id].(TargetInterface); ok {
 		for i := 0; i < len(init); i++ {
 			tmp = init[i](tmp)
 		}
