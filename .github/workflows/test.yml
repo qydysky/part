@@ -131,4 +131,5 @@ jobs:
     - name: Upload a Release Asset
       uses: softprops/action-gh-release@v2
       with:
+        body: go get github.com/qydysky/part@v0.28.${{ env.TIME }}
         tag_name: v0.28.${{ env.TIME }}
