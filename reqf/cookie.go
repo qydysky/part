@@ -134,3 +134,15 @@ func Cookies_Map_2_List(Cookies map[string]string) (o []*http.Cookie) {
 	}
 	return
 }
+
+func Cookies_List_2_String(Cookies []*http.Cookie) (o string) {
+	if len(Cookies) == 0 {
+		return ""
+	}
+	for _, v := range Cookies {
+		o += v.Name + `=` + v.Value + `; `
+	}
+	t := []rune(o)
+	o = string(t[:len(t)-2])
+	return
+}
