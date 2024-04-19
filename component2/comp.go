@@ -1,17 +1,18 @@
 package component2
 
 import (
-	"errors"
 	"runtime"
 	"strings"
+
+	perrors "github.com/qydysky/part/errors"
 )
 
 var pkgInterfaceMap = make(map[string]any)
 
 var (
-	ErrEmptyPkgId = errors.New("ErrEmptyPkgId")
-	ErrRegistered = errors.New("ErrRegistered")
-	ErrGet        = errors.New("ErrGet")
+	ErrEmptyPkgId = perrors.New("ErrEmptyPkgId")
+	ErrRegistered = perrors.New("ErrRegistered")
+	ErrGet        = perrors.New("ErrGet")
 )
 
 func PkgId(varId ...string) string {
@@ -40,6 +41,6 @@ func Get[TargetInterface any](id string, init ...func(TargetInterface) TargetInt
 		}
 		return tmp
 	} else {
-		panic(ErrGet)
+		panic(ErrGet.WithReason("ErrGet:" + id))
 	}
 }
