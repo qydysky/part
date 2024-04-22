@@ -3,15 +3,17 @@ package part
 import (
 	// "fmt"
 
-	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"testing"
+	"time"
 
 	_ "net/http/pprof"
 
 	_ "modernc.org/sqlite"
 
+	pctx "github.com/qydysky/part/ctx"
 	psql "github.com/qydysky/part/sql"
 )
 
@@ -47,7 +49,7 @@ func Test_2(t *testing.T) {
 	defer db.Close()
 
 	{
-		tx := psql.BeginTx[any](db, context.Background(), &sql.TxOptions{})
+		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
 		tx = tx.Do(psql.SqlFunc[any]{
 			Query:      "create table log (p test,base text,msg text)",
 			SkipSqlErr: true,
@@ -74,7 +76,7 @@ func Test_2(t *testing.T) {
 			Base string
 			Msg  string `sql:"s"`
 		}
-		tx := psql.BeginTx[any](db, context.Background(), &sql.TxOptions{})
+		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
 		tx = tx.SimpleDo("select p,base,msg as s from log")
 		tx.AfterQF(func(_ *any, rows *sql.Rows, e *error) {
 			if ls, err := psql.DealRows[logg](rows, func() logg { return logg{} }); err == nil {
@@ -92,4 +94,10 @@ func Test_2(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func Test_3(t *testing.T) {
+	logger := slog.Default()
+	logger = logger.WithGroup("122")
+	logger.Info("sss", slog.String("1", "3"))
 }

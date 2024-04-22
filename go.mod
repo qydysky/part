@@ -15,7 +15,12 @@ require (
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
+	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240304020402-f0dba7c97c2b // indirect
 )
 
@@ -38,7 +43,7 @@ require (
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/lib/pq v1.10.9
+	github.com/jackc/pgx/v5 v5.5.5
 	github.com/stretchr/testify v1.9.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect

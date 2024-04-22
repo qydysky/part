@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	pctx "github.com/qydysky/part/ctx"
 	file "github.com/qydysky/part/file"
 	_ "modernc.org/sqlite"
 )
@@ -260,17 +261,22 @@ func TestMain4(t *testing.T) {
 
 func Local_TestPostgresql(t *testing.T) {
 	// connect
-	db, err := sql.Open("postgres", "postgres://postgres:qydysky@192.168.31.103:5432/postgres?sslmode=disable")
+	db, err := sql.Open("pgx", "postgres://postgres:qydysky@192.168.31.103:5432/postgres?sslmode=disable")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
+	// c := pctx.CarryCancel(context.WithTimeout(context.Background(), time.Second))
+	// if e := db.PingContext(c); e != nil {
+	// 	t.Fatal(e)
+	// }
+
 	type test1 struct {
 		Created string `sql:"sss"`
 	}
 
-	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+	if _, e := BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Query:      "create table test (created varchar(20))",
 		SkipSqlErr: true,
 	}).Fin(); e != nil {

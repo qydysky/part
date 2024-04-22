@@ -151,3 +151,11 @@ func CallCancel(ctx context.Context) error {
 	}
 	return nil
 }
+
+func GenTOCtx(t time.Duration) context.Context {
+	return CarryCancel(context.WithTimeout(context.Background(), t))
+}
+
+func GenDLCtx(t time.Time) context.Context {
+	return CarryCancel(context.WithDeadline(context.Background(), t))
+}

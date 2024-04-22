@@ -1,7 +1,6 @@
 package part
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	pctx "github.com/qydysky/part/ctx"
 	f "github.com/qydysky/part/file"
 	m "github.com/qydysky/part/msgq"
 	psql "github.com/qydysky/part/sql"
@@ -73,7 +73,7 @@ func New(c Config) (o *Log_interface) {
 			}
 		}
 		if msg.DBConn != nil && msg.DBInsert != `` {
-			sqlTx := psql.BeginTx[any](msg.DBConn, context.Background())
+			sqlTx := psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.To))
 			sqlTx.SimpleDo(
 				msg.DBInsert,
 				strings.TrimSpace(msg.Prefix),
