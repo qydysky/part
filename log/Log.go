@@ -1,6 +1,7 @@
 package part
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -73,7 +74,12 @@ func New(c Config) (o *Log_interface) {
 			}
 		}
 		if msg.DBConn != nil && msg.DBInsert != `` {
-			sqlTx := psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.To))
+			var sqlTx *psql.SqlTx[any]
+			if o.To == 0 {
+				sqlTx = psql.BeginTx[any](msg.DBConn, context.Background())
+			} else {
+				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.To))
+			}
 			sqlTx.SimpleDo(
 				msg.DBInsert,
 				strings.TrimSpace(msg.Prefix),
