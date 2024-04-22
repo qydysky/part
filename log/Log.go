@@ -26,9 +26,10 @@ type Log_interface struct {
 }
 
 type Config struct {
-	To     time.Duration
-	File   string
-	DBConn *sql.DB
+	To       time.Duration
+	File     string
+	DBConn   *sql.DB
+	DBConnTo time.Duration
 
 	// $1:Prefix $2:Base $2:Msgs
 	DBInsert string
@@ -75,10 +76,10 @@ func New(c Config) (o *Log_interface) {
 		}
 		if msg.DBConn != nil && msg.DBInsert != `` {
 			var sqlTx *psql.SqlTx[any]
-			if o.To == 0 {
+			if o.DBConnTo == 0 {
 				sqlTx = psql.BeginTx[any](msg.DBConn, context.Background())
 			} else {
-				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.To))
+				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.DBConnTo))
 			}
 			sqlTx.SimpleDo(
 				msg.DBInsert,
@@ -142,14 +143,18 @@ func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 }
 
 // Open 日志输出至DB
-func (I *Log_interface) LDB(db *sql.DB, insert string) (O *Log_interface) {
+func (I *Log_interface) LDB(db *sql.DB, insert string, to ...time.Duration) (O *Log_interface) {
 	O = I
 	if db != nil && insert != `` {
 		O.DBConn = db
 		O.DBInsert = insert
+		if len(to) > 0 {
+			O.DBConnTo = to[0]
+		}
 	} else {
 		O.DBConn = nil
 		O.DBInsert = ``
+		O.DBConnTo = 0
 	}
 	return
 }
