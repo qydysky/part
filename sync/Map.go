@@ -84,6 +84,17 @@ type mapExceededItem[V any] struct {
 	wait     sync.RWMutex
 }
 
+func (t *MapExceeded[K, V]) Copy() (m *MapExceeded[K, V]) {
+	m = &MapExceeded[K, V]{}
+	t.m.Range(func(key, value any) bool {
+		if value.(*mapExceededItem[V]).exceeded.After(time.Now()) {
+			m.m.Store(key, value)
+		}
+		return true
+	})
+	return
+}
+
 func (t *MapExceeded[K, V]) Store(k K, v *V, dur time.Duration) {
 	t.m.Store(k, &mapExceededItem[V]{
 		data:     v,

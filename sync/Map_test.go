@@ -373,3 +373,22 @@ func TestMapExceeded2(t *testing.T) {
 	}
 	w.Wait()
 }
+
+func TestMapExceeded3(t *testing.T) {
+	var m MapExceeded[string, []byte]
+	var data = []byte("1")
+	if v, loaded, f := m.LoadOrStore("1"); v != nil || loaded {
+		t.Fatal()
+	} else {
+		f(&data, time.Second)
+		if v, ok := m.Load("1"); !ok || v == nil || !bytes.Equal(data, *v) {
+			t.Fatal()
+		}
+	}
+
+	p := m.Copy()
+
+	if v, ok := p.Load("1"); !ok || v == nil || !bytes.Equal(data, *v) {
+		t.Fatal()
+	}
+}
