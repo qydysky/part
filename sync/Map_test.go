@@ -346,3 +346,30 @@ func TestMapExceeded1(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestMapExceeded2(t *testing.T) {
+	var m MapExceeded[string, []byte]
+	var data = []byte("1")
+	if v, loaded, f := m.LoadOrStore("1"); v != nil || loaded {
+		t.Fatal()
+	} else {
+		f(&data, time.Second)
+		if v, ok := m.Load("1"); !ok || v == nil || !bytes.Equal(data, *v) {
+			t.Fatal()
+		}
+	}
+
+	var w sync.WaitGroup
+	w.Add(10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			v, loaded, f := m.LoadOrStore("2")
+			if (!loaded && v != nil) || (loaded && !bytes.Equal(data, *v)) {
+				panic("")
+			}
+			f(&data, time.Second)
+			w.Done()
+		}()
+	}
+	w.Wait()
+}
