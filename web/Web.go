@@ -485,7 +485,7 @@ func (t *limitItem) Request(matchf func(req *http.Request) (match bool)) *limitI
 }
 
 type Cache struct {
-	g   psync.MapExceeded[string, []byte]
+	g   psync.MapExceeded[string, *[]byte]
 	gcL atomic.Int64
 }
 

@@ -79,7 +79,7 @@ type MapExceeded[K, V any] struct {
 }
 
 type mapExceededItem[V any] struct {
-	data     *V
+	data     V
 	exceeded time.Time
 	wait     sync.RWMutex
 }
@@ -95,21 +95,21 @@ func (t *MapExceeded[K, V]) Copy() (m *MapExceeded[K, V]) {
 	return
 }
 
-func (t *MapExceeded[K, V]) Store(k K, v *V, dur time.Duration) {
+func (t *MapExceeded[K, V]) Store(k K, v V, dur time.Duration) {
 	t.m.Store(k, &mapExceededItem[V]{
 		data:     v,
 		exceeded: time.Now().Add(dur),
 	})
 }
 
-func (t *MapExceeded[K, V]) Load(k K) (*V, bool) {
+func (t *MapExceeded[K, V]) Load(k K) (v V, ok bool) {
 	if v, ok := t.m.LoadV(k).(*mapExceededItem[V]); ok {
 		if v.exceeded.After(time.Now()) {
 			return v.data, true
 		}
 		t.Delete(k)
 	}
-	return nil, false
+	return
 }
 
 func (t *MapExceeded[K, V]) Range(f func(key K, value *V) bool) {
@@ -139,8 +139,8 @@ func (t *MapExceeded[K, V]) Delete(k K) {
 	t.m.Delete(k)
 }
 
-func (t *MapExceeded[K, V]) LoadOrStore(k K) (vr *V, loaded bool, store func(v1 *V, dur time.Duration)) {
-	store = func(v1 *V, dur time.Duration) {}
+func (t *MapExceeded[K, V]) LoadOrStore(k K) (vr V, loaded bool, store func(v1 V, dur time.Duration)) {
+	store = func(v1 V, dur time.Duration) {}
 	var actual any
 	actual, loaded = t.m.LoadOrStore(k, &mapExceededItem[V]{})
 	v := actual.(*mapExceededItem[V])
@@ -152,7 +152,7 @@ func (t *MapExceeded[K, V]) LoadOrStore(k K) (vr *V, loaded bool, store func(v1 
 		return
 	}
 	if !loaded || (loaded && !exp.IsZero()) {
-		store = func(v1 *V, dur time.Duration) {
+		store = func(v1 V, dur time.Duration) {
 			v.wait.Lock()
 			v.data = v1
 			v.exceeded = time.Now().Add(dur)
