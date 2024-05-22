@@ -373,9 +373,12 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 	}
 
 	if val.Method == "" {
-		val.Method = "GET"
 		if len(val.PostStr) > 0 {
 			val.Method = "POST"
+		} else if val.JustResponseCode {
+			val.Method = "OPTIONS"
+		} else {
+			val.Method = "GET"
 		}
 	}
 
