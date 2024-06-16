@@ -221,3 +221,11 @@ func DelBack[S ~[]T, T any](s *S, fromIndex int) {
 func AddBack[S ~[]*T, T any](s *S, t *T) {
 	*s = append(*s, t)
 }
+
+func Resize[S ~[]T, T any](s *S, size int) {
+	if len(*s) >= size || cap(*s) >= size {
+		*s = (*s)[:size]
+	} else {
+		*s = append((*s)[:cap(*s)], make([]T, size-cap(*s))...)
+	}
+}

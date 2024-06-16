@@ -6,6 +6,38 @@ import (
 	"unsafe"
 )
 
+func TestResize(t *testing.T) {
+	var s = make([]byte, 10)
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	s = s[:0]
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	Resize(&s, 8)
+	if len(s) != 8 {
+		t.FailNow()
+	}
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	Resize(&s, 4)
+	if len(s) != 4 {
+		t.FailNow()
+	}
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	Resize(&s, 11)
+	if len(s) != 11 {
+		t.FailNow()
+	}
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	Resize(&s, 25)
+	if len(s) != 25 {
+		t.FailNow()
+	}
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+	Resize(&s, 3)
+	if len(s) != 3 {
+		t.FailNow()
+	}
+	t.Log(unsafe.Pointer(&s), len(s), cap(s))
+}
+
 func TestXxx(t *testing.T) {
 	var (
 		b = New[byte](5)
