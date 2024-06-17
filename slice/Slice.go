@@ -229,3 +229,12 @@ func Resize[S ~[]T, T any](s *S, size int) {
 		*s = append((*s)[:cap(*s)], make([]T, size-cap(*s))...)
 	}
 }
+
+func Del[S ~[]T, T any](s *S, f func(t *T) (del bool)) {
+	for i := 0; i < len(*s); i++ {
+		if f(&(*s)[i]) {
+			*s = append((*s)[:i], (*s)[i+1:]...)
+			i-=1
+		}
+	}
+}

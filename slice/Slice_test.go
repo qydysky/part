@@ -6,6 +6,17 @@ import (
 	"unsafe"
 )
 
+func TestDel(t *testing.T) {
+	var s = []int{1, 2, 3, 4, 4, 6, 4, 7}
+	Del(&s, func(t *int) (del bool) {
+		return *t == 4
+	})
+	t.Log(s)
+	if s[3] != 6 || s[4] != 7 {
+		t.FailNow()
+	}
+}
+
 func TestResize(t *testing.T) {
 	var s = make([]byte, 10)
 	t.Log(unsafe.Pointer(&s), len(s), cap(s))
