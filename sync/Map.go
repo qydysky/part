@@ -25,6 +25,46 @@ func (t *Map) LoadOrStore(k, v any) (actual any, loaded bool) {
 	return
 }
 
+type LoadOrStoreFunc[T any] struct {
+	Init  func() *T
+	cache *T
+	l     sync.Mutex
+}
+
+func (l *LoadOrStoreFunc[T]) LoadOrStore(t interface {
+	LoadOrStore(k, v any) (actual any, loaded bool)
+}, k any) (actual T, loaded bool) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.cache == nil {
+		l.cache = l.Init()
+	}
+	if actual, loaded := t.LoadOrStore(k, l.cache); !loaded {
+		l.cache = nil
+		return *(actual.(*T)), false
+	} else {
+		return *(actual.(*T)), true
+	}
+}
+
+func (l *LoadOrStoreFunc[T]) LoadOrStoreP(t interface {
+	LoadOrStore(k, v any) (actual any, loaded bool)
+}, k any) (actual *T, loaded bool) {
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.cache == nil {
+		l.cache = l.Init()
+	}
+	if actual, loaded := t.LoadOrStore(k, l.cache); !loaded {
+		l.cache = nil
+		return actual.(*T), false
+	} else {
+		return actual.(*T), true
+	}
+}
+
 func (t *Map) Load(k any) (any, bool) {
 	return t.m.Load(k)
 }
@@ -59,6 +99,15 @@ func (t *Map) Len() int {
 }
 
 func (t *Map) Copy() (m Map) {
+	t.Range(func(k, v any) bool {
+		m.Store(k, v)
+		return true
+	})
+	return
+}
+
+func (t *Map) CopyP() (m *Map) {
+	m = &Map{}
 	t.Range(func(k, v any) bool {
 		m.Store(k, v)
 		return true

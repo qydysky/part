@@ -11,6 +11,27 @@ type tmp struct {
 	p int
 }
 
+func TestLS(t *testing.T) {
+	var c Map
+	var ls = LoadOrStoreFunc[int]{
+		Init: func() *int {
+			var i = 1
+			return &i
+		},
+	}
+	a0, l0 := ls.LoadOrStore(&c, `1`)
+	if l0 {
+		t.Fatal()
+	}
+	a1, l1 := ls.LoadOrStore(&c, `1`)
+	if !l1 {
+		t.Fatal()
+	}
+	if a0 != a1 {
+		t.Fatal()
+	}
+}
+
 func Test_customMap(t *testing.T) {
 	var c Map
 	//set
