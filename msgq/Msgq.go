@@ -247,10 +247,15 @@ func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel 
 				close(c)
 				return true
 			default:
-				for len(ch) != 0 {
-					<-ch
+				empty := false
+				for !empty {
+					select {
+					case <-c:
+					default:
+						c <- d.Data
+						empty = true
+					}
 				}
-				c <- d.Data
 			}
 		}
 		return false
@@ -450,10 +455,15 @@ func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (c
 					close(c)
 					return true
 				default:
-					for len(ch) != 0 {
-						<-ch
+					empty := false
+					for !empty {
+						select {
+						case <-c:
+						default:
+							c <- *data1.Data
+							empty = true
+						}
 					}
-					c <- *data1.Data
 				}
 			}
 		}

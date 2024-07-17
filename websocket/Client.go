@@ -18,7 +18,9 @@ type Client struct {
 	// rec send close
 	msg *msgq.MsgType[*WsMsg]
 
-	TO     int
+	TO     int // depercated: use RTOMs WTOMs instead
+	RTOMs  int
+	WTOMs  int
 	Header map[string]string
 	Proxy  string
 
@@ -48,7 +50,8 @@ type Ping struct {
 
 func New_client(config *Client) (*Client, error) {
 	tmp := Client{
-		TO:                300 * 1000,
+		RTOMs:             300 * 1000,
+		WTOMs:             300 * 1000,
 		Func_normal_close: func() {},
 		Func_abort_close:  func() {},
 		msg:               msgq.NewType[*WsMsg](),
@@ -58,7 +61,14 @@ func New_client(config *Client) (*Client, error) {
 		return nil, errors.New(`url == ""`)
 	}
 	if v := config.TO; v != 0 {
-		tmp.TO = v
+		tmp.RTOMs = v
+		tmp.WTOMs = v
+	}
+	if v := config.RTOMs; v != 0 {
+		tmp.RTOMs = v
+	}
+	if v := config.WTOMs; v != 0 {
+		tmp.WTOMs = v
 	}
 	tmp.Msg_normal_close = config.Msg_normal_close
 	tmp.Header = config.Header
@@ -105,7 +115,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	c, response, err := dial.Dial(o.Url, tmp_Header)
 	if err != nil {
 		o.error(err)
-	} else if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
+	} else if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
 		o.error(err)
 	}
 	if err != nil {
@@ -137,6 +147,11 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		for {
+			if err := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); err != nil {
+				o.error(err)
+				o.msg.ClearAll()
+				return
+			}
 			msg_type, message, err := c.ReadMessage()
 			if err != nil {
 				if e, ok := err.(*websocket.CloseError); ok {
@@ -181,7 +196,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		if wm.Type == 0 {
 			wm.Type = websocket.TextMessage
 		}
-		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.TO * int(time.Millisecond)))); err != nil {
+		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
 			o.error(err)
 			o.msg.ClearAll()
 			return true
@@ -192,8 +207,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			return true
 		}
 		if wm.Type == websocket.PingMessage {
-			time.AfterFunc(time.Duration(o.TO*int(time.Millisecond)), func() {
-				if time.Now().UnixMilli() > o.pingT+int64(o.TO) {
+			time.AfterFunc(time.Duration(o.RTOMs*int(time.Millisecond)), func() {
+				if time.Now().UnixMilli() > o.pingT+int64(o.RTOMs) {
 					o.error(errors.New("PongFail"))
 					o.Close()
 				}
@@ -219,7 +234,7 @@ func (o *Client) Heartbeat() (err error) {
 		Type: websocket.PingMessage,
 		Msg:  o.Ping.Msg,
 	})
-	time.Sleep(time.Duration(o.TO * int(time.Millisecond)))
+	time.Sleep(time.Duration((o.RTOMs + 100) * int(time.Millisecond)))
 	return o.Error()
 }
 

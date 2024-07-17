@@ -1,6 +1,7 @@
 package part
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func Test_Client(t *testing.T) {
 		Func_normal_close: func() {
 			t.Log("close")
 		},
-		TO: 5,
+		TO: 5000,
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -73,5 +74,18 @@ func Test_Client(t *testing.T) {
 		Msg: []byte("test"),
 	})
 
+	go func() {
+		time.Sleep(time.Second)
+		t.Log("call close")
+		c.Close()
+		t.Log("call close done")
+	}()
+
+	{
+		cancel, c := ws.Pull_tag_chan(`exit`, 1, context.Background())
+		<-c
+		cancel()
+		t.Log("exit")
+	}
 	time.Sleep(time.Second)
 }
