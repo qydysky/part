@@ -140,7 +140,6 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	go func() {
 		defer func() {
 			o.msg.PushLock_tag(`exit`, nil)
-			o.msg.ClearAll()
 			o.l.Lock()
 			o.close = true
 			o.l.Unlock()
@@ -149,7 +148,6 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		for {
 			if err := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); err != nil {
 				o.error(err)
-				o.msg.ClearAll()
 				return
 			}
 			msg_type, message, err := c.ReadMessage()
@@ -160,8 +158,11 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 						o.Func_normal_close()
 					case websocket.CloseAbnormalClosure:
 						o.Func_abort_close()
+						o.error(err)
 					default:
+						o.error(err)
 					}
+				} else {
 					o.error(err)
 				}
 				return
@@ -198,12 +199,10 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}
 		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
 			o.error(err)
-			o.msg.ClearAll()
 			return true
 		}
 		if err := c.WriteMessage(wm.Type, wm.Msg); err != nil {
 			o.error(err)
-			o.msg.ClearAll()
 			return true
 		}
 		if wm.Type == websocket.PingMessage {
@@ -219,9 +218,11 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 
 	// close
 	o.msg.Pull_tag_only(`close`, func(_ *WsMsg) (disable bool) {
+		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
+			o.error(err)
+		}
 		if err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close)); err != nil {
 			o.error(err)
-			o.msg.ClearAll()
 		}
 		return true
 	})
@@ -244,20 +245,18 @@ func (o *Client) Close() {
 
 func (o *Client) Isclose() (isclose bool) {
 	o.l.RLock()
-	isclose = o.close
-	o.l.RUnlock()
-	return
+	defer o.l.RUnlock()
+	return o.close
 }
 
 func (o *Client) Error() (e error) {
 	o.l.RLock()
-	e = o.err
-	o.l.RUnlock()
-	return
+	defer o.l.RUnlock()
+	return o.err
 }
 
 func (o *Client) error(e error) {
 	o.l.Lock()
+	defer o.l.Unlock()
 	o.err = errors.Join(o.err, e)
-	o.l.Unlock()
 }
