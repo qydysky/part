@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -98,7 +99,7 @@ func Play(filePath string) (s *Server, close func()) {
 		defer timer.Stop()
 
 		var (
-			cu   float64
+			cu   atomic.Int64
 			data []byte
 			e    error
 		)
@@ -111,6 +112,14 @@ func Play(filePath string) (s *Server, close func()) {
 						timer.Stop()
 					case "play":
 						timer.Reset(time.Second)
+					default:
+						if d, err := strconv.ParseFloat(data, 64); err == nil && d > 0 {
+							cu.Store(int64(d))
+							s.Interface().Push_tag(`send`, Uinterface{
+								Id:   0, //send to all
+								Data: []byte("ok"),
+							})
+						}
 					}
 				}
 				return false
@@ -124,7 +133,7 @@ func Play(filePath string) (s *Server, close func()) {
 				return
 			}
 
-			cu += 1
+			cu.Add(1)
 
 			for !ctx.Done(sg) {
 				if data == nil {
@@ -137,7 +146,7 @@ func Play(filePath string) (s *Server, close func()) {
 				}
 
 				tIndex := bytes.Index(data, []byte{','})
-				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < cu {
+				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < float64(cu.Load()) {
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
