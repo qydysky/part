@@ -100,9 +100,10 @@ func Play(filePath string) (s *Server, close func()) {
 		defer timer.Stop()
 
 		var (
-			cu   atomic.Int64
-			data []byte
-			e    error
+			cu       atomic.Int64
+			data     []byte
+			sendData = pslice.New[byte]()
+			e        error
 		)
 
 		s.Interface().Pull_tag(map[string]func(any) (disable bool){
@@ -116,18 +117,12 @@ func Play(filePath string) (s *Server, close func()) {
 					default:
 						if d, err := strconv.ParseFloat(data, 64); err == nil && d > 0 {
 							cu.Store(int64(d))
-							s.Interface().Push_tag(`send`, Uinterface{
-								Id:   0, //send to all
-								Data: []byte("ok"),
-							})
 						}
 					}
 				}
 				return false
 			},
 		})
-
-		sendData := pslice.New[byte]()
 
 		for !ctx.Done(sg) {
 			select {
@@ -141,13 +136,11 @@ func Play(filePath string) (s *Server, close func()) {
 			sendData.Reset()
 			sendData.Append([]byte("["))
 			for !ctx.Done(sg) {
-				if data == nil {
-					if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
-						panic(e)
-					}
-					if len(data) == 0 {
-						return
-					}
+				if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
+					panic(e)
+				}
+				if len(data) == 0 {
+					return
 				}
 
 				tIndex := bytes.Index(data, []byte{','})
