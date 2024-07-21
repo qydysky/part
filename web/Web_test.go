@@ -83,7 +83,7 @@ func Test_Mod(t *testing.T) {
 			t.Fatal(r.Respon)
 		}
 	}
-	time.Sleep(time.Second*10)
+	time.Sleep(time.Second)
 }
 
 func Test_Server(t *testing.T) {
