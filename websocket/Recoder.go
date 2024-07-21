@@ -7,14 +7,12 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	ctx "github.com/qydysky/part/ctx"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
-	pslice "github.com/qydysky/part/slice"
 )
 
 var (
@@ -100,8 +98,9 @@ func Play(filePath string) (s *Server, close func()) {
 		defer timer.Stop()
 
 		var (
-			cu       atomic.Uint64
-			sendData = pslice.New[byte]()
+			cu   float64
+			data []byte
+			e    error
 		)
 
 		s.Interface().Pull_tag(map[string]func(any) (disable bool){
@@ -111,11 +110,7 @@ func Play(filePath string) (s *Server, close func()) {
 					case "pause":
 						timer.Stop()
 					case "play":
-						timer.Reset(time.Second)
-					default:
-						if d, err := strconv.ParseFloat(data, 64); err == nil && d > 0 {
-							cu.Store(uint64(d))
-						}
+						timer.Reset(time.Millisecond * 500)
 					}
 				}
 				return false
@@ -129,37 +124,30 @@ func Play(filePath string) (s *Server, close func()) {
 				return
 			}
 
-			cu.Add(1)
+			cu += 0.5
 
-			sendData.Reset()
-			sendData.Append([]byte("["))
 			for !ctx.Done(sg) {
-				tmp, e := f.ReadUntil([]byte{'\n'}, 70, humanize.MByte)
-				if e != nil && !errors.Is(e, io.EOF) {
-					panic(e)
-				}
-				if len(tmp) == 0 {
-					return
+				if data == nil {
+					data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte)
+					if e != nil && !errors.Is(e, io.EOF) {
+						panic(e)
+					}
+					if len(data) == 0 {
+						return
+					}
 				}
 
-				tIndex := bytes.Index(tmp, []byte{','})
-				if d, _ := strconv.ParseFloat(string(tmp[:tIndex]), 64); d < float64(cu.Load()) {
-					danmuIndex := tIndex + bytes.Index(tmp[tIndex+2:], []byte{','}) + 3
-					if sendData.Size() > 1 {
-						sendData.Append([]byte(","))
-					}
-					sendData.Append(tmp[danmuIndex:])
+				tIndex := bytes.Index(data, []byte{','})
+				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < cu {
+					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
+					s.Interface().Push_tag(`send`, Uinterface{
+						Id:   0, //send to all
+						Data: data[danmuIndex:],
+					})
+					data = nil
 				} else {
 					break
 				}
-			}
-			sendData.Append([]byte("]"))
-
-			if sendData.Size() > 2 {
-				s.Interface().Push_tag(`send`, Uinterface{
-					Id:   0, //send to all
-					Data: sendData.GetPureBuf(),
-				})
 			}
 		}
 	}()
