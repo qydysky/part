@@ -694,20 +694,19 @@ func IsMethod(r *http.Request, method ...string) bool {
 
 func NotModified(r *http.Request, w http.ResponseWriter, cuTime time.Time) (notMod bool) {
 	modTimeS := cuTime.Format(time.RFC1123)
+	modTimeE := cuTime.Format(time.RFC3339)
 
 	w.Header().Add(`Cache-Control`, `private`)
-	w.Header().Add(`ETag`, modTimeS)
+	w.Header().Add(`ETag`, modTimeE)
 	w.Header().Add(`Last-Modified`, modTimeS)
 
-	if inm := r.Header.Get(`If-None-Match`); inm == modTimeS {
+	if inm := r.Header.Get(`If-None-Match`); inm == modTimeE {
 		w.WriteHeader(http.StatusNotModified)
 		return true
 	}
-	if ims := r.Header.Get(`If-Modified-Since`); ims != "" {
-		if mod, e := time.Parse(time.RFC1123, ims); e == nil && mod.Equal(cuTime) {
-			w.WriteHeader(http.StatusNotModified)
-			return true
-		}
+	if ims := r.Header.Get(`If-Modified-Since`); ims == modTimeS {
+		w.WriteHeader(http.StatusNotModified)
+		return true
 	}
 	return false
 }
