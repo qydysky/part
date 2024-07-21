@@ -100,10 +100,8 @@ func Play(filePath string) (s *Server, close func()) {
 		defer timer.Stop()
 
 		var (
-			cu       atomic.Int64
-			data     []byte
+			cu       atomic.Uint64
 			sendData = pslice.New[byte]()
-			e        error
 		)
 
 		s.Interface().Pull_tag(map[string]func(any) (disable bool){
@@ -116,7 +114,7 @@ func Play(filePath string) (s *Server, close func()) {
 						timer.Reset(time.Second)
 					default:
 						if d, err := strconv.ParseFloat(data, 64); err == nil && d > 0 {
-							cu.Store(int64(d))
+							cu.Store(uint64(d))
 						}
 					}
 				}
@@ -136,21 +134,21 @@ func Play(filePath string) (s *Server, close func()) {
 			sendData.Reset()
 			sendData.Append([]byte("["))
 			for !ctx.Done(sg) {
-				if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
+				tmp, e := f.ReadUntil([]byte{'\n'}, 70, humanize.MByte)
+				if e != nil && !errors.Is(e, io.EOF) {
 					panic(e)
 				}
-				if len(data) == 0 {
+				if len(tmp) == 0 {
 					return
 				}
 
-				tIndex := bytes.Index(data, []byte{','})
-				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < float64(cu.Load()) {
-					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
+				tIndex := bytes.Index(tmp, []byte{','})
+				if d, _ := strconv.ParseFloat(string(tmp[:tIndex]), 64); d < float64(cu.Load()) {
+					danmuIndex := tIndex + bytes.Index(tmp[tIndex+2:], []byte{','}) + 3
 					if sendData.Size() > 1 {
 						sendData.Append([]byte(","))
 					}
-					sendData.Append(data[danmuIndex:])
-					data = nil
+					sendData.Append(tmp[danmuIndex:])
 				} else {
 					break
 				}
