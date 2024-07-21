@@ -14,6 +14,7 @@ import (
 	ctx "github.com/qydysky/part/ctx"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
+	pslice "github.com/qydysky/part/slice"
 )
 
 var (
@@ -126,6 +127,8 @@ func Play(filePath string) (s *Server, close func()) {
 			},
 		})
 
+		sendData := pslice.New[byte]()
+
 		for !ctx.Done(sg) {
 			select {
 			case <-timer.C:
@@ -135,6 +138,8 @@ func Play(filePath string) (s *Server, close func()) {
 
 			cu.Add(1)
 
+			sendData.Reset()
+			sendData.Append([]byte("["))
 			for !ctx.Done(sg) {
 				if data == nil {
 					if data, e = f.ReadUntil([]byte{'\n'}, 70, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
@@ -148,14 +153,22 @@ func Play(filePath string) (s *Server, close func()) {
 				tIndex := bytes.Index(data, []byte{','})
 				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < float64(cu.Load()) {
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
-					s.Interface().Push_tag(`send`, Uinterface{
-						Id:   0, //send to all
-						Data: data[danmuIndex:],
-					})
+					if sendData.Size() > 1 {
+						sendData.Append([]byte(","))
+					}
+					sendData.Append(data[danmuIndex:])
 					data = nil
 				} else {
 					break
 				}
+			}
+			sendData.Append([]byte("]"))
+
+			if sendData.Size() > 2 {
+				s.Interface().Push_tag(`send`, Uinterface{
+					Id:   0, //send to all
+					Data: sendData.GetPureBuf(),
+				})
 			}
 		}
 	}()
