@@ -40,6 +40,52 @@ func Test_Exprier(t *testing.T) {
 	}
 }
 
+func Test_Mod(t *testing.T) {
+	s := New(&http.Server{
+		Addr:         "0.0.0.0:13000",
+		WriteTimeout: time.Second * time.Duration(10),
+	})
+	defer s.Shutdown()
+	s.Handle(map[string]func(http.ResponseWriter, *http.Request){
+		`/mod`: func(w http.ResponseWriter, r *http.Request) {
+			cu, _ := time.Parse(time.RFC1123, `Tue, 22 Feb 2022 22:00:00 GMT`)
+			if NotModified(r, w, cu) {
+				return
+			}
+			w.Write([]byte("abc强强强强"))
+		},
+		`/`: func(w http.ResponseWriter, r *http.Request) {
+			cu, _ := time.Parse(time.RFC1123, `Tue, 22 Feb 2022 22:00:00 GMT`)
+			if NotModified(r, w, cu) {
+				return
+			}
+			w.Write([]byte(""))
+		},
+	})
+
+	time.Sleep(time.Second)
+
+	r := reqf.New()
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13000/mod",
+		})
+		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
+			t.Fatal(r.Respon)
+		}
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13000/mod",
+			Header: map[string]string{
+				`If-None-Match`: r.Response.Header.Get(`ETag`),
+			},
+		})
+		if r.Response.StatusCode != http.StatusNotModified {
+			t.Fatal(r.Respon)
+		}
+	}
+	time.Sleep(time.Second*10)
+}
+
 func Test_Server(t *testing.T) {
 	s := New(&http.Server{
 		Addr:         "127.0.0.1:13000",
