@@ -1,4 +1,4 @@
-package mp4
+package tool
 
 /*
 整数 字节转换区
