@@ -416,7 +416,7 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 }
 
 func ReadAll(r io.Reader, b []byte) ([]byte, error) {
-	b = b[0:cap(b)]
+	b = b[:0]
 	for {
 		n, err := r.Read(b[len(b):cap(b)])
 		b = b[:len(b)+n]
