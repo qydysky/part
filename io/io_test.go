@@ -63,3 +63,36 @@ func Test_RW2Chan(t *testing.T) {
 		}
 	}
 }
+
+func Test_readall(t *testing.T) {
+	var buf = []byte{}
+	result, e := ReadAll(bytes.NewReader([]byte{0x01, 0x02, 0x03}), buf)
+	if e != nil || !bytes.Equal(result, []byte{0x01, 0x02, 0x03}) {
+		t.Fatal()
+	}
+}
+
+// 4248350               281.0 ns/op            16 B/op          1 allocs/op
+func Benchmark_readall(b *testing.B) {
+	var buf = []byte{}
+	var data = []byte{0x01, 0x02, 0x03}
+	r := bytes.NewReader(data)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ReadAll(r, buf)
+		r.Reset(data)
+	}
+}
+
+// 2806576               424.2 ns/op           512 B/op          1 allocs/op
+func Benchmark_readall1(b *testing.B) {
+	var data = []byte{0x01, 0x02, 0x03}
+	r := bytes.NewReader(data)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		io.ReadAll(r)
+		r.Reset(data)
+	}
+}

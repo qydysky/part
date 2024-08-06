@@ -414,3 +414,22 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 		}
 	}
 }
+
+func ReadAll(r io.Reader, b []byte) ([]byte, error) {
+	b = b[0:cap(b)]
+	for {
+		n, err := r.Read(b[len(b):cap(b)])
+		b = b[:len(b)+n]
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return b, err
+		}
+
+		if len(b) == cap(b) {
+			// Add more capacity (let append pick how much).
+			b = append(b, 0)[:len(b)]
+		}
+	}
+}

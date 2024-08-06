@@ -8,8 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gorilla/websocket"
 
+	pio "github.com/qydysky/part/io"
 	msgq "github.com/qydysky/part/msgq"
 )
 
@@ -145,12 +147,17 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			o.l.Unlock()
 		}()
 
+		buf := make([]byte, humanize.KByte)
+		var message []byte
 		for {
 			if err := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); err != nil {
 				o.error(err)
 				return
 			}
-			msg_type, message, err := c.ReadMessage()
+			msg_type, r, err := c.NextReader()
+			if err == nil {
+				message, err = pio.ReadAll(r, buf)
+			}
 			if err != nil {
 				if e, ok := err.(*websocket.CloseError); ok {
 					switch e.Code {
