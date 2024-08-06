@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	pio "github.com/qydysky/part/io"
 	encoder "golang.org/x/text/encoding"
@@ -564,6 +565,39 @@ func (t *File) Stat() (fs.FileInfo, error) {
 		}
 	}
 	return info, nil
+}
+
+func (t *File) GetFileModTime() (mod int64, err error) {
+	fi, err := t.Stat()
+	if err != nil {
+		return -1, err
+	}
+	return fi.ModTime().Unix(), nil
+}
+
+func (t *File) GetFileSize() (int64, error) {
+	fi, err := t.Stat()
+	if err != nil {
+		return -1, err
+	}
+	return fi.Size(), nil
+}
+
+func (t *File) HavePerm(want os.FileMode) (bool, error) {
+	fi, err := t.Stat()
+	if err != nil {
+		return false, err
+	}
+	return fi.Mode().Perm() >= want, nil
+}
+
+func (t *File) IsOpen() bool {
+	if !t.IsExist() {
+		return false
+	}
+	fi, e := os.OpenFile(t.Config.FilePath, syscall.O_RDONLY|syscall.O_EXCL, 0)
+	defer fi.Close()
+	return e != nil
 }
 
 func (t *File) getRWCloser(mode ...fs.FileMode) {

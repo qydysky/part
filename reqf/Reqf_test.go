@@ -512,4 +512,7 @@ func Test_req5(t *testing.T) {
 		t.Log(r.Respon, buf)
 		t.Fatal()
 	}
+	if _, e := ResDate(r.Response); e != nil {
+		t.Fatal()
+	}
 }

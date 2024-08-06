@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	pfile "github.com/qydysky/part/file"
 	pool "github.com/qydysky/part/pool"
 )
 
@@ -602,7 +603,7 @@ func (this *netl) GetLocalDns() error {
 
 		this.Dns.Server = string(ip)
 		return nil
-	} else if Checkfile().IsExist("/etc/resolv.conf") {
+	} else if pfile.New("/etc/resolv.conf", 0, true).IsExist() {
 		cmd := exec.Command("cat", "/etc/resolv.conf")
 		output, _ := cmd.CombinedOutput()
 		var ip []byte
@@ -637,5 +638,4 @@ func MasterDomain(url_s string) (string, error) {
 		}
 		return strings.Join(list[len(list)-2:], "."), nil
 	}
-	return "", nil
 }

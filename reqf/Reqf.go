@@ -69,6 +69,7 @@ var (
 	ErrWriteRes         = errors.New("ErrWriteRes")
 	ErrReadRes          = errors.New("ErrReadRes")
 	ErrPostStrOrRawPipe = errors.New("ErrPostStrOrRawPipe")
+	ErrNoDate           = errors.New("ErrNoDate")
 )
 
 type Req struct {
@@ -429,4 +430,12 @@ func ToForm(m map[string]string) (postStr string, contentType string) {
 	}
 	buf.WriteString(`-----------------------------` + sign + `--`)
 	return buf.String(), `multipart/form-data; boundary=---------------------------` + sign
+}
+
+func ResDate(res *http.Response) (time.Time, error) {
+	if date := res.Header.Get("date"); date != `` {
+		return time.Parse(time.RFC1123, date)
+	} else {
+		return time.Time{}, ErrNoDate
+	}
 }
