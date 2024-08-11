@@ -57,14 +57,15 @@ func New_client(config *Client) (*Client, error) {
 		WTOMs:             300 * 1000,
 		Func_normal_close: func() {},
 		Func_abort_close:  func() {},
+		BufSize:           10,
 		msg:               msgq.NewType[*WsMsg](),
 	}
 	tmp.Url = config.Url
 	if tmp.Url == "" {
 		return nil, errors.New(`url == ""`)
 	}
-	if v := config.BufSize; v <= 1 {
-		tmp.BufSize = 1
+	if v := config.BufSize; v >= 1 {
+		tmp.BufSize = v
 	}
 	if v := config.TO; v != 0 {
 		tmp.RTOMs = v
@@ -166,11 +167,11 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 				if msg, e := pio.ReadAll(r, buf); e != nil {
 					err = e
 				} else {
-					msgs[cuP] = append(msgs[cuP][:0], msg...)
 					cuP++
 					if cuP >= o.BufSize {
 						cuP = 0
 					}
+					msgs[cuP] = append(msgs[cuP][:0], msg...)
 				}
 			}
 			if err != nil {
