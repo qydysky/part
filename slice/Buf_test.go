@@ -7,24 +7,24 @@ import (
 )
 
 func TestBuf(t *testing.T) {
-	bu := NewBufs[byte]()
+	bu := NewBufs[byte](5)
 	allocs(bu.Get())
 	runtime.GC()
 	time.Sleep(time.Second)
-	if bu.CacheCount() != 1 {
+	if bu.Cache() != 1 {
 		t.Fatal()
 	}
 	b := allocs(bu.Get())
 	runtime.GC()
 	time.Sleep(time.Second)
-	if bu.CacheCount() != 0 {
+	if bu.Cache() != 0 {
 		t.Fatal()
 	}
 	allocs(bu.Get())
 	runtime.GC()
 	time.Sleep(time.Second)
-	t.Log(b, bu.CacheCount())
-	if bu.CacheCount() != 1 {
+	t.Log(b, bu.Cache())
+	if bu.Cache() != 1 {
 		t.Fatal()
 	}
 }

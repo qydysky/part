@@ -2,47 +2,53 @@ package part
 
 import (
 	"runtime"
-	"sync/atomic"
 )
 
 type BufI[T any] interface {
 	// // eg
 	//
-	//	if tmpbuf, e := buf.Get(); e == nil {
+	//	if tmpbuf, reachMax := buf.Get(); reachMax {
 	//		// do something with tmpbuf
 	//	}
 	Get() []T
-	CacheCount() int64
+	Cache() int
 }
 
 type bufs[T any] struct {
-	_   noCopy
-	num atomic.Int64
-	buf [][]T
+	_    noCopy
+	size uint64
+	buf  chan []T
 }
 
-func NewBufs[T any]() BufI[T] {
+func NewBufs[T any](size uint64) BufI[T] {
 	return &bufs[T]{
-		buf: [][]T{},
+		size: size,
+		buf:  make(chan []T, size),
 	}
 }
 
-func (t *bufs[T]) Get() (b []T) {
+func (t *bufs[T]) Get() (tmpbuf []T) {
 	if len(t.buf) > 0 {
-		b = t.buf[0][:0]
-		t.buf = t.buf[:copy(t.buf, t.buf[1:])]
-		t.num.Add(-1)
-		return
+		b := (<-t.buf)[:0]
+		runtime.SetFinalizer(&b, func(objp any) {
+			select {
+			case t.buf <- *objp.(*[]T):
+			default:
+			}
+		})
+		return b
 	} else {
-		b = []T{}
+		b := []T{}
+		runtime.SetFinalizer(&b, func(objp any) {
+			select {
+			case t.buf <- *objp.(*[]T):
+			default:
+			}
+		})
+		return b
 	}
-	runtime.SetFinalizer(&b, func(objp any) {
-		t.buf = append(t.buf, *objp.(*[]T))
-		t.num.Add(1)
-	})
-	return
 }
 
-func (t *bufs[T]) CacheCount() int64 {
-	return t.num.Load()
+func (t *bufs[T]) Cache() int {
+	return len(t.buf)
 }
