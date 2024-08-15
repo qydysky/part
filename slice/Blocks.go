@@ -2,17 +2,24 @@ package part
 
 import (
 	"errors"
+	"runtime"
 )
 
 type BlocksI[T any] interface {
 	// // eg
 	//
 	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
-	//		clear(tmpbuf)
 	//		// do something with tmpbuf
 	//		putBack()
 	//	}
 	Get() ([]T, func(), error)
+
+	// // eg
+	//
+	//	if tmpbuf, e := buf.GetAuto(); e == nil {
+	//		// do something with tmpbuf
+	//	}
+	GetAuto() ([]T, error)
 }
 
 type blocks[T any] struct {
@@ -50,5 +57,19 @@ func (t *blocks[T]) Get() ([]T, func(), error) {
 		}, nil
 	default:
 		return nil, func() {}, ErrOverflow
+	}
+}
+
+func (t *blocks[T]) GetAuto() (b []T, e error) {
+	select {
+	case offset := <-t.free:
+		b = t.buf[offset*t.size : (offset+1)*t.size]
+		runtime.SetFinalizer(&b, func(p any) {
+			clear(*p.(*[]T))
+			t.free <- offset
+		})
+		return
+	default:
+		return nil, ErrOverflow
 	}
 }

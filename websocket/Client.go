@@ -13,7 +13,6 @@ import (
 
 	pio "github.com/qydysky/part/io"
 	msgq "github.com/qydysky/part/msgq"
-	pslice "github.com/qydysky/part/slice"
 )
 
 type Client struct {
@@ -24,7 +23,7 @@ type Client struct {
 	TO      int // depercated: use RTOMs WTOMs instead
 	RTOMs   int
 	WTOMs   int
-	BufSize int // msg buf
+	BufSize int // msg buf 1: always use single buf >1: use bufs cycle
 	Header  map[string]string
 	Proxy   string
 
@@ -58,14 +57,14 @@ func New_client(config *Client) (*Client, error) {
 		WTOMs:             300 * 1000,
 		Func_normal_close: func() {},
 		Func_abort_close:  func() {},
-		BufSize:           100,
+		BufSize:           10,
 		msg:               msgq.NewType[*WsMsg](),
 	}
 	tmp.Url = config.Url
 	if tmp.Url == "" {
 		return nil, errors.New(`url == ""`)
 	}
-	if v := config.BufSize; v > 100 {
+	if v := config.BufSize; v >= 1 {
 		tmp.BufSize = v
 	}
 	if v := config.TO; v != 0 {
@@ -154,19 +153,25 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		buf := make([]byte, humanize.KByte)
-		msgs := pslice.NewBufs[byte](uint64(o.BufSize))
+		var (
+			msgs = make([][]byte, o.BufSize)
+			cuP  = 0
+		)
 		for {
 			if err := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); err != nil {
 				o.error(err)
 				return
 			}
-			msg := msgs.Get()
 			msg_type, r, err := c.NextReader()
 			if err == nil {
-				if tmp, e := pio.ReadAll(r, buf); e != nil {
+				if msg, e := pio.ReadAll(r, buf); e != nil {
 					err = e
 				} else {
-					msg = append(msg, tmp...)
+					cuP++
+					if cuP >= o.BufSize {
+						cuP = 0
+					}
+					msgs[cuP] = append(msgs[cuP][:0], msg...)
 				}
 			}
 			if err != nil {
@@ -190,7 +195,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			case websocket.PingMessage:
 				o.msg.PushLock_tag(`send`, &WsMsg{
 					Type: websocket.PongMessage,
-					Msg:  msg,
+					Msg:  msgs[cuP],
 				})
 			case websocket.PongMessage:
 				o.pingT = time.Now().UnixMilli()
@@ -204,7 +209,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			default:
 				o.msg.PushLock_tag(`rec`, &WsMsg{
 					Type: websocket.TextMessage,
-					Msg:  msg,
+					Msg:  msgs[cuP],
 				})
 			}
 		}
