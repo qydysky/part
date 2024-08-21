@@ -1,21 +1,28 @@
 package part
 
 import (
+	"bytes"
+	"crypto/rand"
 	"testing"
 )
 
 func Test_EasyCrypt(t *testing.T) {
-
-	priKey,_ := FileLoad(`private.pem`)
-	pubKey,_ := FileLoad(`public.pem`)
-
-	if sc,e := Encrypt([]byte(`asdfasdfasdf`),pubKey);e != nil {
-		t.Error(e)
-	} else if s,e := Decrypt(sc,priKey);e != nil {
-		t.Error(e)
+	var buf = make([]byte, 100)
+	if n, e := rand.Read(buf); e != nil {
+		t.Fatal(e)
 	} else {
-		if string(s) != `asdfasdfasdf` {
-			t.Error(`not match`)
+		buf = buf[:n]
+	}
+
+	if pri, pub, e := NewKey(); e != nil {
+		t.Fatal(e)
+	} else {
+		if b, e := Encrypt(buf, pub); e != nil {
+			t.Fatal(e)
+		} else if msg, e := Decrypt(b, pri); e != nil {
+			t.Fatal(e)
+		} else if !bytes.Equal(msg, buf) {
+			t.Fatal()
 		}
 	}
 }
