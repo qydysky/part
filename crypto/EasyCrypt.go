@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"errors"
+	"io"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -79,6 +80,9 @@ func Decrypt(b, priKey []byte) (msg []byte, e error) {
 	)
 	if pb, _ := pem.Decode(priKey); pb.Type != pemType+` PRIVATE KEY` {
 		e = ErrPemType
+		return
+	} else if 4+pemLen > len(b) {
+		e = io.EOF
 		return
 	} else if p2, e = ecdh.X25519().NewPrivateKey(pb.Bytes); e != nil {
 		return
