@@ -137,6 +137,7 @@ func (t *sys) GetTmpFile(pdir string) string {
 	return name
 }
 
+// Deprecated: use GetIpByCidr
 func GetIntranetIp(cidr string) (ips []string) {
 	netInterfaces, err := net.Interfaces()
 	if err != nil {
@@ -178,6 +179,42 @@ func GetIntranetIp(cidr string) (ips []string) {
 
 	fmt.Println("[part]no loacl ip")
 	return []string{"127.0.0.1"}
+}
+
+func GetIpByCidr(cidr ...string) (ips []string, e error) {
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	var cidrN *net.IPNet
+	if len(cidr) == 0 {
+		cidr = append(cidr, `0.0.0.0/0`)
+		cidr = append(cidr, `::/0`)
+	}
+
+	for i := 0; i < len(cidr); i++ {
+		_, cidrN, err = net.ParseCIDR(cidr[i])
+		if err != nil {
+			return nil, err
+		}
+
+		for i := 0; i < len(netInterfaces); i++ {
+			if (netInterfaces[i].Flags & net.FlagUp) != 0 {
+				addrs, _ := netInterfaces[i].Addrs()
+
+				for _, address := range addrs {
+					if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						if cidrN != nil && cidrN.Contains(ipnet.IP) {
+							ips = append(ips, ipnet.IP.String())
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return
 }
 
 func (t *sys) CheckProgram(pros ...string) []int {
