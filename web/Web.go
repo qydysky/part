@@ -383,7 +383,8 @@ func (t *Limits) AddCount(r *http.Request) (isOverflow bool) {
 	if len(t.g) == 0 {
 		return
 	}
-	ip := net.ParseIP(strings.Split(r.RemoteAddr, ":")[0])
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip := net.ParseIP(host)
 	var matchs []int
 
 	for i := 0; !isOverflow && i < len(t.g); i++ {
