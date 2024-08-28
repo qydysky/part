@@ -19,7 +19,7 @@ import (
 	flate "compress/flate"
 	gzip "compress/gzip"
 
-	br "github.com/andybalholm/brotli"
+	br "github.com/qydysky/brotli"
 	pio "github.com/qydysky/part/io"
 	s "github.com/qydysky/part/strings"
 	// "encoding/binary"

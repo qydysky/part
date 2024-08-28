@@ -7,8 +7,10 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.17.9
 	github.com/miekg/dns v1.1.62
+	github.com/qydysky/brotli v0.0.0-20240828132603-e98a2bfd1d69
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
+	golang.org/x/crypto v0.26.0
 	golang.org/x/text v0.17.0
 )
 
@@ -18,7 +20,6 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	modernc.org/gc/v3 v3.0.0-20240801135723-a856999a2e4a // indirect
 )
