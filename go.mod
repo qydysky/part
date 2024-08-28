@@ -3,11 +3,10 @@ module github.com/qydysky/part
 go 1.23
 
 require (
-	github.com/andybalholm/brotli v1.1.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.17.9
 	github.com/miekg/dns v1.1.62
-	github.com/qydysky/brotli v0.0.0-20240828132603-e98a2bfd1d69
+	github.com/qydysky/brotli v0.0.0-20240828134800-e9913a6e7ed9
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	golang.org/x/crypto v0.26.0

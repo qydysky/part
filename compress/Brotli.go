@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	br "github.com/andybalholm/brotli"
+	br "github.com/qydysky/brotli"
 )
 
 func InBr(byteS []byte, level int) ([]byte, error) {

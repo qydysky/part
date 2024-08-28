@@ -206,7 +206,7 @@ func GetIpByCidr(cidr ...string) (seq iter.Seq[net.IP]) {
 					addrs, _ := netInterfaces[i].Addrs()
 
 					for _, address := range addrs {
-						if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && !ipnet.IP.IsUnspecified() {
 							if cidrN != nil && cidrN.Contains(ipnet.IP) {
 								if !yield(ipnet.IP) {
 									return
