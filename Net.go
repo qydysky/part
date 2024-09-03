@@ -14,7 +14,6 @@ import (
 
 	"github.com/miekg/dns"
 	pfile "github.com/qydysky/part/file"
-	pool "github.com/qydysky/part/pool"
 )
 
 var (
@@ -75,6 +74,7 @@ const (
 	AcceptMsg
 	DenyMsg
 	LisnMsg
+	ClosMsg
 )
 
 // when Type is ErrorMsg, Msg is set to error
@@ -226,10 +226,6 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 		defer close(msg_chan)
 		defer listener.Close()
 
-		tarConnPool := NewConnPool(100, func() *net.Conn {
-			conn, _ := net.Dial(tarNet, tarAddr)
-			return &conn
-		})
 		for {
 			proxyconn, err := listener.Accept()
 			if err != nil {
@@ -244,7 +240,19 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 				continue
 			}
 
-			ip := net.ParseIP(strings.Split(proxyconn.RemoteAddr().String(), ":")[0])
+			host, _, err := net.SplitHostPort(proxyconn.RemoteAddr().String())
+			if err != nil {
+				select {
+				default:
+				case msg_chan <- ForwardMsg{
+					Type: ErrorMsg,
+					Msg:  err,
+				}:
+				}
+				continue
+			}
+
+			ip := net.ParseIP(host)
 
 			var accept bool
 			for i := 0; !accept && i < len(matchfunc); i++ {
@@ -279,10 +287,21 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 			}
 
 			go func() {
-				targetconn, putBackf := tarConnPool.Get(tarAddr)
-				defer putBackf()
+				targetconn, err := net.Dial(tarNet, tarAddr)
+				if err != nil {
+					select {
+					default:
+					case msg_chan <- ForwardMsg{
+						Type: ErrorMsg,
+						Msg:  err,
+					}:
+					}
+					return
+				}
 
 				connBridge(proxyconn, targetconn)
+				proxyconn.Close()
+				targetconn.Close()
 
 				switch lisNet {
 				case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
@@ -290,8 +309,6 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 					time.Sleep(time.Second * 10)
 				default:
 				}
-				proxyconn.Close()
-				targetconn.Close()
 			}()
 		}
 	}(listener, msg_chan)
@@ -364,42 +381,42 @@ func (t udpLis) Addr() net.Addr {
 	return t.addr
 }
 
-type ConnPool struct {
-	pool *pool.Buf[ConnPoolItem]
-}
+// type ConnPool struct {
+// 	pool *pool.Buf[ConnPoolItem]
+// }
 
-type ConnPoolItem struct {
-	p      *net.Conn
-	pooled bool
-}
+// type ConnPoolItem struct {
+// 	p      *net.Conn
+// 	pooled bool
+// }
 
-func NewConnPool(size int, genConn func() *net.Conn) *ConnPool {
-	return &ConnPool{
-		pool: pool.New(pool.PoolFunc[ConnPoolItem]{
-			New: func() *ConnPoolItem {
-				return &ConnPoolItem{p: genConn()}
-			},
-			InUse: func(u *ConnPoolItem) bool {
-				return !u.pooled
-			},
-			Reuse: func(u *ConnPoolItem) *ConnPoolItem {
-				u.pooled = false
-				return u
-			},
-			Pool: func(u *ConnPoolItem) *ConnPoolItem {
-				u.pooled = true
-				return u
-			},
-		}, size),
-	}
-}
+// func NewConnPool(size int, genConn func() *net.Conn) *ConnPool {
+// 	return &ConnPool{
+// 		pool: pool.New(pool.PoolFunc[ConnPoolItem]{
+// 			New: func() *ConnPoolItem {
+// 				return &ConnPoolItem{p: genConn()}
+// 			},
+// 			InUse: func(u *ConnPoolItem) bool {
+// 				return !u.pooled
+// 			},
+// 			Reuse: func(u *ConnPoolItem) *ConnPoolItem {
+// 				u.pooled = false
+// 				return u
+// 			},
+// 			Pool: func(u *ConnPoolItem) *ConnPoolItem {
+// 				u.pooled = true
+// 				return u
+// 			},
+// 		}, size),
+// 	}
+// }
 
-func (t *ConnPool) Get(id string) (i net.Conn, putBack func()) {
-	conn := t.pool.Get()
-	return *conn.p, func() {
-		t.pool.Put(conn)
-	}
-}
+// func (t *ConnPool) Get(id string) (i net.Conn, putBack func()) {
+// 	conn := t.pool.Get()
+// 	return *conn.p, func() {
+// 		t.pool.Put(conn)
+// 	}
+// }
 
 // func ForwardUdp(targetaddr, network, listenaddr string, acceptCIDRs []string) (closef func(), msg_chan chan ForwardMsg) {
 // 	//初始化消息通道
