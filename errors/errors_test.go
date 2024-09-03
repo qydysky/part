@@ -19,7 +19,7 @@ func TestXxx(t *testing.T) {
 		t.Fail()
 	}
 
-	err = Grow(err, New("r1", "a1"))
+	err = Grow(New("r1", "a1"), err)
 
 	if !Catch(err, "r0") {
 		t.Fail()
@@ -28,6 +28,13 @@ func TestXxx(t *testing.T) {
 	if !Catch(err, "r1") {
 		t.Fail()
 	}
+}
+func TestXxx2(t *testing.T) {
+	err := Grow(New("r1", "a1"), io.EOF)
+	if !Catch(err, "r1") {
+		t.Fatal()
+	}
+	t.Log(err.Error())
 }
 
 func Test2(t *testing.T) {

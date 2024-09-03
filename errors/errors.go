@@ -5,7 +5,7 @@ import (
 )
 
 type Error struct {
-	son    interface{}
+	son    error
 	Reason string
 	action string
 }
@@ -30,16 +30,16 @@ func Catch(e error, action string) bool {
 	return false
 }
 
-// Grow will overwrite reason but save action for catch
-func Grow(e error, son Error) Error {
+// Grow will append error action for catch
+func Grow(fe Error, e error) Error {
 	if v, ok := e.(Error); ok {
-		son.son = v
+		fe.son = v
 	} else {
-		son.son = Error{
-			Reason: v.Error(),
+		fe.son = Error{
+			Reason: e.Error(),
 		}
 	}
-	return son
+	return fe
 }
 
 func New(action string, reason ...string) (e Error) {
@@ -85,7 +85,7 @@ func Unwrap(e error) []error {
 	return []error{errors.Unwrap(e)}
 }
 
-func ErrorFormat(e error, format ...func(error) string) (s string) {
+func ErrorFormat(e error, format ...ErrFormat) (s string) {
 	if e == nil {
 		return ""
 	}
@@ -108,6 +108,8 @@ func ErrorFormat(e error, format ...func(error) string) (s string) {
 
 	return
 }
+
+type ErrFormat func(e error) string
 
 var (
 	ErrSimplifyFunc = func(e error) string {
