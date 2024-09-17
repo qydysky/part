@@ -141,6 +141,7 @@ func connBridge(a, b net.Conn) {
 
 func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func(), msg_chan chan ForwardMsg) {
 	msg_chan = make(chan ForwardMsg, 1000)
+	closef = func() {}
 
 	lisNet := strings.Split(listenaddr, "://")[0]
 	lisAddr := strings.Split(listenaddr, "://")[1]
