@@ -71,6 +71,7 @@ func (*netl) TestDial(network, address string, Timeout int) bool {
 
 const (
 	ErrorMsg = iota
+	WarnMsg
 	AcceptMsg
 	DenyMsg
 	LisnMsg
@@ -234,7 +235,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 				select {
 				default:
 				case msg_chan <- ForwardMsg{
-					Type: ErrorMsg,
+					Type: WarnMsg,
 					Msg:  err,
 				}:
 				}
@@ -246,7 +247,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 				select {
 				default:
 				case msg_chan <- ForwardMsg{
-					Type: ErrorMsg,
+					Type: WarnMsg,
 					Msg:  err,
 				}:
 				}
@@ -293,7 +294,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 					select {
 					default:
 					case msg_chan <- ForwardMsg{
-						Type: ErrorMsg,
+						Type: WarnMsg,
 						Msg:  err,
 					}:
 					}
