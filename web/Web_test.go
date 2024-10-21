@@ -17,6 +17,15 @@ import (
 	reqf "github.com/qydysky/part/reqf"
 )
 
+func TestMain(t *testing.T) {
+	ser := &http.Server{
+		Addr: "127.0.0.1:18081",
+	}
+	wp := &WebPath{}
+	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
+	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
+}
+
 func Test_Exprier(t *testing.T) {
 	exp := NewExprier(1)
 	if key, e := exp.Reg(time.Second); e != nil {
@@ -142,6 +151,24 @@ func Test_path(t *testing.T) {
 		sf1(nil, nil)
 	}
 	failIfNot(t, res, "f1f2f1")
+}
+
+func Test_path2(t *testing.T) {
+	var m WebPath
+	var res string
+	var f1 = func(_ http.ResponseWriter, _ *http.Request) { res += "f1" }
+	var f2 = func(_ http.ResponseWriter, _ *http.Request) { res += "f2" }
+	m.Store("/1", f1)
+	failIfNot(t, res, "")
+	if sf1, ok := m.Load("/1"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1")
+	m.Store("/1", f2)
+	if sf1, ok := m.Load("/1"); ok {
+		sf1(nil, nil)
+	}
+	failIfNot(t, res, "f1f2")
 }
 
 func Test_Store(t *testing.T) {
@@ -621,4 +648,36 @@ func Test1(b *testing.T) {
 			b.Fatal()
 		}
 	}
+}
+
+func Test_limit(t *testing.T) {
+	host, _, _ := net.SplitHostPort("[fe80::aab8:e0ff:fe03:8ce5]:80")
+	// if _, cidrx, err := net.ParseCIDR("::/0"); err != nil {
+	// 	panic(err)
+	// } else {
+	t.Log(host)
+	// }
+
+	limit := Limits{}
+	limit.AddLimitItem(NewLimitItem(0).Cidr("::/0"))
+
+	var m WebPath
+	m.Store("/", func(w http.ResponseWriter, r *http.Request) {
+		if limit.AddCount(r) {
+			w.Write([]byte("fail"))
+		}
+		t.Log(limit.g[0].available)
+		w.Write([]byte("ok"))
+		time.Sleep(time.Second)
+	})
+
+	o := NewSyncMap(&http.Server{
+		Addr: "127.0.0.1:13003",
+	}, &m)
+	defer o.Shutdown()
+
+	r := reqf.New()
+	r.Reqf(reqf.Rval{
+		Url: "http://localhost:13003/",
+	})
 }

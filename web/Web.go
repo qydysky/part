@@ -57,6 +57,14 @@ type WebSync struct {
 }
 
 func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync) {
+	if o, e := NewSyncMapNoPanic(conf, m, matchFunc...); e != nil {
+		panic(e)
+	} else {
+		return o
+	}
+}
+
+func NewSyncMapNoPanic(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync, err error) {
 
 	o = new(WebSync)
 
@@ -66,21 +74,21 @@ func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (f
 	o.Server = conf
 	o.wrs = m
 
-	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
-	}
-
 	matchFunc = append(matchFunc, o.wrs.Load)
 
 	ln, err := net.Listen("tcp", conf.Addr)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	if conf.TLSConfig != nil {
 		ln = tls.NewListener(ln, conf.TLSConfig)
 	}
 	go o.Server.Serve(ln)
+
+	if o.Server.Handler == nil {
+		o.mux = http.NewServeMux()
+		o.Server.Handler = o.mux
+	}
 
 	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		f, ok := matchFunc[0](r.URL.Path)
