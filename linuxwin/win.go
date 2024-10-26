@@ -14,6 +14,8 @@ import (
 	signal "github.com/qydysky/part/signal"
 )
 
+var EOF = "\r\n"
+
 type ulong int32
 type ulong_ptr uintptr
 

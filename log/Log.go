@@ -14,6 +14,7 @@ import (
 	f "github.com/qydysky/part/file"
 	m "github.com/qydysky/part/msgq"
 	psql "github.com/qydysky/part/sql"
+	psys "github.com/qydysky/part/sys"
 )
 
 var (
@@ -92,7 +93,7 @@ func New(c Config) (o *Log_interface) {
 		}
 		log.New(io.MultiWriter(showObj...),
 			msg.Prefix,
-			log.Ldate|log.Ltime).Println(append(msg.Base_string, msg.Msgs...))
+			log.Ldate|log.Ltime).Printf("%v"+psys.EOL, append(msg.Base_string, msg.Msgs...))
 		return false
 	})
 	//启动阻塞

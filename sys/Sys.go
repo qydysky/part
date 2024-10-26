@@ -19,6 +19,8 @@ import (
 	gopsutilLoad "github.com/shirou/gopsutil/load"
 )
 
+var EOL = Ppart.EOF
+
 type sys struct {
 	RV []interface{}
 	sync.Mutex

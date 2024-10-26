@@ -13,6 +13,8 @@ import (
 	signal "github.com/qydysky/part/signal"
 )
 
+var EOF = "\n"
+
 func PCheck(pros []string) []int {
 	res := []int{}
 	_pros := [][]byte{}
