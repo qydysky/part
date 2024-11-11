@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	null = iota
+	null Type = iota
 	Execf
 	Queryf
 )
+
+type Type int
 
 type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
@@ -21,6 +23,8 @@ type CanTx interface {
 
 type BeforeF[T any] func(ctxVP *T, sqlf *SqlFunc[T], e *error)
 type AfterEF[T any] func(ctxVP *T, result sql.Result, e *error)
+
+// func(ctxVP *T, rows *sql.Rows, e *error)
 type AfterQF[T any] func(ctxVP *T, rows *sql.Rows, e *error)
 
 type SqlTx[T any] struct {
@@ -32,9 +36,11 @@ type SqlTx[T any] struct {
 }
 
 type SqlFunc[T any] struct {
-	Ty         int
+	// 	Execf or Queryf, default: auto detection
+	Ty Type
+	// default: use transaction Ctx
 	Ctx        context.Context
-	Query      string
+	Sql        string
 	Args       []any
 	SkipSqlErr bool
 	beforeF    BeforeF[T]
@@ -53,10 +59,10 @@ func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *S
 	return &tx
 }
 
-func (t *SqlTx[T]) SimpleDo(query string, args ...any) *SqlTx[T] {
+func (t *SqlTx[T]) SimpleDo(sql string, args ...any) *SqlTx[T] {
 	t.sqlFuncs = append(t.sqlFuncs, &SqlFunc[T]{
-		Query: query,
-		Args:  args,
+		Sql:  sql,
+		Args: args,
 	})
 	return t
 }
@@ -67,16 +73,16 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 }
 
 // PlaceHolder will replaced by ?
-func (t *SqlTx[T]) SimplePlaceHolderA(query string, ptr any) *SqlTx[T] {
+func (t *SqlTx[T]) SimplePlaceHolderA(sql string, ptr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{
-		Query: query,
+		Sql: sql,
 	}, ptr)
 }
 
 // PlaceHolder will replaced by $%d
-func (t *SqlTx[T]) SimplePlaceHolderB(query string, ptr any) *SqlTx[T] {
+func (t *SqlTx[T]) SimplePlaceHolderB(sql string, ptr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{
-		Query: query,
+		Sql: sql,
 	}, ptr, func(index int, holder string) (replaceTo string) {
 		return fmt.Sprintf("$%d", index+1)
 	})
@@ -89,11 +95,11 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ...func(inde
 		field := dataR.Field(i)
 		if field.IsValid() && field.CanSet() {
 			replaceS := "{" + dataR.Type().Field(i).Name + "}"
-			if strings.Contains(sqlf.Query, replaceS) {
+			if strings.Contains(sqlf.Sql, replaceS) {
 				if len(replaceF) == 0 {
-					sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, "?")
+					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, "?")
 				} else {
-					sqlf.Query = strings.ReplaceAll(sqlf.Query, replaceS, replaceF[0](index, replaceS))
+					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF[0](index, replaceS))
 					index += 1
 				}
 				sqlf.Args = append(sqlf.Args, field.Interface())
@@ -143,12 +149,12 @@ func (t *SqlTx[T]) Fin() (ctxVP T, e error) {
 			if sqlf.beforeF != nil {
 				sqlf.beforeF(&ctxVP, sqlf, &e)
 				if e != nil {
-					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Query, err))
+					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Sql, err))
 					hasErr = true
 				}
 			}
 
-			if strings.TrimSpace(sqlf.Query) == "" {
+			if strings.TrimSpace(sqlf.Sql) == "" {
 				continue
 			}
 
@@ -158,36 +164,36 @@ func (t *SqlTx[T]) Fin() (ctxVP T, e error) {
 
 			if sqlf.Ty == null {
 				sqlf.Ty = Execf
-				if uquery := strings.ToUpper(strings.TrimSpace(sqlf.Query)); strings.HasPrefix(uquery, "SELECT") {
+				if uquery := strings.ToUpper(strings.TrimSpace(sqlf.Sql)); strings.HasPrefix(uquery, "SELECT") {
 					sqlf.Ty = Queryf
 				}
 			}
 
 			switch sqlf.Ty {
 			case Execf:
-				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
 					hasErr = true
 					if !sqlf.SkipSqlErr {
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
 					}
 				} else if sqlf.afterEF != nil {
 					sqlf.afterEF(&ctxVP, res, &e)
 					if e != nil {
 						hasErr = true
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
 					}
 				}
 			case Queryf:
-				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Query, sqlf.Args...); err != nil {
+				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
 					hasErr = true
 					if !sqlf.SkipSqlErr {
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
 					}
 				} else if sqlf.afterQF != nil {
 					sqlf.afterQF(&ctxVP, res, &e)
 					if e != nil {
 						hasErr = true
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Query, sqlf.Args, err))
+						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
 					}
 				}
 			}

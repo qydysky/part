@@ -29,35 +29,35 @@ func TestMain(t *testing.T) {
 	tx = tx.Do(SqlFunc[[]string]{
 		Ty:         Execf,
 		Ctx:        ctx,
-		Query:      "create table log (msg text)",
+		Sql:        "create table log (msg text)",
 		SkipSqlErr: true,
 	})
 	tx = tx.Do(SqlFunc[[]string]{
 		Ty:         Execf,
 		Ctx:        ctx,
-		Query:      "create table log2 (msg text)",
+		Sql:        "create table log2 (msg text)",
 		SkipSqlErr: true,
 	})
 	tx = tx.Do(SqlFunc[[]string]{
-		Ty:    Execf,
-		Ctx:   ctx,
-		Query: "delete from log",
+		Ty:  Execf,
+		Ctx: ctx,
+		Sql: "delete from log",
 	})
 	tx = tx.Do(SqlFunc[[]string]{
-		Ty:    Execf,
-		Ctx:   ctx,
-		Query: "delete from log2",
+		Ty:  Execf,
+		Ctx: ctx,
+		Sql: "delete from log2",
 	})
 	tx = tx.Do(SqlFunc[[]string]{
-		Ty:    Execf,
-		Ctx:   ctx,
-		Query: "insert into log values (?)",
-		Args:  []any{dateTime},
+		Ty:   Execf,
+		Ctx:  ctx,
+		Sql:  "insert into log values (?)",
+		Args: []any{dateTime},
 	})
 	tx = tx.Do(SqlFunc[[]string]{
-		Ty:    Queryf,
-		Ctx:   ctx,
-		Query: "select msg from log",
+		Ty:  Queryf,
+		Ctx: ctx,
+		Sql: "select msg from log",
 	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
 		names := make([]string, 0)
 		for rows.Next() {
@@ -80,13 +80,13 @@ func TestMain(t *testing.T) {
 		Ty:  Execf,
 		Ctx: ctx,
 	}).BeforeF(func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
-		sqlf.Query = "insert into log2 values (?)"
+		sqlf.Sql = "insert into log2 values (?)"
 		sqlf.Args = append(sqlf.Args, (*dataP)[0])
 	})
 	tx = tx.Do(SqlFunc[[]string]{
-		Ty:    Queryf,
-		Ctx:   ctx,
-		Query: "select msg from log2",
+		Ty:  Queryf,
+		Ctx: ctx,
+		Sql: "select msg from log2",
 	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
 		names := make([]string, 0)
 		for rows.Next() {
@@ -122,8 +122,8 @@ func TestMain2(t *testing.T) {
 
 	conn, _ := db.Conn(context.Background())
 	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
-		Ty:    Execf,
-		Query: "create table log123 (msg text)",
+		Ty:  Execf,
+		Sql: "create table log123 (msg text)",
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
@@ -137,9 +137,9 @@ func TestMain2(t *testing.T) {
 		go func() {
 			x := BeginTx[any](db, context.Background(), &sql.TxOptions{})
 			x.Do(SqlFunc[any]{
-				Ty:    Execf,
-				Query: "insert into log123 values (?)",
-				Args:  []any{"1"},
+				Ty:   Execf,
+				Sql:  "insert into log123 values (?)",
+				Args: []any{"1"},
 			})
 			if _, e := x.Fin(); e != nil {
 				res <- e.Error()
@@ -167,7 +167,7 @@ func TestMain3(t *testing.T) {
 
 	{
 		tx := BeginTx[any](db, context.Background())
-		tx.Do(SqlFunc[any]{Query: "create table log123 (msg INT,msg2 text)"})
+		tx.Do(SqlFunc[any]{Sql: "create table log123 (msg INT,msg2 text)"})
 		if _, e := tx.Fin(); e != nil {
 			t.Fatal(e)
 		}
@@ -178,7 +178,7 @@ func TestMain3(t *testing.T) {
 		Msg2 string
 	}
 
-	insertLog123 := SqlFunc[any]{Query: "insert into log123 values ({Msg},{Msg2})"}
+	insertLog123 := SqlFunc[any]{Sql: "insert into log123 values ({Msg},{Msg2})"}
 	{
 		tx := BeginTx[any](db, context.Background())
 		tx.DoPlaceHolder(insertLog123, &logg{Msg: 1, Msg2: "a"})
@@ -192,7 +192,7 @@ func TestMain3(t *testing.T) {
 		}
 	}
 	{
-		selectLog123 := SqlFunc[[]logg]{Query: "select msg as Msg, msg2 as Msg2 from log123 where msg = {Msg}"}
+		selectLog123 := SqlFunc[[]logg]{Sql: "select msg as Msg, msg2 as Msg2 from log123 where msg = {Msg}"}
 		tx := BeginTx[[]logg](db, context.Background())
 		tx.DoPlaceHolder(selectLog123, &logg{Msg: 2, Msg2: "b"})
 		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows, txE *error) {
@@ -238,16 +238,16 @@ func TestMain4(t *testing.T) {
 
 	conn, _ := db.Conn(context.Background())
 	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
-		Ty:    Execf,
-		Query: "create table log123 (msg text)",
+		Ty:  Execf,
+		Sql: "create table log123 (msg text)",
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
 	conn.Close()
 
 	tx1 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
-		Ty:    Execf,
-		Query: "insert into log123 values ('1')",
+		Ty:  Execf,
+		Sql: "insert into log123 values ('1')",
 	})
 
 	if _, e := tx1.Fin(); e != nil {
@@ -277,14 +277,14 @@ func Local_TestPostgresql(t *testing.T) {
 	}
 
 	if _, e := BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{}).Do(SqlFunc[any]{
-		Query:      "create table test (created varchar(20))",
+		Sql:        "create table test (created varchar(20))",
 		SkipSqlErr: true,
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
 
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).DoPlaceHolder(SqlFunc[any]{
-		Query: "insert into test (created) values ({Created})",
+		Sql: "insert into test (created) values ({Created})",
 	}, &test1{"1"}, func(index int, holder string) (replaceTo string) {
 		return fmt.Sprintf("$%d", index+1)
 	}).Fin(); e != nil {
@@ -292,7 +292,7 @@ func Local_TestPostgresql(t *testing.T) {
 	}
 
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
-		Query: "select created as sss from test",
+		Sql: "select created as sss from test",
 		afterQF: func(_ *any, rows *sql.Rows, txE *error) {
 			if rowsP, e := DealRows[test1](rows, func() test1 { return test1{} }); e != nil {
 				*txE = e
