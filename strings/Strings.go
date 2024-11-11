@@ -8,19 +8,23 @@ import (
 )
 
 const (
-	Number    RandType = 0
-	LowNumber RandType = 1
-	UppNumber RandType = 2
+	Number RandType = iota
+	Hex
+	LowNumber
+	UppNumber
 )
 
 type RandType int
 
 func Rand(typel RandType, leng int) string {
 	source := "0123456789"
-	if typel > 0 {
-		source += "abcdefghijklmnopqrstuvwxyz"
+	if typel >= Hex {
+		source += "abcdef"
 	}
-	if typel > 1 {
+	if typel >= LowNumber {
+		source += "ghijklmnopqrstuvwxyz"
+	}
+	if typel >= UppNumber {
 		source += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	}
 
