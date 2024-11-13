@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"time"
 
@@ -94,10 +95,11 @@ func Play(filePath string) (s *Server, close func()) {
 		f := file.New(filePath, 0, false)
 		defer f.Close()
 
-		timer := time.NewTicker(time.Second)
+		timer := time.NewTicker(time.Millisecond * 500)
 		defer timer.Stop()
 
 		var (
+			jump = false
 			cu   float64
 			data []byte
 			e    error
@@ -111,6 +113,12 @@ func Play(filePath string) (s *Server, close func()) {
 						timer.Stop()
 					case "play":
 						timer.Reset(time.Millisecond * 500)
+					default:
+						if t, e := strconv.ParseFloat(data, 64); e == nil && math.Abs(cu-t) > 10 {
+							jump = true
+							f.SeekIndex(0, file.AtOrigin)
+							cu = t
+						}
 					}
 				}
 				return false
@@ -138,7 +146,17 @@ func Play(filePath string) (s *Server, close func()) {
 				}
 
 				tIndex := bytes.Index(data, []byte{','})
-				if d, _ := strconv.ParseFloat(string(data[:tIndex]), 64); d < cu {
+				d, _ := strconv.ParseFloat(string(data[:tIndex]), 64)
+				if d < cu {
+					if jump {
+						data = nil
+						continue
+					}
+				} else if jump {
+					jump = false
+					break
+				}
+				if d < cu {
 					danmuIndex := tIndex + bytes.Index(data[tIndex+2:], []byte{','}) + 3
 					s.Interface().Push_tag(`send`, Uinterface{
 						Id:   0, //send to all
