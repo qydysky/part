@@ -31,6 +31,7 @@ type File struct {
 	file   *os.File
 	wr     io.Writer
 	rr     io.Reader
+	sr     io.Seeker
 	l      sync.RWMutex
 }
 
@@ -243,6 +244,20 @@ func (t *File) Read(data []byte) (int, error) {
 	defer t.l.RUnlock()
 
 	return t.read().Read(data)
+}
+
+func (t *File) Seek(offset int64, whence int) (int64, error) {
+	t.getRWCloser()
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return 0, ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	return t.seek().Seek(offset, whence)
 }
 
 // stop after untilBytes
@@ -704,4 +719,14 @@ func (t *File) read() io.Reader {
 		}
 	}
 	return t.rr
+}
+
+func (t *File) seek() io.Seeker {
+	if t.Config.AutoClose || t.rr == nil {
+		t.sr = io.Seeker(t.file)
+		if t.Config.Coder != nil {
+			panic("no support")
+		}
+	}
+	return t.sr
 }
