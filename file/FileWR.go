@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	pio "github.com/qydysky/part/io"
 	encoder "golang.org/x/text/encoding"
@@ -565,6 +566,14 @@ func (t *File) Stat() (fs.FileInfo, error) {
 		}
 	}
 	return info, nil
+}
+
+func (t *File) GetFileModTimeT() (mod time.Time, err error) {
+	fi, err := t.Stat()
+	if err != nil {
+		return time.Now(), err
+	}
+	return fi.ModTime(), nil
 }
 
 func (t *File) GetFileModTime() (mod int64, err error) {

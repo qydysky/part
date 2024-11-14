@@ -701,9 +701,9 @@ func IsMethod(r *http.Request, method ...string) bool {
 	return false
 }
 
-func NotModified(r *http.Request, w http.ResponseWriter, cuTime time.Time) (notMod bool) {
-	modTimeS := cuTime.Format(time.RFC1123)
-	modTimeE := cuTime.Format(time.RFC3339)
+func NotModified(r *http.Request, w http.ResponseWriter, modTime time.Time) (notMod bool) {
+	modTimeS := modTime.Format(time.RFC1123)
+	modTimeE := modTime.Format(time.RFC3339)
 
 	w.Header().Add(`Cache-Control`, `private`)
 	w.Header().Add(`ETag`, modTimeE)
