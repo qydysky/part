@@ -722,7 +722,7 @@ func (t *File) read() io.Reader {
 }
 
 func (t *File) seek() io.Seeker {
-	if t.Config.AutoClose || t.rr == nil {
+	if t.Config.AutoClose || t.sr == nil {
 		t.sr = io.Seeker(t.file)
 		if t.Config.Coder != nil {
 			panic("no support")
