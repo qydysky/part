@@ -211,8 +211,9 @@ func WithCtxTO(ctx context.Context, callTree string, to time.Duration, w io.Writ
 }
 
 var (
-	ErrWrite = errors.New("ErrWrite")
-	ErrRead  = errors.New("ErrRead")
+	ErrWrite   = errors.New("ErrWrite")
+	ErrRead    = errors.New("ErrRead")
+	ErrLoopMax = errors.New("ErrLoopMax")
 )
 
 // close reader by yourself
@@ -405,7 +406,7 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 			if c.MaxLoop == 1 && leftN != 0 {
 				buf = buf[:leftN]
 			} else if c.MaxLoop == 0 {
-				return nil
+				return ErrLoopMax
 			}
 		}
 		if c.BytePerSec != 0 && readC >= c.BytePerSec {
@@ -413,6 +414,119 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 			readC = 0
 		}
 	}
+}
+
+func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
+	var leftN uint64
+	if c.BytePerSec > 0 {
+		if c.BytePerLoop == 0 || c.BytePerLoop > c.BytePerSec {
+			c.BytePerLoop = c.BytePerSec
+		}
+	}
+	if c.BytePerLoop == 0 {
+		c.BytePerLoop = 1 << 17
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			}
+		}
+	} else if c.BytePerLoop > 1<<17 {
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			} else {
+				c.BytePerLoop = 1 << 17
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			} else {
+				c.MaxByte = c.MaxLoop * c.BytePerLoop
+				c.BytePerLoop = 1 << 17
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			}
+		}
+	} else {
+		if c.MaxLoop == 0 {
+			if c.MaxByte != 0 {
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			}
+		} else {
+			if c.MaxByte != 0 {
+				c.MaxByte = min(c.MaxByte, c.MaxLoop*c.BytePerLoop)
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			} else {
+				c.MaxByte = c.MaxLoop * c.BytePerLoop
+				leftN = c.MaxByte % c.BytePerLoop
+				c.MaxLoop = c.MaxByte / c.BytePerLoop
+				if leftN > 0 {
+					c.MaxLoop += 1
+				}
+			}
+		}
+	}
+	buf := make([]byte, c.BytePerLoop)
+	readC := uint64(0)
+
+	rwc := RWC{
+		W: func(p []byte) (n int, e error) {
+			if c.MaxLoop > 0 {
+				c.MaxLoop -= 1
+				if c.MaxLoop == 1 && leftN != 0 {
+					buf = buf[:leftN]
+				} else if c.MaxLoop == 0 {
+					return 0, ErrLoopMax
+				}
+			}
+			if c.BytePerSec != 0 && readC >= c.BytePerSec {
+				time.Sleep(time.Second)
+				readC = 0
+			}
+			n, e = w.Write(p)
+			if c.BytePerSec != 0 {
+				readC += uint64(n)
+			}
+			return
+		},
+	}
+
+	return rwc
 }
 
 func ReadAll(r io.Reader, b []byte) ([]byte, error) {
