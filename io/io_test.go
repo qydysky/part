@@ -14,7 +14,7 @@ func Test_CopyIO(t *testing.T) {
 
 	var w = &bytes.Buffer{}
 
-	if e := Copy(bytes.NewReader(s), w, CopyConfig{1<<17 + 1, 1, 0, 0}); e != nil || w.Len() != 1<<17+1 || w.Bytes()[1<<17-1] != '1' || w.Bytes()[1<<17] != '2' {
+	if e := Copy(bytes.NewReader(s), w, CopyConfig{1<<17 + 1, 1, 0, 0, 0}); e != nil || w.Len() != 1<<17+1 || w.Bytes()[1<<17-1] != '1' || w.Bytes()[1<<17] != '2' {
 		t.Fatal(e)
 	}
 }

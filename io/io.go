@@ -288,6 +288,7 @@ func WithCtxCopy(ctx context.Context, callTree string, copybuf []byte, to time.D
 
 type CopyConfig struct {
 	BytePerLoop, MaxLoop, MaxByte, BytePerSec uint64
+	SkipByte                                  int
 }
 
 // close by yourself
@@ -383,12 +384,32 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 			}
 		}
 	}
+
+	if seeker, ok := r.(io.Seeker); ok && c.SkipByte > 0 {
+		_, e = seeker.Seek(int64(c.SkipByte), io.SeekCurrent)
+		if e != nil {
+			return
+		}
+		c.SkipByte = 0
+	}
+
 	buf := make([]byte, c.BytePerLoop)
 	readC := uint64(0)
 	for {
 		if n, err := r.Read(buf); n != 0 {
-			if _, werr := w.Write(buf[:n]); werr != nil {
-				return err
+			if c.SkipByte > 0 {
+				if n <= int(c.SkipByte) {
+					c.SkipByte -= n
+					return
+				} else {
+					n, e = w.Write(buf[c.SkipByte:])
+					c.SkipByte = 0
+				}
+			} else {
+				n, e = w.Write(buf[:n])
+			}
+			if e != nil {
+				return
 			}
 			if c.BytePerSec != 0 {
 				readC += uint64(n)
@@ -518,7 +539,17 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 				time.Sleep(time.Second)
 				readC = 0
 			}
-			n, e = w.Write(p)
+			if c.SkipByte > 0 {
+				if len(p) <= int(c.SkipByte) {
+					c.SkipByte -= len(p)
+					return
+				} else {
+					n, e = w.Write(p[c.SkipByte:])
+					c.SkipByte = 0
+				}
+			} else {
+				n, e = w.Write(p)
+			}
 			if c.BytePerSec != 0 {
 				readC += uint64(n)
 			}
