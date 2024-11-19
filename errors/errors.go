@@ -93,11 +93,12 @@ func ErrorFormat(e error, format ...ErrFormat) (s string) {
 	if se, ok := e.(interface {
 		Unwrap() []error
 	}); ok {
-		for _, v := range se.Unwrap() {
+		es := se.Unwrap()
+		for i := 0; i < len(es); i++ {
 			if len(format) > 0 {
-				s += format[0](v)
+				s += format[0](es[i])
 			} else {
-				s += v.Error() + "\n"
+				s += es[i].Error() + "\n"
 			}
 		}
 	} else if len(format) > 0 {
@@ -115,7 +116,21 @@ var (
 	ErrSimplifyFunc = func(e error) string {
 		return e.Error() + "\n"
 	}
+	ErrActionSimplifyFunc = func(e error) string {
+		if err, ok := e.(Error); ok {
+			return err.action + ":" + e.Error() + "\n"
+		} else {
+			return e.Error() + "\n"
+		}
+	}
 	ErrInLineFunc = func(e error) string {
-		return " > " + e.Error()
+		return "> " + e.Error()
+	}
+	ErrActionInLineFunc = func(e error) string {
+		if err, ok := e.(Error); ok {
+			return "> " + err.action + ":" + e.Error()
+		} else {
+			return "> " + e.Error()
+		}
 	}
 )
