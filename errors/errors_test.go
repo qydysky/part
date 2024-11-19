@@ -45,7 +45,7 @@ func Test2(t *testing.T) {
 	if ErrorFormat(e, ErrSimplifyFunc) != "a0\na1\n" {
 		t.FailNow()
 	}
-	if ErrorFormat(e, ErrInLineFunc) != " > a0 > a1" {
+	if ErrorFormat(e, ErrInLineFunc) != "> a0 > a1 " {
 		t.FailNow()
 	}
 }
@@ -59,7 +59,7 @@ func Test1(t *testing.T) {
 	if ErrorFormat(e, ErrSimplifyFunc) != "EOF\nEOF\nio: read/write on closed pipe\n" {
 		t.FailNow()
 	}
-	if ErrorFormat(e, ErrInLineFunc) != " > EOF > EOF > io: read/write on closed pipe" {
+	if ErrorFormat(e, ErrInLineFunc) != "> EOF > EOF > io: read/write on closed pipe " {
 		t.FailNow()
 	}
 }

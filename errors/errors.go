@@ -124,13 +124,13 @@ var (
 		}
 	}
 	ErrInLineFunc = func(e error) string {
-		return "> " + e.Error()
+		return "> " + e.Error() + " "
 	}
 	ErrActionInLineFunc = func(e error) string {
 		if err, ok := e.(Error); ok {
-			return "> " + err.action + ":" + e.Error()
+			return "> " + err.action + ":" + e.Error() + " "
 		} else {
-			return "> " + e.Error()
+			return "> " + e.Error() + " "
 		}
 	}
 )
