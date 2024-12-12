@@ -1,7 +1,7 @@
 name: test
 
 on:
-  push:
+  pull_request:
     branches: [ master ]
 
 jobs:
@@ -118,19 +118,3 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto
-
-  test:
-    name: test
-    needs: [u-test,w-test,mac-test]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set Release Name
-      run: |
-        echo "TIME=$(date +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
-        echo "HASH=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
-
-    - name: Upload a Release Asset
-      uses: softprops/action-gh-release@v2
-      with:
-        body: go get github.com/qydysky/part@v0.28.${{ env.TIME }}
-        tag_name: v0.28.${{ env.TIME }}

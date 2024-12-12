@@ -705,7 +705,6 @@ func NotModified(r *http.Request, w http.ResponseWriter, modTime time.Time) (not
 	modTimeS := modTime.Format(time.RFC1123)
 	modTimeE := modTime.Format(time.RFC3339)
 
-	w.Header().Add(`Cache-Control`, `private`)
 	w.Header().Add(`ETag`, modTimeE)
 	w.Header().Add(`Last-Modified`, modTimeS)
 
