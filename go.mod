@@ -45,7 +45,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/stretchr/testify v1.10.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	modernc.org/sqlite v1.34.2
 )
