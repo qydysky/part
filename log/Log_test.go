@@ -66,7 +66,7 @@ func Test_2(t *testing.T) {
 	})
 
 	ndb := n.Base_add(`>1`)
-	ndb = ndb.LDB(db, `insert into log (p,base,msg) values (?,?,?)`)
+	ndb = ndb.LDB("sqlite", db, `insert into log (p,base,msg) values ({Prefix},{Base},{Msgs})`)
 	ndb.L(`T:`, `s`)
 	n.L(`T:`, `p`)
 

@@ -27,10 +27,11 @@ type Log_interface struct {
 }
 
 type Config struct {
-	To       time.Duration
-	File     string
-	DBConn   *sql.DB
-	DBConnTo time.Duration
+	To           time.Duration
+	File         string
+	DBDriverName string
+	DBConn       *sql.DB
+	DBConnTo     time.Duration
 
 	// $1:Prefix $2:Base $2:Msgs
 	DBInsert string
@@ -61,6 +62,21 @@ func New(c Config) (o *Log_interface) {
 		o.MQ = m.NewType[Msg_item]()
 	}
 
+	type LogI struct {
+		Date   string
+		Unix   int64
+		Prefix string
+		Base   string
+		Msgs   string
+	}
+
+	var replaceF []func(index int, holder string) (replaceTo string)
+	if c.DBDriverName == "postgres" {
+		replaceF = append(replaceF, func(index int, holder string) (replaceTo string) {
+			return fmt.Sprintf("$%d", index+1)
+		})
+	}
+
 	o.MQ.Pull_tag_only(`L`, func(msg Msg_item) bool {
 		var showObj = []io.Writer{}
 		if msg.Stdout {
@@ -82,11 +98,15 @@ func New(c Config) (o *Log_interface) {
 			} else {
 				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.DBConnTo))
 			}
-			sqlTx.SimpleDo(
-				msg.DBInsert,
-				strings.TrimSpace(msg.Prefix),
-				strings.TrimSpace(fmt.Sprintln(msg.Base_string...)),
-				strings.TrimSpace(fmt.Sprintln(msg.Msgs...)))
+
+			sqlTx.DoPlaceHolder(psql.SqlFunc[any]{Sql: msg.DBInsert}, &LogI{
+				Date:   time.Now().Format(time.DateTime),
+				Unix:   time.Now().Unix(),
+				Prefix: strings.TrimSpace(msg.Prefix),
+				Base:   strings.TrimSpace(fmt.Sprintln(msg.Base_string...)),
+				Msgs:   strings.TrimSpace(fmt.Sprintln(msg.Msgs...)),
+			}, replaceF...)
+
 			if _, err := sqlTx.Fin(); err != nil {
 				log.Println(err)
 			}
@@ -144,15 +164,17 @@ func (I *Log_interface) Log_to_file(fileP string) (O *Log_interface) {
 }
 
 // Open 日志输出至DB
-func (I *Log_interface) LDB(db *sql.DB, insert string, to ...time.Duration) (O *Log_interface) {
+func (I *Log_interface) LDB(driverName string, db *sql.DB, insert string, to ...time.Duration) (O *Log_interface) {
 	O = I
 	if db != nil && insert != `` {
+		O.DBDriverName = driverName
 		O.DBConn = db
 		O.DBInsert = insert
 		if len(to) > 0 {
 			O.DBConnTo = to[0]
 		}
 	} else {
+		O.DBDriverName = ``
 		O.DBConn = nil
 		O.DBInsert = ``
 		O.DBConnTo = 0
