@@ -74,21 +74,28 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 
 // PlaceHolder will replaced by ?
 func (t *SqlTx[T]) SimplePlaceHolderA(sql string, ptr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{
-		Sql: sql,
-	}, ptr)
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderA)
 }
 
 // PlaceHolder will replaced by $%d
 func (t *SqlTx[T]) SimplePlaceHolderB(sql string, ptr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{
-		Sql: sql,
-	}, ptr, func(index int, holder string) (replaceTo string) {
-		return fmt.Sprintf("$%d", index+1)
-	})
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderB)
 }
 
-func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ...func(index int, holder string) (replaceTo string)) *SqlTx[T] {
+type ReplaceF func(index int, holder string) (replaceTo string)
+
+var (
+	// "?"
+	PlaceHolderA ReplaceF = func(index int, holder string) (replaceTo string) {
+		return "?"
+	}
+	// "$%d"
+	PlaceHolderB ReplaceF = func(index int, holder string) (replaceTo string) {
+		return fmt.Sprintf("$%d", index+1)
+	}
+)
+
+func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ReplaceF) *SqlTx[T] {
 	dataR := reflect.ValueOf(ptr).Elem()
 	index := 0
 	for i := 0; i < dataR.NumField(); i++ {
@@ -96,12 +103,8 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ...func(inde
 		if field.IsValid() && field.CanSet() {
 			replaceS := "{" + dataR.Type().Field(i).Name + "}"
 			if strings.Contains(sqlf.Sql, replaceS) {
-				if len(replaceF) == 0 {
-					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, "?")
-				} else {
-					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF[0](index, replaceS))
-					index += 1
-				}
+				sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF(index, replaceS))
+				index += 1
 				sqlf.Args = append(sqlf.Args, field.Interface())
 			}
 		}

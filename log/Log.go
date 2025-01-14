@@ -92,11 +92,12 @@ func New(c Config) (o *Log_interface) {
 				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.DBConnTo))
 			}
 
-			var replaceF []func(index int, holder string) (replaceTo string)
-			if c.DBDriverName == "postgres" {
-				replaceF = append(replaceF, func(index int, holder string) (replaceTo string) {
-					return fmt.Sprintf("$%d", index+1)
-				})
+			var replaceF psql.ReplaceF
+			switch msg.DBDriverName {
+			case "postgres":
+				replaceF = psql.PlaceHolderB
+			default:
+				replaceF = psql.PlaceHolderA
 			}
 
 			sqlTx.DoPlaceHolder(psql.SqlFunc[any]{Sql: msg.DBInsert}, &LogI{
@@ -105,7 +106,7 @@ func New(c Config) (o *Log_interface) {
 				Prefix: strings.TrimSpace(msg.Prefix),
 				Base:   strings.TrimSpace(fmt.Sprintln(msg.Base_string...)),
 				Msgs:   strings.TrimSpace(fmt.Sprintln(msg.Msgs...)),
-			}, replaceF...)
+			}, replaceF)
 
 			if _, err := sqlTx.Fin(); err != nil {
 				log.Println(err)

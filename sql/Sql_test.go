@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -181,8 +180,8 @@ func TestMain3(t *testing.T) {
 	insertLog123 := SqlFunc[any]{Sql: "insert into log123 values ({Msg},{Msg2})"}
 	{
 		tx := BeginTx[any](db, context.Background())
-		tx.DoPlaceHolder(insertLog123, &logg{Msg: 1, Msg2: "a"})
-		tx.DoPlaceHolder(insertLog123, &logg{Msg: 2, Msg2: "b"})
+		tx.DoPlaceHolder(insertLog123, &logg{Msg: 1, Msg2: "a"}, PlaceHolderA)
+		tx.DoPlaceHolder(insertLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
 		if _, e := tx.Fin(); e != nil {
 			t.Log(e)
 		}
@@ -194,7 +193,7 @@ func TestMain3(t *testing.T) {
 	{
 		selectLog123 := SqlFunc[[]logg]{Sql: "select msg as Msg, msg2 as Msg2 from log123 where msg = {Msg}"}
 		tx := BeginTx[[]logg](db, context.Background())
-		tx.DoPlaceHolder(selectLog123, &logg{Msg: 2, Msg2: "b"})
+		tx.DoPlaceHolder(selectLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
 		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows, txE *error) {
 			*ctxVP, *txE = DealRows(rows, func() logg { return logg{} })
 		})
@@ -285,9 +284,7 @@ func Local_TestPostgresql(t *testing.T) {
 
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).DoPlaceHolder(SqlFunc[any]{
 		Sql: "insert into test (created) values ({Created})",
-	}, &test1{"1"}, func(index int, holder string) (replaceTo string) {
-		return fmt.Sprintf("$%d", index+1)
-	}).Fin(); e != nil {
+	}, &test1{"1"}, PlaceHolderB).Fin(); e != nil {
 		t.Fatal(e)
 	}
 
