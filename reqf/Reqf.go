@@ -20,6 +20,7 @@ import (
 	gzip "compress/gzip"
 
 	br "github.com/qydysky/brotli"
+	pe "github.com/qydysky/part/errors"
 	pio "github.com/qydysky/part/io"
 	s "github.com/qydysky/part/strings"
 	// "encoding/binary"
@@ -61,15 +62,15 @@ const (
 )
 
 var (
-	ErrEmptyUrl         = errors.New("ErrEmptyUrl")
-	ErrCantRetry        = errors.New("ErrCantRetry")
-	ErrNewRequest       = errors.New("ErrNewRequest")
-	ErrClientDo         = errors.New("ErrClientDo")
-	ErrResponFileCreate = errors.New("ErrResponFileCreate")
-	ErrWriteRes         = errors.New("ErrWriteRes")
-	ErrReadRes          = errors.New("ErrReadRes")
-	ErrPostStrOrRawPipe = errors.New("ErrPostStrOrRawPipe")
-	ErrNoDate           = errors.New("ErrNoDate")
+	ErrEmptyUrl         = pe.Action("ErrEmptyUrl")
+	ErrCantRetry        = pe.Action("ErrCantRetry")
+	ErrNewRequest       = pe.Action("ErrNewRequest")
+	ErrClientDo         = pe.Action("ErrClientDo")
+	ErrResponFileCreate = pe.Action("ErrResponFileCreate")
+	ErrWriteRes         = pe.Action("ErrWriteRes")
+	ErrReadRes          = pe.Action("ErrReadRes")
+	ErrPostStrOrRawPipe = pe.Action("ErrPostStrOrRawPipe")
+	ErrNoDate           = pe.Action("ErrNoDate")
 )
 
 type Req struct {
@@ -161,15 +162,15 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	}
 
 	if val.Url == "" {
-		return ErrEmptyUrl
+		return ErrEmptyUrl.New()
 	}
 
 	var body io.Reader
 	if len(val.PostStr) > 0 && val.RawPipe != nil {
-		return ErrPostStrOrRawPipe
+		return ErrPostStrOrRawPipe.New()
 	}
 	if val.Retry != 0 && val.RawPipe != nil {
-		return ErrCantRetry
+		return ErrCantRetry.New()
 	}
 	if val.RawPipe != nil {
 		body = val.RawPipe
@@ -184,7 +185,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 
 	req, e := http.NewRequestWithContext(ctx, val.Method, val.Url, body)
 	if e != nil {
-		return errors.Join(ErrNewRequest, e)
+		return pe.Join(ErrNewRequest.New(), e)
 	}
 
 	for _, v := range val.Cookies {
@@ -214,7 +215,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	resp, e := client.Do(req)
 
 	if e != nil {
-		return errors.Join(ErrClientDo, e)
+		return pe.Join(ErrClientDo.New(), e)
 	}
 
 	if v, ok := Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
@@ -236,7 +237,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		t.responFile, e = os.Create(val.SaveToPath)
 		if e != nil {
 			t.responFile.Close()
-			return errors.Join(err, ErrResponFileCreate, e)
+			return pe.Join(err, ErrResponFileCreate.New(), e)
 		}
 		ws = append(ws, t.responFile)
 	}
@@ -280,10 +281,10 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		t.copyResBuf[:],
 		time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...),
 		resReadCloser,
-		func(s string) { errChan <- errors.New(s) },
+		func(s string) { errChan <- pe.New(s) },
 	)
 	for len(errChan) > 0 {
-		err = errors.Join(err, <-errChan)
+		err = pe.Join(err, <-errChan)
 	}
 
 	if t.responBuf != nil {
@@ -436,6 +437,6 @@ func ResDate(res *http.Response) (time.Time, error) {
 	if date := res.Header.Get("date"); date != `` {
 		return time.Parse(time.RFC1123, date)
 	} else {
-		return time.Time{}, ErrNoDate
+		return time.Time{}, ErrNoDate.New()
 	}
 }
