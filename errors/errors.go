@@ -6,6 +6,10 @@ import (
 
 type Action string
 
+func (t Action) Append(child string) Action {
+	return Action(string(t) + child)
+}
+
 type Error struct {
 	son    error
 	Reason string
@@ -33,7 +37,7 @@ func Catch(e error, action Action) bool {
 }
 
 // Grow will append e to fe
-func Grow(fe Error, e error) Error {
+func Append(fe Error, e error) Error {
 	if v, ok := e.(Error); ok {
 		fe.son = v
 	} else {
