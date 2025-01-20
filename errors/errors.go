@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"fmt"
 )
 
 type Action string
@@ -10,14 +11,34 @@ func (t Action) Append(child string) Action {
 	return Action(string(t) + child)
 }
 
+func (t Action) New(reason ...string) (e Error) {
+	e = Error{
+		action: t,
+		Reason: string(t),
+	}
+	if len(reason) > 0 {
+		e.Reason = reason[0]
+	}
+	return
+}
+
 type Error struct {
 	son    error
 	Reason string
 	action Action
 }
 
+func (t Error) Is(e error) bool {
+	fmt.Println(t, e)
+	return t.Error() == e.Error()
+}
+
 func (t Error) Error() string {
 	return t.Reason
+}
+
+func (t Error) Unwrap() error {
+	return nil
 }
 
 func (t Error) WithReason(reason string) Error {
@@ -29,23 +50,16 @@ func Catch(e error, action Action) bool {
 	if v, ok := e.(Error); ok {
 		if v.action == action {
 			return true
-		} else if v.son != nil {
-			return Catch((v.son).(Error), action)
+		}
+	}
+	for _, err := range Unwrap(e) {
+		if v, ok := err.(Error); ok {
+			if v.action == action {
+				return true
+			}
 		}
 	}
 	return false
-}
-
-// Grow will append e to fe
-func Append(fe Error, e error) Error {
-	if v, ok := e.(Error); ok {
-		fe.son = v
-	} else {
-		fe.son = Error{
-			Reason: e.Error(),
-		}
-	}
-	return fe
 }
 
 func New(reason string, action ...Action) (e Error) {
@@ -65,11 +79,10 @@ func Join(e ...error) error {
 
 	var errs []error
 	for _, v := range e {
-		if e, ok := v.(interface {
-			Unwrap() []error
-		}); ok {
-			errs = append(errs, e.Unwrap()...)
-		} else {
+		switch x := v.(type) {
+		case interface{ Unwrap() []error }:
+			errs = append(errs, x.Unwrap()...)
+		default:
 			errs = append(errs, v)
 		}
 	}
@@ -82,10 +95,12 @@ func Unwrap(e error) []error {
 		return []error{}
 	}
 
-	if e, ok := e.(interface {
-		Unwrap() []error
-	}); ok {
-		return e.Unwrap()
+	switch x := e.(type) {
+	case interface{ Unwrap() error }:
+		return []error{x.Unwrap()}
+	case interface{ Unwrap() []error }:
+		return x.Unwrap()
+	default:
 	}
 
 	return []error{errors.Unwrap(e)}
@@ -123,7 +138,7 @@ var (
 		return e.Error() + "\n"
 	}
 	ErrActionSimplifyFunc ErrFormat = func(e error) string {
-		if err, ok := e.(Error); ok {
+		if err, ok := e.(Error); ok && string(err.action) != err.Reason {
 			return string(err.action) + ":" + e.Error() + "\n"
 		} else {
 			return e.Error() + "\n"
@@ -133,7 +148,7 @@ var (
 		return "> " + e.Error() + " "
 	}
 	ErrActionInLineFunc ErrFormat = func(e error) string {
-		if err, ok := e.(Error); ok {
+		if err, ok := e.(Error); ok && string(err.action) != err.Reason {
 			return "> " + string(err.action) + ":" + e.Error() + " "
 		} else {
 			return "> " + e.Error() + " "

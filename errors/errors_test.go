@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 	"io"
+	"os"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func TestXxx(t *testing.T) {
 		t.Fail()
 	}
 
-	err = Append(New("r1", a11), err)
+	err = Join(New("r1", a11), err)
 
 	if !Catch(err, a11) {
 		t.Fail()
@@ -35,7 +36,7 @@ func TestXxx(t *testing.T) {
 }
 
 func TestXxx2(t *testing.T) {
-	err := Append(New("r1", a1), io.EOF)
+	err := Join(New("r1", a1), io.EOF)
 	if !Catch(err, a1) {
 		t.Fatal()
 	}
@@ -81,4 +82,28 @@ func Test3(t *testing.T) {
 	if e1.Error() != "2" {
 		t.Fatal()
 	}
+}
+
+func Test4(t *testing.T) {
+	var Action1 Action = `Action1`
+	e := Join(os.ErrClosed, Action1.New(), os.ErrDeadlineExceeded)
+	for _, v := range Unwrap(e) {
+		t.Log(v)
+	}
+	if !Catch(e, Action1) {
+		t.Fatal()
+	}
+	if Catch(e, a1) {
+		t.Fatal()
+	}
+	if !errors.Is(e, Action1.New()) {
+		t.Fatal()
+	}
+	if !errors.Is(e, os.ErrClosed) {
+		t.Fatal()
+	}
+	if errors.Is(e, io.EOF) {
+		t.Fatal()
+	}
+	t.Log(ErrorFormat(e, ErrActionInLineFunc))
 }
