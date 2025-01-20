@@ -6,12 +6,15 @@ import (
 	"testing"
 )
 
+var a0 = Action("a0")
+var a1 = Action("a1")
+
 func TestXxx(t *testing.T) {
 	var err error
 
-	err = New("r0", "a0")
+	err = New("r0", a0)
 
-	if !Catch(err, "a0") {
+	if !Catch(err, a0) {
 		t.Fail()
 	}
 
@@ -19,27 +22,27 @@ func TestXxx(t *testing.T) {
 		t.Fail()
 	}
 
-	err = Grow(New("r1", "a1"), err)
+	err = Grow(New("r1", a1), err)
 
-	if !Catch(err, "a1") {
+	if !Catch(err, a1) {
 		t.Fail()
 	}
 
-	if !Catch(err, "a0") {
+	if !Catch(err, a0) {
 		t.Fail()
 	}
 }
 
 func TestXxx2(t *testing.T) {
-	err := Grow(New("r1", "a1"), io.EOF)
-	if !Catch(err, "a1") {
+	err := Grow(New("r1", a1), io.EOF)
+	if !Catch(err, a1) {
 		t.Fatal()
 	}
 	t.Log(err.Error())
 }
 
 func Test2(t *testing.T) {
-	e := Join(New("r0", "a0"), New("r1", "a1"))
+	e := Join(New("r0", a0), New("r1", a1))
 	t.Log(ErrorFormat(e))
 	t.Log(ErrorFormat(e, ErrSimplifyFunc))
 	t.Log(ErrorFormat(e, ErrInLineFunc))
