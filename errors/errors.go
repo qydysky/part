@@ -30,7 +30,7 @@ func Catch(e error, action string) bool {
 	return false
 }
 
-// Grow will append error action for catch
+// Grow will append e to fe
 func Grow(fe Error, e error) Error {
 	if v, ok := e.(Error); ok {
 		fe.son = v
@@ -42,12 +42,12 @@ func Grow(fe Error, e error) Error {
 	return fe
 }
 
-func New(action string, reason ...string) (e Error) {
+func New(reason string, action ...string) (e Error) {
 	e = Error{
-		action: action,
+		Reason: reason,
 	}
-	if len(reason) > 0 {
-		e.Reason = reason[0]
+	if len(action) > 0 {
+		e.action = action[0]
 	}
 	return
 }
@@ -113,20 +113,20 @@ func ErrorFormat(e error, format ...ErrFormat) (s string) {
 type ErrFormat func(e error) string
 
 var (
-	ErrSimplifyFunc = func(e error) string {
+	ErrSimplifyFunc ErrFormat = func(e error) string {
 		return e.Error() + "\n"
 	}
-	ErrActionSimplifyFunc = func(e error) string {
+	ErrActionSimplifyFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok {
 			return err.action + ":" + e.Error() + "\n"
 		} else {
 			return e.Error() + "\n"
 		}
 	}
-	ErrInLineFunc = func(e error) string {
+	ErrInLineFunc ErrFormat = func(e error) string {
 		return "> " + e.Error() + " "
 	}
-	ErrActionInLineFunc = func(e error) string {
+	ErrActionInLineFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok {
 			return "> " + err.action + ":" + e.Error() + " "
 		} else {
