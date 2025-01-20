@@ -8,6 +8,7 @@ import (
 
 var a0 = Action("a0")
 var a1 = Action("a1")
+var a11 = a1.Append("1")
 
 func TestXxx(t *testing.T) {
 	var err error
@@ -22,9 +23,9 @@ func TestXxx(t *testing.T) {
 		t.Fail()
 	}
 
-	err = Grow(New("r1", a1), err)
+	err = Append(New("r1", a11), err)
 
-	if !Catch(err, a1) {
+	if !Catch(err, a11) {
 		t.Fail()
 	}
 
@@ -34,7 +35,7 @@ func TestXxx(t *testing.T) {
 }
 
 func TestXxx2(t *testing.T) {
-	err := Grow(New("r1", a1), io.EOF)
+	err := Append(New("r1", a1), io.EOF)
 	if !Catch(err, a1) {
 		t.Fatal()
 	}
