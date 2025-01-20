@@ -4,10 +4,12 @@ import (
 	"errors"
 )
 
+type Action string
+
 type Error struct {
 	son    error
 	Reason string
-	action string
+	action Action
 }
 
 func (t Error) Error() string {
@@ -19,7 +21,7 @@ func (t Error) WithReason(reason string) Error {
 	return t
 }
 
-func Catch(e error, action string) bool {
+func Catch(e error, action Action) bool {
 	if v, ok := e.(Error); ok {
 		if v.action == action {
 			return true
@@ -42,7 +44,7 @@ func Grow(fe Error, e error) Error {
 	return fe
 }
 
-func New(reason string, action ...string) (e Error) {
+func New(reason string, action ...Action) (e Error) {
 	e = Error{
 		Reason: reason,
 	}
@@ -118,7 +120,7 @@ var (
 	}
 	ErrActionSimplifyFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok {
-			return err.action + ":" + e.Error() + "\n"
+			return string(err.action) + ":" + e.Error() + "\n"
 		} else {
 			return e.Error() + "\n"
 		}
@@ -128,7 +130,7 @@ var (
 	}
 	ErrActionInLineFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok {
-			return "> " + err.action + ":" + e.Error() + " "
+			return "> " + string(err.action) + ":" + e.Error() + " "
 		} else {
 			return "> " + e.Error() + " "
 		}
