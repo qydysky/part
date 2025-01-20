@@ -2,7 +2,6 @@ package errors
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Action string
@@ -29,7 +28,6 @@ type Error struct {
 }
 
 func (t Error) Is(e error) bool {
-	fmt.Println(t, e)
 	return t.Error() == e.Error()
 }
 
