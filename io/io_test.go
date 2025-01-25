@@ -2,8 +2,10 @@ package part
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"testing"
+	"time"
 )
 
 func Test_CopyIO(t *testing.T) {
@@ -95,4 +97,24 @@ func Benchmark_readall1(b *testing.B) {
 		io.ReadAll(r)
 		r.Reset(data)
 	}
+}
+
+func Test_CacheWrite(t *testing.T) {
+	r, w := io.Pipe()
+	rc, _ := RW2Chan(r, nil)
+	go func() {
+		time.Sleep(time.Millisecond * 500)
+		b := <-rc
+		if !bytes.Equal(b, []byte("123")) {
+			t.Fatal()
+		}
+	}()
+	writer := NewCacheWriter(w)
+	if n, err := writer.Write([]byte("123")); n != 3 || err != nil {
+		t.Fatal()
+	}
+	if _, err := writer.Write([]byte("123")); !errors.Is(err, ErrBusy) {
+		t.Fatal()
+	}
+	time.Sleep(time.Second)
 }

@@ -577,3 +577,41 @@ func ReadAll(r io.Reader, b []byte) ([]byte, error) {
 		}
 	}
 }
+
+type CacheWriter struct {
+	ctx             context.Context
+	cancelCauseFunc context.CancelCauseFunc
+	w               io.Writer
+	pushLock        atomic.Bool
+	pushBuf         []byte
+}
+
+var ErrBusy = errors.New(`ErrBusy`)
+
+func NewCacheWriter(ws io.Writer, ctx ...context.Context) *CacheWriter {
+	t := CacheWriter{w: ws}
+	ctx = append(ctx, context.Background())
+	t.ctx, t.cancelCauseFunc = context.WithCancelCause(ctx[0])
+	return &t
+}
+
+func (t *CacheWriter) Write(b []byte) (int, error) {
+	select {
+	case <-t.ctx.Done():
+		return 0, t.ctx.Err()
+	default:
+	}
+	if !t.pushLock.CompareAndSwap(false, true) {
+		return 0, ErrBusy
+	}
+	t.pushBuf = append(t.pushBuf[:0], b...)
+	go func() {
+		defer t.pushLock.Store(false)
+		if n, err := t.w.Write(t.pushBuf); err != nil || n == 0 {
+			if !errors.Is(err, ErrBusy) {
+				t.cancelCauseFunc(err)
+			}
+		}
+	}()
+	return len(t.pushBuf), t.ctx.Err()
+}
