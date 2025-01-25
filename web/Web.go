@@ -14,6 +14,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	pio "github.com/qydysky/part/io"
 	psync "github.com/qydysky/part/sync"
 	sys "github.com/qydysky/part/sys"
 )
@@ -570,6 +571,29 @@ func (t withflush) WriteHeader(i int) {
 	}
 }
 
+type withCache struct {
+	cw  *pio.CacheWriter
+	raw http.ResponseWriter
+}
+
+func (t withCache) Header() http.Header {
+	if t.raw != nil {
+		return t.raw.Header()
+	}
+	return make(http.Header)
+}
+func (t withCache) Write(b []byte) (i int, e error) {
+	if t.cw != nil {
+		return t.cw.Write(b)
+	}
+	return t.raw.Write(b)
+}
+func (t withCache) WriteHeader(i int) {
+	if t.raw != nil {
+		t.raw.WriteHeader(i)
+	}
+}
+
 type Exprier struct {
 	max int
 	m   psync.Map
@@ -685,6 +709,17 @@ func (t *Exprier) Len() int {
 
 func WithFlush(w http.ResponseWriter) http.ResponseWriter {
 	return withflush{w}
+}
+
+// IsCacheBusy
+func WithCache(w http.ResponseWriter) http.ResponseWriter {
+	t := withCache{raw: w}
+	t.cw = pio.NewCacheWriter(w)
+	return t
+}
+
+func IsCacheBusy(e error) bool {
+	return errors.Is(e, pio.ErrBusy)
 }
 
 func WithStatusCode(w http.ResponseWriter, code int) {
