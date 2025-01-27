@@ -54,6 +54,36 @@ func TestMain5(t *testing.T) {
 	}
 }
 
+func TestMain6(t *testing.T) {
+	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
+	go func() {
+		ctx2, done1 := WaitCtx(ctx1)
+		go func() {
+			time.Sleep(time.Millisecond * 500)
+			done1()
+		}()
+		t1 := time.Now()
+		<-ctx2.Done()
+		done1()
+		if time.Since(t1)-time.Millisecond*500 > time.Millisecond*100 {
+			t.Fatal()
+		}
+
+		ctx3, done2 := WaitCtx(ctx1)
+		defer done2()
+		<-ctx3.Done()
+		time.Sleep(time.Second)
+	}()
+	time.Sleep(time.Second)
+	t1 := time.Now()
+	if done() != nil {
+		t.Fatal()
+	}
+	if time.Since(t1) < time.Second {
+		t.Fatal()
+	}
+}
+
 func TestMain1(t *testing.T) {
 	ctx1, done := WithWait(context.Background(), 1, time.Second)
 	t0 := time.Now()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -85,17 +86,17 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 // or
 // use as a normal context.WithCancel(ctx)
 func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
-	ctx1, done1 := context.WithCancel(ctx)
-	if ctxp, ok := ctx1.Value(ptr).(*Ctx); ok {
+	dctx1, done1 := context.WithCancel(ctx)
+	if ctxp, ok := dctx1.Value(ptr).(*Ctx); ok {
 		ctxp.r32.Add(1)
 		ctxp.w32.Add(-1)
 	}
-	return ctx1, func() {
+	return dctx1, sync.OnceFunc(func() {
 		done1()
-		if ctxp, ok := ctx1.Value(ptr).(*Ctx); ok {
+		if ctxp, ok := dctx1.Value(ptr).(*Ctx); ok {
 			ctxp.r32.Add(-1)
 		}
-	}
+	})
 }
 
 func Done(ctx context.Context) bool {
