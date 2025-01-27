@@ -8,7 +8,7 @@ import (
 )
 
 func TestMain(t *testing.T) {
-	ctx1, done := WithWait(context.Background(), 1, time.Second)
+	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
 	t0 := time.Now()
 	go func() {
 		ctx2, done1 := WaitCtx(ctx1)
@@ -17,9 +17,39 @@ func TestMain(t *testing.T) {
 		if time.Since(t0) < time.Millisecond*100 {
 			t.Fail()
 		}
+		time.Sleep(time.Second)
 	}()
 	time.Sleep(time.Second)
+	t1 := time.Now()
 	if done() != nil {
+		t.Fatal()
+	}
+	if time.Since(t1) < time.Second {
+		t.Fail()
+	}
+}
+
+func TestMain5(t *testing.T) {
+	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
+	go func() {
+		ctx2, done1 := WaitCtx(ctx1)
+		go func() {
+			time.Sleep(time.Millisecond * 500)
+			done1()
+		}()
+		t1 := time.Now()
+		<-ctx2.Done()
+		if time.Since(t1)-time.Millisecond*500 > time.Millisecond*100 {
+			t.Fatal()
+		}
+		time.Sleep(time.Second)
+	}()
+	time.Sleep(time.Second)
+	t1 := time.Now()
+	if done() != nil {
+		t.Fatal()
+	}
+	if time.Since(t1) > time.Second {
 		t.Fatal()
 	}
 }

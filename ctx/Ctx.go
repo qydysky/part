@@ -81,13 +81,18 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 //		do something..
 //		<-ctx1.Done() // wait mainDone call
 //	}()
+//
+// or
+// use as a normal context.WithCancel(ctx)
 func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
-	if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+	ctx1, done1 := context.WithCancel(ctx)
+	if ctxp, ok := ctx1.Value(ptr).(*Ctx); ok {
 		ctxp.r32.Add(1)
 		ctxp.w32.Add(-1)
 	}
-	return ctx, func() {
-		if ctxp, ok := ctx.Value(ptr).(*Ctx); ok {
+	return ctx1, func() {
+		done1()
+		if ctxp, ok := ctx1.Value(ptr).(*Ctx); ok {
 			ctxp.r32.Add(-1)
 		}
 	}
