@@ -13,6 +13,7 @@ var (
 	ptr            = &struct{}{}
 	ErrWaitTo      = errors.New("ErrWaitTo")
 	ErrNothingWait = errors.New("ErrNothingWait")
+	ErrDoneCalled  = errors.New("ErrDoneCalled")
 )
 
 type Ctx struct {
@@ -44,7 +45,13 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 
 	var doneWait context.CancelFunc
 	dctx, doneWait = context.WithCancel(ctx.Ctx)
+
+	var oncef atomic.Bool
 	done = func() error {
+		if !oncef.CompareAndSwap(false, true) {
+			return ErrDoneCalled
+		}
+
 		doneWait()
 		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
 			defer func() {
