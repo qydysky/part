@@ -42,6 +42,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/flag -sss=ss -i32=32 -f34=34 -btrue=true -d1m=1m
 
   w-test:
     name: w-test
@@ -80,6 +81,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/flag -sss=ss -i32=32 -f34=34 -btrue=true -d1m=1m
 
   u-test:
     name: u-test
@@ -118,3 +120,4 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/flag -sss=ss -i32=32 -f34=34 -btrue=true -d1m=1m
