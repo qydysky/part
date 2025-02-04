@@ -2,10 +2,11 @@ package part
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"testing"
 	"time"
+
+	ps "github.com/qydysky/part/slice"
 )
 
 func Test_CopyIO(t *testing.T) {
@@ -109,12 +110,12 @@ func Test_CacheWrite(t *testing.T) {
 			t.Fatal()
 		}
 	}()
-	writer := NewCacheWriter(w)
+	writer := NewCacheWriter(w, 4)
 	if n, err := writer.Write([]byte("123")); n != 3 || err != nil {
 		t.Fatal()
 	}
-	if _, err := writer.Write([]byte("123")); !errors.Is(err, ErrBusy) {
-		t.Fatal()
+	if _, err := writer.Write([]byte("123")); err != ps.ErrFIFOOverflow {
+		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
 }

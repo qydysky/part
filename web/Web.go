@@ -711,15 +711,10 @@ func WithFlush(w http.ResponseWriter) http.ResponseWriter {
 	return withflush{w}
 }
 
-// IsCacheBusy
-func WithCache(w http.ResponseWriter) http.ResponseWriter {
+func WithCache(w http.ResponseWriter, cw *pio.CacheWriter) http.ResponseWriter {
 	t := withCache{raw: w}
-	t.cw = pio.NewCacheWriter(w)
+	t.cw = cw
 	return t
-}
-
-func IsCacheBusy(e error) bool {
-	return errors.Is(e, pio.ErrBusy)
 }
 
 func WithStatusCode(w http.ResponseWriter, code int) {

@@ -11,35 +11,39 @@ var (
 	ErrFIFOEmpty    = errors.New(`ErrFIFOEmpty`)
 )
 
+type FIFOSize interface {
+	int | int32 | int64 | uint | uint32 | uint64
+}
+
 type item struct {
 	op, ed int
 }
 
-type FIFO[S any, T []S] struct {
+type FIFO[S any] struct {
 	ed, op, opc int
 	c           chan item
 	buf         []S
 	l           sync.RWMutex
 }
 
-func NewFIFO[S any, T []S](size int) *FIFO[S, T] {
-	return &FIFO[S, T]{
+func NewFIFO[S any, T FIFOSize](size T) *FIFO[S] {
+	return &FIFO[S]{
 		c:   make(chan item, size),
 		buf: make([]S, size),
 	}
 }
 
-func (t *FIFO[S, T]) lock() func() {
+func (t *FIFO[S]) lock() func() {
 	t.l.Lock()
 	return t.l.Unlock
 }
 
-func (t *FIFO[S, T]) rlock() func() {
+func (t *FIFO[S]) rlock() func() {
 	t.l.RLock()
 	return t.l.RUnlock
 }
 
-func (t *FIFO[S, T]) inok(size int) bool {
+func (t *FIFO[S]) inok(size int) bool {
 	if t.ed+size > len(t.buf) {
 		if size > t.op {
 			return false
@@ -51,7 +55,7 @@ func (t *FIFO[S, T]) inok(size int) bool {
 	return true
 }
 
-func (t *FIFO[S, T]) In(p T) error {
+func (t *FIFO[S]) In(p []S) error {
 	defer t.lock()()
 
 	t.op = t.opc
@@ -70,21 +74,25 @@ func (t *FIFO[S, T]) In(p T) error {
 	return nil
 }
 
-func (t *FIFO[S, T]) Out() (p T, e error) {
+type Writer[S any] interface {
+	Write(p []S) (n int, err error)
+}
+
+func (t *FIFO[S]) Out(w Writer[S]) (n int, err error) {
 	defer t.rlock()()
 
 	select {
 	case item := <-t.c:
-		p = t.buf[item.op:item.ed]
+		n, err = w.Write(t.buf[item.op:item.ed])
 		t.opc = item.ed
 	default:
-		e = ErrFIFOEmpty
+		err = ErrFIFOEmpty
 	}
 
 	return
 }
 
-func (t *FIFO[S, T]) Size() int {
+func (t *FIFO[S]) Size() int {
 	defer t.rlock()()
 
 	if t.opc > t.ed {
@@ -94,11 +102,11 @@ func (t *FIFO[S, T]) Size() int {
 	}
 }
 
-func (t *FIFO[S, T]) Num() int {
+func (t *FIFO[S]) Num() int {
 	return len(t.c)
 }
 
-func (t *FIFO[S, T]) Clear() {
+func (t *FIFO[S]) Clear() {
 	defer t.lock()()
 
 	t.op = 0
@@ -113,7 +121,7 @@ func (t *FIFO[S, T]) Clear() {
 	}
 }
 
-func (t *FIFO[S, T]) Reset() {
+func (t *FIFO[S]) Reset() {
 	defer t.lock()()
 
 	clear(t.buf)
