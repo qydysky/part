@@ -74,16 +74,28 @@ func (t *FIFO[S]) In(p []S) error {
 	return nil
 }
 
-type Writer[S any] interface {
+func (t *FIFO[S]) Out(w interface {
 	Write(p []S) (n int, err error)
-}
-
-func (t *FIFO[S]) Out(w Writer[S]) (n int, err error) {
+}) (n int, err error) {
 	defer t.rlock()()
 
 	select {
 	case item := <-t.c:
 		n, err = w.Write(t.buf[item.op:item.ed])
+		t.opc = item.ed
+	default:
+		err = ErrFIFOEmpty
+	}
+
+	return
+}
+
+func (t *FIFO[S]) OutDirect() (p []S, err error, used func()) {
+	used = t.rlock()
+
+	select {
+	case item := <-t.c:
+		p = t.buf[item.op:item.ed]
 		t.opc = item.ed
 	default:
 		err = ErrFIFOEmpty
