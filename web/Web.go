@@ -593,12 +593,6 @@ func (t *WithCacheWiter) WriteHeader(i int) {
 		t.raw.WriteHeader(i)
 	}
 }
-func (t *WithCacheWiter) Cap() (i int) {
-	if t.cw != nil {
-		return t.cw.Cap()
-	}
-	return 0
-}
 
 type Exprier struct {
 	max int
@@ -717,8 +711,8 @@ func WithFlush(w http.ResponseWriter) http.ResponseWriter {
 	return withflush{w}
 }
 
-func WithCache(w http.ResponseWriter, maxWait uint, maxCap int) *WithCacheWiter {
-	return &WithCacheWiter{raw: w, cw: pio.NewCacheWriter(w, maxWait, maxCap)}
+func WithCache(w http.ResponseWriter, maxWait uint32) *WithCacheWiter {
+	return &WithCacheWiter{raw: w, cw: pio.NewCacheWriter(w, maxWait)}
 }
 
 func WithStatusCode(w http.ResponseWriter, code int) {
