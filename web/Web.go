@@ -571,27 +571,33 @@ func (t withflush) WriteHeader(i int) {
 	}
 }
 
-type withCache struct {
+type WithCacheWiter struct {
 	cw  *pio.CacheWriter
 	raw http.ResponseWriter
 }
 
-func (t withCache) Header() http.Header {
+func (t *WithCacheWiter) Header() http.Header {
 	if t.raw != nil {
 		return t.raw.Header()
 	}
 	return make(http.Header)
 }
-func (t withCache) Write(b []byte) (i int, e error) {
+func (t *WithCacheWiter) Write(b []byte) (i int, e error) {
 	if t.cw != nil {
 		return t.cw.Write(b)
 	}
 	return t.raw.Write(b)
 }
-func (t withCache) WriteHeader(i int) {
+func (t *WithCacheWiter) WriteHeader(i int) {
 	if t.raw != nil {
 		t.raw.WriteHeader(i)
 	}
+}
+func (t *WithCacheWiter) Cap() (i int) {
+	if t.cw != nil {
+		return t.cw.Cap()
+	}
+	return 0
 }
 
 type Exprier struct {
@@ -711,10 +717,8 @@ func WithFlush(w http.ResponseWriter) http.ResponseWriter {
 	return withflush{w}
 }
 
-func WithCache(w http.ResponseWriter, cw *pio.CacheWriter) http.ResponseWriter {
-	t := withCache{raw: w}
-	t.cw = cw
-	return t
+func WithCache(w http.ResponseWriter, maxWait uint, maxCap int) *WithCacheWiter {
+	return &WithCacheWiter{raw: w, cw: pio.NewCacheWriter(w, maxWait, maxCap)}
 }
 
 func WithStatusCode(w http.ResponseWriter, code int) {
