@@ -32,8 +32,10 @@ func TestFIFO(t *testing.T) {
 	if fifo.In([]byte("012")) != nil {
 		t.Fatal()
 	}
-	if tmp, e := fifo.Out(); e != nil || !bytes.Equal(tmp, []byte("012")) {
+	if tmp, e, used := fifo.OutDirect(); e != nil || !bytes.Equal(tmp, []byte("012")) {
 		t.Fatal()
+	} else {
+		used()
 	}
 	fifo.Clear()
 
@@ -49,17 +51,23 @@ func TestFIFO(t *testing.T) {
 	if fifo.Size() != 5 {
 		t.Fatal()
 	}
-	if tmp, e := fifo.Out(); e != nil || !bytes.Equal(tmp, []byte("01")) {
+	if tmp, e, used := fifo.OutDirect(); e != nil || !bytes.Equal(tmp, []byte("01")) {
 		t.Fatal()
+	} else {
+		used()
 	}
 	if fifo.In([]byte("56")) != nil {
 		t.Fatal()
 	}
-	if tmp, e := fifo.Out(); e != nil || !bytes.Equal(tmp, []byte("234")) {
+	if tmp, e, used := fifo.OutDirect(); e != nil || !bytes.Equal(tmp, []byte("234")) {
 		t.Fatal()
+	} else {
+		used()
 	}
-	if tmp, e := fifo.Out(); e != nil || !bytes.Equal(tmp, []byte("56")) {
+	if tmp, e, used := fifo.OutDirect(); e != nil || !bytes.Equal(tmp, []byte("56")) {
 		t.Fatal()
+	} else {
+		used()
 	}
 	fifo.Clear()
 
@@ -86,8 +94,10 @@ func BenchmarkFIFO(b *testing.B) {
 			b.FailNow()
 		}
 		if fifo.Num() > 1 {
-			if tmp, e := fifo.Out(); e != nil || !bytes.Equal(tmp, buf) {
+			if tmp, e, used := fifo.OutDirect(); e != nil || !bytes.Equal(tmp, buf) {
 				b.FailNow()
+			} else {
+				used()
 			}
 		}
 	}

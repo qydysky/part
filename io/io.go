@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	ps "github.com/qydysky/part/slice"
 )
 
 // no close rc any time
@@ -582,16 +584,14 @@ type CacheWriter struct {
 	ctx             context.Context
 	cancelCauseFunc context.CancelCauseFunc
 	w               io.Writer
-	pushLock        atomic.Bool
-	pushBuf         []byte
+	pushBuf         *ps.FIFO[byte]
 }
 
-var ErrBusy = errors.New(`ErrBusy`)
+type CacheWriterSize ps.FIFOSize
 
-func NewCacheWriter(ws io.Writer, ctx ...context.Context) *CacheWriter {
-	t := CacheWriter{w: ws}
-	ctx = append(ctx, context.Background())
-	t.ctx, t.cancelCauseFunc = context.WithCancelCause(ctx[0])
+func NewCacheWriter[T CacheWriterSize](ws io.Writer, bufsize T) *CacheWriter {
+	t := CacheWriter{w: ws, pushBuf: ps.NewFIFO[byte](bufsize)}
+	t.ctx, t.cancelCauseFunc = context.WithCancelCause(context.Background())
 	return &t
 }
 
@@ -601,17 +601,17 @@ func (t *CacheWriter) Write(b []byte) (int, error) {
 		return 0, t.ctx.Err()
 	default:
 	}
-	if !t.pushLock.CompareAndSwap(false, true) {
-		return 0, ErrBusy
+	if e := t.pushBuf.In(b); e != nil {
+		return 0, e
 	}
-	t.pushBuf = append(t.pushBuf[:0], b...)
 	go func() {
-		defer t.pushLock.Store(false)
-		if n, err := t.w.Write(t.pushBuf); err != nil || n == 0 {
-			if !errors.Is(err, ErrBusy) {
-				t.cancelCauseFunc(err)
-			}
+		if _, err := t.pushBuf.Out(t.w); err != nil && !errors.Is(err, ps.ErrFIFOEmpty) {
+			t.cancelCauseFunc(err)
 		}
 	}()
-	return len(t.pushBuf), t.ctx.Err()
+	return len(b), t.ctx.Err()
+}
+
+func (t *CacheWriter) Size() int {
+	return t.pushBuf.Size()
 }
