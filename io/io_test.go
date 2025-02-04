@@ -108,7 +108,7 @@ func Test_CacheWrite(t *testing.T) {
 			t.Fatal()
 		}
 	}()
-	writer := NewCacheWriter(w, 100, 4)
+	writer := NewCacheWriter(w, 1)
 	if n, err := writer.Write([]byte("123")); n != 3 || err != nil {
 		t.Fatal()
 	}
@@ -119,7 +119,7 @@ func Test_CacheWrite(t *testing.T) {
 }
 
 func BenchmarkCache(b *testing.B) {
-	writer := NewCacheWriter(io.Discard, 100, 4000)
+	writer := NewCacheWriter(io.Discard, 2000)
 	tmp := []byte("1")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
