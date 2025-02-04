@@ -8,8 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	ps "github.com/qydysky/part/slice"
 )
 
 // no close rc any time
@@ -580,38 +578,67 @@ func ReadAll(r io.Reader, b []byte) ([]byte, error) {
 	}
 }
 
+var (
+	ErrCacheWriterCapOverflow = errors.New(`ErrCacheWriterCapOverflow`)
+)
+
 type CacheWriter struct {
 	ctx             context.Context
 	cancelCauseFunc context.CancelCauseFunc
 	w               io.Writer
-	pushBuf         *ps.FIFO[byte]
+	pushBuf         []byte
+	ic              chan int
+	maxCap          int
+	l               sync.RWMutex
 }
 
-type CacheWriterSize ps.FIFOSize
-
-func NewCacheWriter[T CacheWriterSize](ws io.Writer, bufsize T) *CacheWriter {
-	t := CacheWriter{w: ws, pushBuf: ps.NewFIFO[byte](bufsize)}
+func NewCacheWriter(ws io.Writer, maxWait uint, maxCap int) *CacheWriter {
+	t := CacheWriter{w: ws, ic: make(chan int, maxWait), maxCap: maxCap}
 	t.ctx, t.cancelCauseFunc = context.WithCancelCause(context.Background())
 	return &t
 }
 
-func (t *CacheWriter) Write(b []byte) (int, error) {
+func (t *CacheWriter) Write(b []byte) (n int, e error) {
 	select {
 	case <-t.ctx.Done():
 		return 0, t.ctx.Err()
 	default:
 	}
-	if e := t.pushBuf.In(b); e != nil {
-		return 0, e
+
+	{
+		t.l.Lock()
+		if len(t.pushBuf)+len(b) > t.maxCap {
+			t.l.Unlock()
+			return 0, ErrCacheWriterCapOverflow
+		}
+		select {
+		case t.ic <- len(b):
+			t.pushBuf = append(t.pushBuf, b...)
+			t.l.Unlock()
+		default:
+			i := <-t.ic
+			if _, err := t.w.Write(t.pushBuf[:i]); err != nil {
+				t.cancelCauseFunc(err)
+			}
+			t.ic <- len(b)
+			t.pushBuf = append(t.pushBuf[i:], b...)
+			t.l.Unlock()
+			return len(b), t.ctx.Err()
+		}
 	}
+
 	go func() {
-		if _, err := t.pushBuf.Out(t.w); err != nil && !errors.Is(err, ps.ErrFIFOEmpty) {
+		t.l.Lock()
+		i := <-t.ic
+		if _, err := t.w.Write(t.pushBuf[:i]); err != nil {
 			t.cancelCauseFunc(err)
 		}
+		t.pushBuf = t.pushBuf[:copy(t.pushBuf, t.pushBuf[i:])]
+		t.l.Unlock()
 	}()
 	return len(b), t.ctx.Err()
 }
 
-func (t *CacheWriter) Size() int {
-	return t.pushBuf.Size()
+func (t *CacheWriter) Cap() int {
+	return cap(t.pushBuf)
 }

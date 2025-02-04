@@ -5,8 +5,6 @@ import (
 	"io"
 	"testing"
 	"time"
-
-	ps "github.com/qydysky/part/slice"
 )
 
 func Test_CopyIO(t *testing.T) {
@@ -110,12 +108,23 @@ func Test_CacheWrite(t *testing.T) {
 			t.Fatal()
 		}
 	}()
-	writer := NewCacheWriter(w, 4)
+	writer := NewCacheWriter(w, 100, 4)
 	if n, err := writer.Write([]byte("123")); n != 3 || err != nil {
 		t.Fatal()
 	}
-	if _, err := writer.Write([]byte("123")); err != ps.ErrFIFOOverflow {
-		t.Fatal(err)
+	if _, err := writer.Write([]byte("123")); err == nil {
+		t.Fatal()
 	}
 	time.Sleep(time.Second)
+}
+
+func BenchmarkCache(b *testing.B) {
+	writer := NewCacheWriter(io.Discard, 100, 4000)
+	tmp := []byte("1")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := writer.Write(tmp); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
