@@ -94,18 +94,21 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulock
 	m.rlc.RLock()
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
+		inTimeCall := func() (called bool) { return true }
 		if len(to) > 1 {
-			defer m.tof(to[1], ErrTimeoutToULock)()
+			inTimeCall = m.tof(to[1], ErrTimeoutToULock)
 		}
 		ul := false
 		for i := 0; i < len(ulockfs); i++ {
 			if ulockfs[i](ul) && !ul {
 				m.rlc.RUnlock()
+				inTimeCall()
 				ul = true
 			}
 		}
 		if !ul {
 			m.rlc.RUnlock()
+			inTimeCall()
 		}
 	}
 }
@@ -121,18 +124,21 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocke
 	m.rlc.Lock()
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
+		inTimeCall := func() (called bool) { return true }
 		if len(to) > 1 {
-			defer m.tof(to[1], ErrTimeoutToULock)()
+			inTimeCall = m.tof(to[1], ErrTimeoutToULock)
 		}
 		ul := false
 		for i := 0; i < len(ulockfs); i++ {
 			if ulockfs[i](ul) && !ul {
 				m.rlc.Unlock()
+				inTimeCall()
 				ul = true
 			}
 		}
 		if !ul {
 			m.rlc.Unlock()
+			inTimeCall()
 		}
 	}
 }
