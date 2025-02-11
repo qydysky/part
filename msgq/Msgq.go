@@ -81,7 +81,7 @@ func (m *Msgq) Register_front(f func(any) (disable bool)) (cancel func()) {
 
 func (m *Msgq) Push(msg any) {
 	ul := m.lock.RLock(m.to...)
-	defer ul(m.removeDisable)
+	defer ul(m.removeDisable(true)...)
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -99,7 +99,7 @@ func (m *Msgq) Push(msg any) {
 
 func (m *Msgq) PushLock(msg any) {
 	ul := m.lock.Lock(m.to...)
-	defer ul(m.removeDisable)
+	defer ul(m.removeDisable(false)...)
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
 		mi := el.Value.(*msgqItem)
@@ -123,15 +123,38 @@ func (m *Msgq) ClearAll() {
 	}
 }
 
-func (m *Msgq) removeDisable() {
-	if !m.someNeedRemove.CompareAndSwap(true, false) {
-		return
-	}
-
-	for el := m.funcs.Front(); el != nil; el = el.Next() {
-		mi := el.Value.(*msgqItem)
-		if mi.disable.Load() && mi.running.Load() == 0 {
-			m.funcs.Remove(el)
+func (m *Msgq) removeDisable(rlock bool) (ls []func(ulocked bool) (doUlock bool)) {
+	if rlock {
+		return []func(ulocked bool) (doUlock bool){
+			func(ulocked bool) (doUlock bool) {
+				return m.someNeedRemove.CompareAndSwap(true, false)
+			},
+			func(ulocked bool) (doUlock bool) {
+				if ulocked {
+					defer m.lock.Lock()()
+					for el := m.funcs.Front(); el != nil; el = el.Next() {
+						mi := el.Value.(*msgqItem)
+						if mi.disable.Load() && mi.running.Load() == 0 {
+							m.funcs.Remove(el)
+						}
+					}
+				}
+				return
+			},
+		}
+	} else {
+		return []func(ulocked bool) (doUlock bool){
+			func(ulocked bool) (doUlock bool) {
+				if m.someNeedRemove.CompareAndSwap(true, false) {
+					for el := m.funcs.Front(); el != nil; el = el.Next() {
+						mi := el.Value.(*msgqItem)
+						if mi.disable.Load() && mi.running.Load() == 0 {
+							m.funcs.Remove(el)
+						}
+					}
+				}
+				return
+			},
 		}
 	}
 }
@@ -169,7 +192,7 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 				Data: Data,
 			})
 		*/
-		defer m.lock.RLock(m.to...)(m.removeDisable)
+		defer m.lock.RLock(m.to...)(m.removeDisable(true)...)
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -218,7 +241,7 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 			})
 		*/
 		ul := m.lock.Lock(m.to...)
-		defer ul(m.removeDisable)
+		defer ul(m.removeDisable(false)...)
 
 		for el := m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -376,7 +399,7 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 			})
 		*/
 		ul := m.m.lock.RLock(m.m.to...)
-		defer ul(m.m.removeDisable)
+		defer ul(m.m.removeDisable(true)...)
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)
@@ -425,7 +448,7 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 			})
 		*/
 		ul := m.m.lock.Lock(m.m.to...)
-		defer ul(m.m.removeDisable)
+		defer ul(m.m.removeDisable(false)...)
 
 		for el := m.m.funcs.Front(); el != nil; el = el.Next() {
 			mi := el.Value.(*msgqItem)

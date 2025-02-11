@@ -21,8 +21,11 @@ func (t Action) New(reason ...string) (e Error) {
 	return
 }
 
+func (t Action) Error() string {
+	return string(t)
+}
+
 type Error struct {
-	son    error
 	Reason string
 	action Action
 }
