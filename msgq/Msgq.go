@@ -130,15 +130,12 @@ func (m *Msgq) removeDisable() []func(ulocked bool) (doUlock bool) {
 		},
 		func(ulocked bool) (doUlock bool) {
 			if ulocked {
-				return
-			}
-
-			defer m.lock.Lock(m.to...)()
-
-			for el := m.funcs.Front(); el != nil; el = el.Next() {
-				mi := el.Value.(*msgqItem)
-				if mi.disable.Load() && mi.running.Load() == 0 {
-					m.funcs.Remove(el)
+				defer m.lock.Lock(m.to...)()
+				for el := m.funcs.Front(); el != nil; el = el.Next() {
+					mi := el.Value.(*msgqItem)
+					if mi.disable.Load() && mi.running.Load() == 0 {
+						m.funcs.Remove(el)
+					}
 				}
 			}
 			return
