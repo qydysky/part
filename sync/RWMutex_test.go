@@ -42,9 +42,10 @@ func Test1(t *testing.T) {
 func Test4(t *testing.T) {
 	var l RWMutex
 	ul := l.RLock()
-	ul(func() {
+	ul(func(ulocked bool) (doUlock bool) {
 		ul1 := l.RLock()
 		ul1()
+		return true
 	})
 }
 
@@ -55,8 +56,9 @@ func Test5(t *testing.T) {
 		}
 	}}
 	ul := l.RLock(time.Second, time.Second)
-	ul(func() {
+	ul(func(ulocked bool) (doUlock bool) {
 		time.Sleep(time.Second * 2)
+		return true
 	})
 }
 
@@ -67,7 +69,7 @@ func Test8(t *testing.T) {
 		}
 	}}
 	ul := l.Lock()
-	go ul(func() { time.Sleep(time.Second) })
+	go ul(func(ulocked bool) (doUlock bool) { time.Sleep(time.Second); return true })
 	ul1 := l.RLock(time.Millisecond*500, time.Second)
 	ul1()
 }
@@ -120,8 +122,9 @@ func Test6(t *testing.T) {
 		ul1()
 		c <- 2
 	})
-	ul(func() {
+	ul(func(ulocked bool) (doUlock bool) {
 		time.Sleep(time.Second)
+		return true
 	})
 	c <- 0
 	if <-c != 1 {
@@ -140,11 +143,13 @@ func Test7(t *testing.T) {
 	var l RWMutex
 	ul := l.RLock()
 	ul1 := l.RLock()
-	ul(func() {
+	ul(func(ulocked bool) (doUlock bool) {
 		c <- 0
+		return true
 	})
-	ul1(func() {
+	ul1(func(ulocked bool) (doUlock bool) {
 		c <- 1
+		return true
 	})
 	if <-c != 0 {
 		t.Fatal()
@@ -176,8 +181,9 @@ func Test10(t *testing.T) {
 func Panic_Test8(t *testing.T) {
 	var l RWMutex
 	ul := l.Lock(time.Second, time.Second)
-	ul(func() {
+	ul(func(ulocked bool) (doUlock bool) {
 		time.Sleep(time.Second * 10)
+		return true
 	})
 }
 
@@ -226,11 +232,42 @@ BenchmarkRlock-4
 
 	1000000              1069 ns/op              24 B/op          1 allocs/op
 
+# PASS
+
+goos: linux
+goarch: amd64
+pkg: github.com/qydysky/part/sync
+cpu: Intel(R) N100
+BenchmarkRlock
+BenchmarkRlock-4
+
+	4493745               268.9 ns/op            48 B/op          1 allocs/op
+
 PASS
 */
 func BenchmarkRlock(b *testing.B) {
 	var lock1 RWMutex
 	for i := 0; i < b.N; i++ {
 		lock1.RLock()()
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/qydysky/part/sync
+cpu: Intel(R) N100
+BenchmarkRlock1
+BenchmarkRlock1-4
+
+	7057746               158.2 ns/op             0 B/op          0 allocs/op
+
+PASS
+*/
+func BenchmarkRlock1(b *testing.B) {
+	var lock1 sync.RWMutex
+	for i := 0; i < b.N; i++ {
+		lock1.RLock()
+		lock1.RUnlock()
 	}
 }

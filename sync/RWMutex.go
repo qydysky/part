@@ -86,42 +86,54 @@ func (m *RWMutex) tof(to time.Duration, e error) (inTimeCall func() (called bool
 // to[1]: wait ulock timeout
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
-func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
+func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
 	if len(to) > 0 {
 		defer m.tof(to[0], ErrTimeoutToLock)()
 	}
 
 	m.rlc.RLock()
 
-	return func(beforeUlock ...func()) {
+	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
 		if len(to) > 1 {
 			defer m.tof(to[1], ErrTimeoutToULock)()
 		}
-		for i := 0; i < len(beforeUlock); i++ {
-			beforeUlock[i]()
+		ul := false
+		for i := 0; i < len(ulockfs); i++ {
+			if ulockfs[i](ul) && !ul {
+				m.rlc.RUnlock()
+				ul = true
+			}
 		}
-		m.rlc.RUnlock()
+		if !ul {
+			m.rlc.RUnlock()
+		}
 	}
 }
 
 // to[0]: wait lock timeout
 //
 // to[1]: wait ulock timeout
-func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(beforeUlock ...func())) {
+func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
 	if len(to) > 0 {
 		defer m.tof(to[0], ErrTimeoutToLock)()
 	}
 
 	m.rlc.Lock()
 
-	return func(beforeUlock ...func()) {
+	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
 		if len(to) > 1 {
 			defer m.tof(to[1], ErrTimeoutToULock)()
 		}
-		for i := 0; i < len(beforeUlock); i++ {
-			beforeUlock[i]()
+		ul := false
+		for i := 0; i < len(ulockfs); i++ {
+			if ulockfs[i](ul) && !ul {
+				m.rlc.Unlock()
+				ul = true
+			}
 		}
-		m.rlc.Unlock()
+		if !ul {
+			m.rlc.Unlock()
+		}
 	}
 }
 
