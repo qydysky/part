@@ -27,6 +27,7 @@ func Test0(t *testing.T) {
 
 // ulock rlock rlock
 func Test1(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	//check(&l, 0)
 	ul := l.RLock()
@@ -40,6 +41,7 @@ func Test1(t *testing.T) {
 }
 
 func Test4(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	ul := l.RLock()
 	ul(func(ulocked bool) (doUlock bool) {
@@ -50,6 +52,7 @@ func Test4(t *testing.T) {
 }
 
 func Test5(t *testing.T) {
+	t.Parallel()
 	var l = RWMutex{PanicFunc: func(a any) {
 		if !errors.Is(a.(error), ErrTimeoutToURLock) {
 			t.Fatal(a)
@@ -63,6 +66,7 @@ func Test5(t *testing.T) {
 }
 
 func Test8(t *testing.T) {
+	t.Parallel()
 	var l = RWMutex{PanicFunc: func(a any) {
 		if !errors.Is(a.(error), ErrTimeoutToRLock) {
 			panic(a)
@@ -76,6 +80,7 @@ func Test8(t *testing.T) {
 
 // ulock rlock lock
 func Test2(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	ul := l.RLock()
 	//check(&l, 2)
@@ -95,6 +100,7 @@ func Test2(t *testing.T) {
 
 // ulock lock rlock
 func Test3(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	ul := l.Lock()
 	//check(&l, -1)
@@ -113,6 +119,7 @@ func Test3(t *testing.T) {
 }
 
 func Test6(t *testing.T) {
+	t.Parallel()
 	var c = make(chan int, 3)
 	var l RWMutex
 	ul := l.RLock()
@@ -139,6 +146,7 @@ func Test6(t *testing.T) {
 }
 
 func Test7(t *testing.T) {
+	t.Parallel()
 	var c = make(chan int, 2)
 	var l RWMutex
 	ul := l.RLock()
@@ -160,6 +168,7 @@ func Test7(t *testing.T) {
 }
 
 func Test9(t *testing.T) {
+	t.Parallel()
 	n := time.Now()
 	var l RWMutex
 	for i := 0; i < 1000; i++ {
@@ -169,6 +178,7 @@ func Test9(t *testing.T) {
 }
 
 func Test10(t *testing.T) {
+	t.Parallel()
 	n := time.Now()
 	var l sync.RWMutex
 	for i := 0; i < 30000; i++ {
@@ -186,6 +196,7 @@ func Test10(t *testing.T) {
 }
 
 func Test11(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 
 	l.RLock()(func(ulocked bool) (doUlock bool) {
@@ -207,6 +218,7 @@ func Test11(t *testing.T) {
 }
 
 func Panic_Test8(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	ul := l.Lock(time.Second, time.Second)
 	ul(func(ulocked bool) (doUlock bool) {
@@ -217,6 +229,7 @@ func Panic_Test8(t *testing.T) {
 
 // ulock rlock rlock
 func Test4Panic_(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	l.RecLock(10, time.Second, time.Second)
 	//check(&l, 0)
@@ -237,6 +250,7 @@ func Test4Panic_(t *testing.T) {
 
 // ulock rlock lock
 func Test5Panic_(t *testing.T) {
+	t.Parallel()
 	var l RWMutex
 	l.RecLock(10, time.Second, time.Second)
 
@@ -304,6 +318,7 @@ func BenchmarkRlock1(b *testing.B) {
 	var lock1 sync.RWMutex
 	for i := 0; i < b.N; i++ {
 		lock1.RLock()
+		_ = 1
 		lock1.RUnlock()
 	}
 }
