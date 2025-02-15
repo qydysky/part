@@ -118,8 +118,13 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 	}
 }
 
-func (t *File) InRoot(root string) *File {
+func (t *File) CheckRoot(root string) *File {
 	t.Config.root = root
+	if rel, e := filepath.Rel(root, t.Config.FilePath); e != nil {
+		panic(e)
+	} else {
+		t.Config.FilePath = rel
+	}
 	return t
 }
 
