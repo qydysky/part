@@ -308,8 +308,11 @@ func TestCreate(t *testing.T) {
 
 func TestIsRoot(t *testing.T) {
 	sf := New("../t.txt", 0, true)
-	sf.InRoot("testdata")
+	sf.CheckRoot("testdata")
 	if !strings.HasSuffix(sf.Delete().Error(), "path escapes from parent") {
 		t.Fatal()
 	}
+
+	sf = New("testdata/1.txt", 0, true).CheckRoot("testdata")
+	t.Log(sf.IsExist())
 }
