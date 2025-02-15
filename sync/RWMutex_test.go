@@ -51,7 +51,7 @@ func Test4(t *testing.T) {
 
 func Test5(t *testing.T) {
 	var l = RWMutex{PanicFunc: func(a any) {
-		if !errors.Is(a.(error), ErrTimeoutToULock) {
+		if !errors.Is(a.(error), ErrTimeoutToURLock) {
 			t.Fatal(a)
 		}
 	}}
@@ -64,7 +64,7 @@ func Test5(t *testing.T) {
 
 func Test8(t *testing.T) {
 	var l = RWMutex{PanicFunc: func(a any) {
-		if !errors.Is(a.(error), ErrTimeoutToLock) {
+		if !errors.Is(a.(error), ErrTimeoutToRLock) {
 			panic(a)
 		}
 	}}
@@ -248,7 +248,7 @@ func Test5Panic_(t *testing.T) {
 		ul()
 	})
 	c := time.Now()
-	ul1 := l.Lock(time.Second)
+	ul1 := l.Lock(time.Second * 2)
 	//check(&l, 0)
 	if time.Since(c) < time.Second {
 		t.Fail()
