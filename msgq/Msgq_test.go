@@ -2,10 +2,14 @@ package part
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	_ "net/http/pprof"
 	"sync"
 	"testing"
 	"time"
+
+	psync "github.com/qydysky/part/sync"
 )
 
 // type test_item struct {
@@ -139,20 +143,41 @@ func BenchmarkXxx(b *testing.B) {
 	}
 }
 
-// func TestPushLock(t *testing.T) {
-// 	defer func() {
-// 		if e := recover(); e != nil {
-// 			t.Fatal(e)
-// 		}
-// 	}()
-// 	mq := NewTo(time.Second)
-// 	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
-// 		mq.PushLock_tag(`lock`, nil)
-// 		return false
-// 	})
-// 	mq.Push_tag(`test`, nil)
-// 	t.Fatal()
-// }
+func TestTORun(t *testing.T) {
+	t.Parallel()
+	panicC := make(chan any, 10)
+	mq := New(time.Second, time.Second)
+	mq.TOPanicFunc(func(a any) {
+		panicC <- a
+	})
+	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+		time.Sleep(time.Second * 10)
+		return false
+	})
+	go mq.Push_tag(`test`, nil)
+	e := <-panicC
+	if !errors.Is(e.(error), ErrRunTO) {
+		t.Fatal(e)
+	}
+}
+
+func TestPushLock(t *testing.T) {
+	t.Parallel()
+	panicC := make(chan any, 10)
+	mq := New(time.Second, time.Second*2)
+	mq.TOPanicFunc(func(a any) {
+		panicC <- a
+	})
+	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+		mq.PushLock_tag(`lock`, nil)
+		return false
+	})
+	go mq.Push_tag(`test`, nil)
+	e := <-panicC
+	if !errors.Is(e.(error), psync.ErrTimeoutToLock) {
+		t.Fatal(e)
+	}
+}
 
 func Benchmark_1(b *testing.B) {
 	mq := New()
@@ -166,6 +191,7 @@ func Benchmark_1(b *testing.B) {
 }
 
 func Test_4(t *testing.T) {
+	t.Parallel()
 	mq := New()
 	cancel := mq.Pull_tag(FuncMap{
 		`del`: func(a any) (disable bool) {
@@ -178,6 +204,7 @@ func Test_4(t *testing.T) {
 }
 
 func Test_2(t *testing.T) {
+	t.Parallel()
 	mq := New()
 	cancel := mq.Pull_tag(FuncMap{
 		`del`: func(a any) (disable bool) {
@@ -190,7 +217,27 @@ func Test_2(t *testing.T) {
 	mq.PushLock_tag(`del`, nil)
 }
 
+func Test_5(t *testing.T) {
+	t.Parallel()
+	mq := New(time.Second, time.Second*2)
+	mq.Pull_tag(FuncMap{
+		`del`: func(a any) (disable bool) {
+			t.Log(1)
+			mq.Push_tag(`del1`, nil)
+			t.Log(3)
+			return false
+		},
+		`del1`: func(a any) (disable bool) {
+			t.Log(2)
+			return true
+		},
+	})
+	mq.Push_tag(`del`, 1)
+	mq.Push_tag(`del1`, 1)
+}
+
 func Test_1(t *testing.T) {
+	t.Parallel()
 	mq := New(time.Millisecond*5, time.Millisecond*10)
 	go mq.Push_tag(`del`, nil)
 	mq.Pull_tag(FuncMap{
@@ -206,11 +253,12 @@ func Test_1(t *testing.T) {
 }
 
 func Test_RemoveInPush(t *testing.T) {
+	t.Parallel()
 	mq := New(time.Second, time.Second*3)
 	mq.Pull_tag(FuncMap{
 		`r1`: func(a any) (disable bool) {
 			mq.ClearAll()
-			return false
+			return true
 		},
 		`r2`: func(a any) (disable bool) {
 			return true
@@ -223,6 +271,7 @@ func Test_RemoveInPush(t *testing.T) {
 }
 
 func Test_3(t *testing.T) {
+	t.Parallel()
 	mq := New(time.Millisecond*5, time.Millisecond*10)
 	go mq.Push_tag(`sss`, nil)
 	mq.Pull_tag(FuncMap{
@@ -234,6 +283,7 @@ func Test_3(t *testing.T) {
 }
 
 func Test_Pull_tag_chan(t *testing.T) {
+	t.Parallel()
 	mq := New()
 	ctx, cf := context.WithCancel(context.Background())
 	_, ch := mq.Pull_tag_chan(`a`, 2, ctx)
@@ -273,6 +323,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 }
 
 func Test_Pull_tag_chan2(t *testing.T) {
+	t.Parallel()
 	mq := New()
 
 	mq.Pull_tag_chan(`a`, 1, context.Background())
@@ -283,6 +334,7 @@ func Test_Pull_tag_chan2(t *testing.T) {
 }
 
 func Test_msgq1(t *testing.T) {
+	t.Parallel()
 	mq := New()
 	c := make(chan time.Time, 10)
 	mq.Pull_tag(map[string]func(any) bool{
@@ -339,6 +391,7 @@ func Test_msgq1(t *testing.T) {
 }
 
 func Test_msgq9(t *testing.T) {
+	t.Parallel()
 	var mq = NewType[int]()
 	var c = make(chan int, 10)
 	mq.Pull_tag_only(`c`, func(i int) (disable bool) {
@@ -348,12 +401,16 @@ func Test_msgq9(t *testing.T) {
 	mq.PushLock_tag(`c`, 1)
 	mq.ClearAll()
 	mq.PushLock_tag(`c`, 2)
-	if len(c) != 1 || <-c != 1 {
-		t.Fatal()
+	t.Log(mq.m.funcs.Len())
+	if l, i := len(c), <-c; l != 1 || i != 1 {
+		t.Fatal(l, i)
 	}
+
+	fmt.Println(mq.m.allNeedRemove.Load())
 
 	mq.Pull_tag(map[string]func(int) (disable bool){
 		`c`: func(i int) (disable bool) {
+			fmt.Println(1)
 			c <- i
 			return false
 		},
@@ -363,15 +420,18 @@ func Test_msgq9(t *testing.T) {
 		},
 	})
 
+	fmt.Println(mq.m.funcs.Len())
+
 	mq.PushLock_tag(`c`, 1)
 	mq.ClearAll()
 	mq.PushLock_tag(`c`, 2)
-	if len(c) != 1 || <-c != 1 {
-		t.Fatal()
+	if l, i := len(c), <-c; l != 1 || i != 1 {
+		t.Fatal(l, i)
 	}
 }
 
 func Test_msgq2(t *testing.T) {
+	t.Parallel()
 	mq := New()
 
 	mq.Pull_tag(map[string]func(any) bool{
@@ -413,6 +473,7 @@ func Test_msgq2(t *testing.T) {
 }
 
 func Test_msgq3(t *testing.T) {
+	t.Parallel()
 	mq := New()
 
 	mun_c := make(chan int, 100)
@@ -436,6 +497,7 @@ func Test_msgq3(t *testing.T) {
 }
 
 func Test_msgq4(t *testing.T) {
+	t.Parallel()
 	// mq := New(30)
 	mq := New(time.Second, time.Second) //out of list
 
@@ -491,6 +553,7 @@ func Test_msgq4(t *testing.T) {
 }
 
 func Test_msgq5(t *testing.T) {
+	t.Parallel()
 	mq := New()
 
 	mun_c1 := make(chan bool, 100)
@@ -548,6 +611,7 @@ func Test_msgq5(t *testing.T) {
 }
 
 func Test_msgq6(t *testing.T) {
+	t.Parallel()
 	msg := NewType[int]()
 	msg.Pull_tag(map[string]func(int) (disable bool){
 		`1`: func(b int) (disable bool) {
@@ -562,6 +626,7 @@ func Test_msgq6(t *testing.T) {
 }
 
 func Test_msgq7(t *testing.T) {
+	t.Parallel()
 	var c = make(chan string, 100)
 	msg := NewType[int]()
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
@@ -585,8 +650,8 @@ func Test_msgq7(t *testing.T) {
 		return i > 10
 	})
 	msg.Push_tag(`1`, 0)
-	if <-c != "1" {
-		t.Fatal()
+	if i := <-c; i != "1" {
+		t.Fatal(i)
 	}
 	if <-c != "2" {
 		t.Fatal()
@@ -600,6 +665,7 @@ func Test_msgq7(t *testing.T) {
 }
 
 func Test_msgq8(t *testing.T) {
+	t.Parallel()
 	msg := NewType[int]()
 	msg.Pull_tag_async_only(`1`, func(i int) (disable bool) {
 		if i > 4 {

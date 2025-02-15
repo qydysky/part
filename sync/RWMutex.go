@@ -3,10 +3,12 @@ package part
 import (
 	"errors"
 	"fmt"
+	"go/build"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+	"weak"
 )
 
 // const (
@@ -16,12 +18,17 @@ import (
 // )
 
 var (
-	ErrTimeoutToLock  = errors.New("ErrTimeoutToLock")
-	ErrTimeoutToULock = errors.New("ErrTimeoutToULock")
+	ErrTimeoutToLock   = errors.New("ErrTimeoutToLock")
+	ErrTimeoutToULock  = errors.New("ErrTimeoutToULock")
+	ErrTimeoutToRLock  = errors.New("ErrTimeoutToRLock")
+	ErrTimeoutToURLock = errors.New("ErrTimeoutToURLock")
 )
 
 type RWMutex struct {
 	rlc       sync.RWMutex
+	rlccl     sync.Mutex
+	rlcc      []weak.Pointer[string]
+	to        []time.Duration
 	PanicFunc func(any)
 }
 
@@ -75,10 +82,32 @@ func (m *RWMutex) panicFunc(s any) {
 
 // call inTimeCall() in time or panic(callTree)
 func (m *RWMutex) tof(to time.Duration, e error) (inTimeCall func() (called bool)) {
-	callTree := getCall(2)
+	callTree := getCall(1)
 	return time.AfterFunc(to, func() {
-		m.panicFunc(errors.Join(e, errors.New(callTree)))
+		runtime.GC()
+		e = errors.Join(e, errors.New(*callTree))
+		m.rlccl.Lock()
+		for i := 0; i < len(m.rlcc); i++ {
+			if s := m.rlcc[i].Value(); s != nil {
+				e = errors.Join(e, errors.New("\nlocking:"+*s))
+			}
+		}
+		m.rlccl.Unlock()
+		m.panicFunc(e)
 	}).Stop
+}
+
+func (m *RWMutex) RecLock(max int, to ...time.Duration) {
+	defer m.Lock()()
+	m.rlcc = make([]weak.Pointer[string], max)
+	m.to = to
+}
+
+func (m *RWMutex) addcl(s *string) *string {
+	m.rlccl.Lock()
+	m.rlcc[copy(m.rlcc, m.rlcc[1:])] = weak.Make(s)
+	m.rlccl.Unlock()
+	return s
 }
 
 // to[0]: wait lock timeout
@@ -87,16 +116,21 @@ func (m *RWMutex) tof(to time.Duration, e error) (inTimeCall func() (called bool
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
+	to = append(to, m.to...)
 	if len(to) > 0 {
-		defer m.tof(to[0], ErrTimeoutToLock)()
+		defer m.tof(to[0], ErrTimeoutToRLock)()
 	}
 
 	m.rlc.RLock()
+	var ct *string
+	if m.rlcc != nil {
+		ct = m.addcl(getCall(0))
+	}
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
 		inTimeCall := func() (called bool) { return true }
 		if len(to) > 1 {
-			inTimeCall = m.tof(to[1], ErrTimeoutToULock)
+			inTimeCall = m.tof(to[1], ErrTimeoutToURLock)
 		}
 		ul := false
 		for i := 0; i < len(ulockfs); i++ {
@@ -110,6 +144,7 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulock
 			m.rlc.RUnlock()
 			inTimeCall()
 		}
+		_ = ct
 	}
 }
 
@@ -117,11 +152,16 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulock
 //
 // to[1]: wait ulock timeout
 func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
+	to = append(to, m.to...)
 	if len(to) > 0 {
 		defer m.tof(to[0], ErrTimeoutToLock)()
 	}
 
 	m.rlc.Lock()
+	var ct *string
+	if m.rlcc != nil {
+		ct = m.addcl(getCall(0))
+	}
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
 		inTimeCall := func() (called bool) { return true }
@@ -140,16 +180,18 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocke
 			m.rlc.Unlock()
 			inTimeCall()
 		}
+		_ = ct
 	}
 }
 
-func getCall(i int) (calls string) {
+func getCall(i int) (calls *string) {
+	var cs string
 	for i += 1; true; i++ {
-		if pc, file, line, ok := runtime.Caller(i); !ok || strings.HasPrefix(file, runtime.GOROOT()) {
+		if pc, file, line, ok := runtime.Caller(i); !ok || strings.HasPrefix(file, build.Default.GOROOT) {
 			break
 		} else {
-			calls += fmt.Sprintf("\ncall by %s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line)
+			cs += fmt.Sprintf("\ncall by %s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line)
 		}
 	}
-	return
+	return &cs
 }
