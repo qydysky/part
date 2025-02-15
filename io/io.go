@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	pe "github.com/qydysky/part/errors"
 )
 
 // no close rc any time
@@ -291,6 +293,12 @@ type CopyConfig struct {
 	SkipByte                                  int
 }
 
+var (
+	ErrCopySeed  = errors.New(`ErrCopySeed`)
+	ErrCopyRead  = errors.New(`ErrCopyRead`)
+	ErrCopyWrite = errors.New(`ErrCopyWrite`)
+)
+
 // close by yourself
 //
 // watch out uint64(c.MaxLoop*c.BytePerLoop) overflow
@@ -388,7 +396,7 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 	if seeker, ok := r.(io.Seeker); ok && c.SkipByte > 0 {
 		_, e = seeker.Seek(int64(c.SkipByte), io.SeekCurrent)
 		if e != nil {
-			return
+			return pe.Join(ErrCopySeed, e)
 		}
 		c.SkipByte = 0
 	}
@@ -409,14 +417,14 @@ func Copy(r io.Reader, w io.Writer, c CopyConfig) (e error) {
 				n, e = w.Write(buf[:n])
 			}
 			if e != nil {
-				return
+				return pe.Join(ErrCopyWrite, e)
 			}
 			if c.BytePerSec != 0 {
 				readC += uint64(n)
 			}
 		} else if err != nil {
 			if !errors.Is(err, io.EOF) {
-				return err
+				return pe.Join(ErrCopyRead, err)
 			} else {
 				return nil
 			}
