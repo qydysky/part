@@ -107,17 +107,6 @@ type Config struct {
 	Coder encoder.Encoding
 }
 
-func NewInRoot(root string, filePath string, curIndex int64, autoClose bool) *File {
-	return &File{
-		Config: Config{
-			root:      root,
-			FilePath:  filePath,
-			CurIndex:  curIndex,
-			AutoClose: autoClose,
-		},
-	}
-}
-
 func New(filePath string, curIndex int64, autoClose bool) *File {
 	return &File{
 		Config: Config{
@@ -126,6 +115,11 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 			AutoClose: autoClose,
 		},
 	}
+}
+
+func (t *File) InRoot(root string) *File {
+	t.Config.root = root
+	return t
 }
 
 func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error {
