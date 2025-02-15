@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,6 +302,13 @@ func TestCreate(t *testing.T) {
 	}
 	sf.Create()
 	if !sf.IsExist() {
+		t.Fatal()
+	}
+}
+
+func TestIsRoot(t *testing.T) {
+	sf := NewInRoot("./testdata", "../t.txt", 0, true)
+	if !strings.HasSuffix(sf.Delete().Error(), "path escapes from parent") {
 		t.Fatal()
 	}
 }

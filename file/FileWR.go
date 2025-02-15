@@ -13,11 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	pe "github.com/qydysky/part/errors"
 	pio "github.com/qydysky/part/io"
 	encoder "golang.org/x/text/encoding"
 )
 
 var (
+	ErrCopy             = errors.New("ErrCopy")
+	ErrGetRW            = errors.New("ErrGetRW")
 	ErrFilePathTooLong  = errors.New("ErrFilePathTooLong")
 	ErrNewFileCantSeed  = errors.New("ErrNewFileCantSeed")
 	ErrFailToLock       = errors.New("ErrFailToLock")
@@ -25,6 +28,64 @@ var (
 	ErrNoDir            = errors.New("ErrNoDir")
 	ErrArg              = errors.New("ErrArg")
 )
+
+type fosi interface {
+	// Close() error
+	Create(name string) (*os.File, error)
+	Lstat(name string) (fs.FileInfo, error)
+	Mkdir(name string, perm fs.FileMode) error
+	// Name() string
+	Open(name string) (*os.File, error)
+	OpenFile(name string, flag int, perm fs.FileMode) (*os.File, error)
+	Remove(name string) error
+	RemoveAll(path string) error
+	Stat(name string) (fs.FileInfo, error)
+}
+
+type dos struct {
+	// close    func() error
+	create func(name string) (*os.File, error)
+	lstat  func(name string) (fs.FileInfo, error)
+	mkdir  func(name string, perm fs.FileMode) error
+	// name     func() string
+	open      func(name string) (*os.File, error)
+	openFile  func(name string, flag int, perm fs.FileMode) (*os.File, error)
+	remove    func(name string) error
+	removeAll func(path string) error
+	stat      func(name string) (fs.FileInfo, error)
+}
+
+func (t dos) Create(name string) (*os.File, error) {
+	return t.create(name)
+}
+
+func (t dos) Lstat(name string) (fs.FileInfo, error) {
+	return t.lstat(name)
+}
+
+func (t dos) Mkdir(name string, perm fs.FileMode) error {
+	return t.mkdir(name, perm)
+}
+
+func (t dos) Open(name string) (*os.File, error) {
+	return t.open(name)
+}
+
+func (t dos) OpenFile(name string, flag int, perm fs.FileMode) (*os.File, error) {
+	return t.openFile(name, flag, perm)
+}
+
+func (t dos) Remove(name string) error {
+	return t.remove(name)
+}
+
+func (t dos) RemoveAll(path string) error {
+	return t.removeAll(path)
+}
+
+func (t dos) Stat(name string) (fs.FileInfo, error) {
+	return t.stat(name)
+}
 
 type File struct {
 	Config Config
@@ -36,6 +97,7 @@ type File struct {
 }
 
 type Config struct {
+	root      string
 	FilePath  string //文件路径
 	CurIndex  int64  //初始化光标位置
 	AutoClose bool   //自动关闭句柄
@@ -43,6 +105,17 @@ type Config struct {
 	// wrap with encoder
 	//https://pkg.go.dev/golang.org/x/text/encoding#section-directories
 	Coder encoder.Encoding
+}
+
+func NewInRoot(root string, filePath string, curIndex int64, autoClose bool) *File {
+	return &File{
+		Config: Config{
+			root:      root,
+			FilePath:  filePath,
+			CurIndex:  curIndex,
+			AutoClose: autoClose,
+		},
+	}
 }
 
 func New(filePath string, curIndex int64, autoClose bool) *File {
@@ -56,7 +129,9 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 }
 
 func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return pe.Join(ErrGetRW, e)
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -66,7 +141,9 @@ func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error
 	}
 	defer t.l.RUnlock()
 
-	to.getRWCloser()
+	if e := to.getRWCloser(); e != nil {
+		return pe.Join(ErrGetRW, e)
+	}
 	if t.Config.AutoClose {
 		defer to.Close()
 	}
@@ -80,11 +157,16 @@ func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error
 	}
 	defer to.l.Unlock()
 
-	return pio.Copy(t.read(), to.write(), copyIOConfig)
+	if e := pio.Copy(t.read(), to.write(), copyIOConfig); e != nil {
+		return pe.Join(ErrCopy, e)
+	}
+	return nil
 }
 
 func (t *File) CopyToIoWriter(to io.Writer, copyIOConfig pio.CopyConfig) error {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -98,7 +180,9 @@ func (t *File) CopyToIoWriter(to io.Writer, copyIOConfig pio.CopyConfig) error {
 }
 
 func (t *File) CopyFromIoReader(from io.Reader, copyIOConfig pio.CopyConfig) error {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -115,7 +199,9 @@ func (t *File) CopyFromIoReader(from io.Reader, copyIOConfig pio.CopyConfig) err
 //
 // data not include untilBytes
 func (t *File) CopyToUntil(to *File, untilBytes []byte, perReadSize int, maxReadSize int, tryLock bool) (e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -125,7 +211,9 @@ func (t *File) CopyToUntil(to *File, untilBytes []byte, perReadSize int, maxRead
 	}
 	defer t.l.RUnlock()
 
-	to.getRWCloser()
+	if e := to.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer to.Close()
 	}
@@ -215,7 +303,9 @@ func (t *File) CopyToUntil(to *File, untilBytes []byte, perReadSize int, maxRead
 }
 
 func (t *File) Write(data []byte, tryLock bool) (int, error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return 0, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -233,7 +323,9 @@ func (t *File) Write(data []byte, tryLock bool) (int, error) {
 }
 
 func (t *File) Read(data []byte) (int, error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return 0, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -247,7 +339,9 @@ func (t *File) Read(data []byte) (int, error) {
 }
 
 func (t *File) Seek(offset int64, whence int) (int64, error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return 0, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -264,7 +358,9 @@ func (t *File) Seek(offset int64, whence int) (int64, error) {
 //
 // data not include untilBytes
 func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (data []byte, e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return nil, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -342,7 +438,9 @@ func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (d
 }
 
 func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return nil, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -386,7 +484,9 @@ const (
 
 // Seek sets the offset for the next Read or Write on file to offset
 func (t *File) SeekIndex(index int64, whence FileWhence) (e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -403,7 +503,9 @@ func (t *File) SeekIndex(index int64, whence FileWhence) (e error) {
 
 // stop before untilBytes
 func (t *File) SeekUntil(untilBytes []byte, whence FileWhence, perReadSize int, maxReadSize int) (e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -472,7 +574,9 @@ func (t *File) SeekUntil(untilBytes []byte, whence FileWhence, perReadSize int, 
 }
 
 func (t *File) Sync() (e error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -486,7 +590,9 @@ func (t *File) Sync() (e error) {
 }
 
 func (t *File) CurIndex() (ret int64, err error) {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		return 0, e
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -495,7 +601,9 @@ func (t *File) CurIndex() (ret int64, err error) {
 }
 
 func (t *File) Create(mode ...fs.FileMode) {
-	t.getRWCloser(mode...)
+	if e := t.getRWCloser(mode...); e != nil {
+		panic(e)
+	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
@@ -507,11 +615,16 @@ func (t *File) Delete() error {
 	}
 	defer t.l.Unlock()
 
-	if t.IsDir() {
-		return os.RemoveAll(t.Config.FilePath)
+	fos, e := t.getOs()
+	if e != nil {
+		return e
 	}
 
-	return os.Remove(t.Config.FilePath)
+	if t.IsDir() {
+		return fos.RemoveAll(t.Config.FilePath)
+	}
+
+	return fos.Remove(t.Config.FilePath)
 }
 
 func (t *File) Close() error {
@@ -560,7 +673,9 @@ func (t *File) DirFiles() (files []string, err error) {
 }
 
 func (t *File) File() *os.File {
-	t.getRWCloser()
+	if e := t.getRWCloser(); e != nil {
+		panic(e)
+	}
 	return t.file
 }
 
@@ -569,7 +684,12 @@ func (t *File) Stat() (fs.FileInfo, error) {
 		return nil, ErrFilePathTooLong
 	}
 
-	info, err := os.Stat(t.Config.FilePath)
+	fos, e := t.getOs()
+	if e != nil {
+		return nil, e
+	}
+
+	info, err := fos.Stat(t.Config.FilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, os.ErrNotExist
@@ -619,28 +739,64 @@ func (t *File) IsOpen() bool {
 	if !t.IsExist() {
 		return false
 	}
-	fi, e := os.OpenFile(t.Config.FilePath, syscall.O_RDONLY|syscall.O_EXCL, 0)
-	defer fi.Close()
-	return e != nil
+	fos, e := t.getOs()
+	if e != nil {
+		panic(e)
+	}
+	fi, e := fos.OpenFile(t.Config.FilePath, syscall.O_RDONLY|syscall.O_EXCL, 0)
+	return e != nil && fi.Close() == nil
 }
 
-func (t *File) getRWCloser(mode ...fs.FileMode) {
+func (t *File) getOs() (fosi, error) {
+	if t.Config.root != "" {
+		if root, e := os.OpenRoot(t.Config.root); e != nil {
+			return nil, e
+		} else {
+			return dos{
+				create:    root.Create,
+				lstat:     root.Lstat,
+				mkdir:     root.Mkdir,
+				open:      root.Open,
+				openFile:  root.OpenFile,
+				remove:    root.Remove,
+				removeAll: os.RemoveAll,
+				stat:      root.Stat,
+			}, nil
+		}
+	}
+	return dos{
+		create:    os.Create,
+		lstat:     os.Lstat,
+		mkdir:     os.Mkdir,
+		open:      os.Open,
+		openFile:  os.OpenFile,
+		remove:    os.Remove,
+		removeAll: os.RemoveAll,
+		stat:      os.Stat,
+	}, nil
+}
+
+func (t *File) getRWCloser(mode ...fs.FileMode) error {
 	fmode := fs.ModePerm
 	if len(mode) != 0 {
 		fmode = mode[0]
 	}
 	if t.Config.AutoClose || t.file == nil {
+		fos, e := t.getOs()
+		if e != nil {
+			return e
+		}
 		if !t.IsExist() {
-			newPath(t.Config.FilePath, fs.ModeDir|fmode)
+			t.newPath(t.Config.FilePath, fs.ModeDir|fmode)
 			if t.IsDir() {
-				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
-					panic(e)
+				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
+					return e
 				} else {
 					t.file = f
 				}
 			} else {
-				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
-					panic(e)
+				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fmode); e != nil {
+					return e
 				} else {
 					// if t.Config.CurIndex > 0 {
 					// 	_, e = f.Seek(t.Config.CurIndex, int(AtOrigin))
@@ -653,14 +809,14 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 			}
 		} else {
 			if t.IsDir() {
-				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
-					panic(e)
+				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
+					return e
 				} else {
 					t.file = f
 				}
 			} else {
-				if f, e := os.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, fmode); e != nil {
-					panic(e)
+				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDWR|os.O_EXCL, fmode); e != nil {
+					return e
 				} else {
 					if t.Config.CurIndex != 0 {
 						cu := t.Config.CurIndex
@@ -671,7 +827,7 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 						}
 						_, e = f.Seek(cu, int(whenc))
 						if e != nil {
-							panic(e)
+							return e
 						}
 					}
 					t.file = f
@@ -679,9 +835,10 @@ func (t *File) getRWCloser(mode ...fs.FileMode) {
 			}
 		}
 	}
+	return nil
 }
 
-func newPath(path string, mode fs.FileMode) {
+func (t *File) newPath(path string, mode fs.FileMode) {
 	rawPath := ""
 	if !filepath.IsAbs(path) {
 		rawPath, _ = os.Getwd()
@@ -695,8 +852,13 @@ func newPath(path string, mode fs.FileMode) {
 			break
 		}
 		rawPath += string(os.PathSeparator) + p
-		if _, err := os.Stat(rawPath); os.IsNotExist(err) {
-			_ = os.Mkdir(rawPath, mode)
+
+		fos, e := t.getOs()
+		if e != nil {
+			panic(e)
+		}
+		if _, err := fos.Stat(rawPath); os.IsNotExist(err) {
+			_ = fos.Mkdir(rawPath, mode)
 		}
 	}
 }
