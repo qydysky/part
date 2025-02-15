@@ -19,6 +19,7 @@ import (
 )
 
 var (
+	ErrPathEscapes      = errors.New("ErrPathEscapes")
 	ErrCopy             = errors.New("ErrCopy")
 	ErrGetRW            = errors.New("ErrGetRW")
 	ErrFilePathTooLong  = errors.New("ErrFilePathTooLong")
@@ -634,8 +635,12 @@ func (t *File) Close() error {
 
 func (t *File) IsExist() bool {
 	_, err := t.Stat()
-	if errors.Is(err, ErrFilePathTooLong) {
-		panic(err)
+	if err != nil {
+		if errors.Is(err, ErrFilePathTooLong) {
+			panic(err)
+		} else if strings.HasSuffix(err.Error(), "path escapes from parent") {
+			panic(ErrPathEscapes)
+		}
 	}
 	return err == nil
 }
