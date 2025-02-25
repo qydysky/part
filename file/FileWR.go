@@ -28,6 +28,7 @@ var (
 	ErrMaxReadSizeReach = errors.New("ErrMaxReadSizeReach")
 	ErrNoDir            = errors.New("ErrNoDir")
 	ErrArg              = errors.New("ErrArg")
+	ErrGetOs            = errors.New("ErrGetOs")
 )
 
 type fosi interface {
@@ -754,7 +755,7 @@ func (t *File) IsOpen() bool {
 func (t *File) getOs() (fosi, error) {
 	if t.Config.root != "" {
 		if root, e := os.OpenRoot(t.Config.root); e != nil {
-			return nil, e
+			return nil, pe.Join(ErrGetOs, e)
 		} else {
 			return dos{
 				create:    root.Create,
@@ -862,7 +863,10 @@ func (t *File) newPath(path string, mode fs.FileMode) {
 			panic(e)
 		}
 		if _, err := fos.Stat(rawPath); os.IsNotExist(err) {
-			_ = fos.Mkdir(rawPath, mode)
+			e = fos.Mkdir(rawPath, mode)
+			if e != nil {
+				panic(e)
+			}
 		}
 	}
 }
