@@ -855,7 +855,11 @@ func (t *File) newPath(path string, mode fs.FileMode) {
 		if n == len(rawPs)-1 {
 			break
 		}
-		rawPath += string(os.PathSeparator) + p
+
+		if rawPath != "" {
+			rawPath += string(os.PathSeparator)
+		}
+		rawPath += p
 
 		fos, e := t.getOs()
 		if e != nil {
