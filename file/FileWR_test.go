@@ -29,6 +29,10 @@ func TestDirFs(t *testing.T) {
 	}
 }
 
+func TestPathSeparator(t *testing.T) {
+	New("./testdata/l/0.txt", 0, false).Create()
+}
+
 func TestNewPath2(t *testing.T) {
 	os.RemoveAll("./test")
 	time.Sleep(time.Second)

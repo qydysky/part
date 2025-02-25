@@ -847,7 +847,7 @@ func (t *File) newPath(path string, mode fs.FileMode) {
 	if !filepath.IsAbs(path) {
 		rawPath, _ = os.Getwd()
 	}
-	rawPs := strings.Split(path, string(os.PathSeparator))
+	rawPs := strings.Split(strings.ReplaceAll(path, `\`, `/`), `/`)
 	for n, p := range rawPs {
 		if p == "" || p == "." {
 			continue
