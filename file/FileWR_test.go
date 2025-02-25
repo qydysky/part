@@ -15,6 +15,10 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+func TestPathSeparator(t *testing.T) {
+	New("./testdata/l/0.txt", 0, false).Create()
+}
+
 func TestDirFs(t *testing.T) {
 	f := New("./testdata", 0, true)
 	if fs, err := f.DirFiles(); err != nil {
