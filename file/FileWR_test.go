@@ -33,6 +33,7 @@ func TestPathSeparator(t *testing.T) {
 	f := New("./testdata/l/tmp.create", 0, true)
 	f.Create()
 	_ = f.Delete()
+	New("./testdata/l/0.csv", 0, false).Create()
 }
 
 func TestNewPath2(t *testing.T) {
