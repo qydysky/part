@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -15,6 +16,19 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+func TestMain(t *testing.T) {
+	if runtime.GOOS == `windows` {
+		if filepath.Join(`c:\`, "s/as") != `c:\s\as` {
+			t.Fatal()
+		}
+	}
+	if runtime.GOOS == `linux` {
+		if filepath.Join(`/`, "s/as") != `/s/as` {
+			t.Fatal()
+		}
+	}
+}
+
 func TestDirFs(t *testing.T) {
 	f := New("./testdata", 0, true)
 	if fs, err := f.DirFiles(); err != nil {
@@ -23,22 +37,19 @@ func TestDirFs(t *testing.T) {
 		if len(fs) != 1 {
 			t.Fatal()
 		}
-		if fs[0] != "testdata/1.txt" {
-			t.Fatal()
+		if fs[0] != "testdata"+string(os.PathSeparator)+"1.txt" {
+			t.Fatal(fs[0])
 		}
 	}
-}
-
-func TestPathSeparator(t *testing.T) {
-	New("./testdata/l/0.txt", 0, false).Create()
 }
 
 func TestNewPath2(t *testing.T) {
 	os.RemoveAll("./test")
 	time.Sleep(time.Second)
-	go New("./test/test.log", 0, true).Create()
-	go New("./test/test2.log", 0, true).Create()
+	New("./test/test.log", 0, true).Create()
+	New("./test/test2.log", 0, true).Create()
 	time.Sleep(time.Second)
+	os.RemoveAll("./test")
 }
 
 func TestNewPath(t *testing.T) {

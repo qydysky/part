@@ -791,7 +791,7 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 			return e
 		}
 		if !t.IsExist() {
-			t.newPath(t.Config.FilePath, fs.ModeDir|fmode)
+			newPath(fos, t.Config.FilePath, fs.ModeDir|fmode)
 			if t.IsDir() {
 				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
 					return e
@@ -842,33 +842,12 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 	return nil
 }
 
-func (t *File) newPath(path string, mode fs.FileMode) {
-	rawPath := ""
+func newPath(fos fosi, path string, mode fs.FileMode) {
 	if !filepath.IsAbs(path) {
-		rawPath, _ = os.Getwd()
+		wd, _ := os.Getwd()
+		path = filepath.Join(wd, path)
 	}
-	rawPs := strings.Split(strings.ReplaceAll(path, `\`, `/`), `/`)
-	for n, p := range rawPs {
-		if p == "" || p == "." {
-			continue
-		}
-		if n == len(rawPs)-1 {
-			break
-		}
-
-		if rawPath != "" {
-			rawPath += string(os.PathSeparator)
-		}
-		rawPath += p
-
-		fos, e := t.getOs()
-		if e != nil {
-			panic(e)
-		}
-		if _, err := fos.Stat(rawPath); os.IsNotExist(err) {
-			_ = fos.Mkdir(rawPath, mode)
-		}
-	}
+	_ = fos.Mkdir(filepath.Dir(filepath.Clean(path)), mode)
 }
 
 func (t *File) write() io.Writer {
