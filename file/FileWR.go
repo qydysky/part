@@ -849,6 +849,10 @@ func (t *File) newPath(path string, mode fs.FileMode) {
 		rawPath, _ = os.Getwd()
 	}
 	rawPs := strings.Split(strings.ReplaceAll(path, `\`, `/`), `/`)
+	fos, e := t.getOs()
+	if e != nil {
+		panic(e)
+	}
 	for n, p := range rawPs {
 		if p == "" || p == "." {
 			continue
@@ -857,17 +861,7 @@ func (t *File) newPath(path string, mode fs.FileMode) {
 			break
 		}
 		rawPath += string(os.PathSeparator) + p
-
-		fos, e := t.getOs()
-		if e != nil {
-			panic(e)
-		}
-		if _, err := fos.Stat(rawPath); os.IsNotExist(err) {
-			e = fos.Mkdir(rawPath, mode)
-			if e != nil {
-				panic(e)
-			}
-		}
+		_ = fos.Mkdir(rawPath, mode)
 	}
 }
 
