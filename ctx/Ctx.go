@@ -54,9 +54,7 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 
 		doneWait()
 		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
-			defer func() {
-				ctxp.r32.Add(-1)
-			}()
+			defer ctxp.r32.Add(-1)
 		}
 		if planNum == 0 && ctx.w32.Load() == 0 {
 			return ErrNothingWait
@@ -66,6 +64,7 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
+			time.Sleep(time.Millisecond * 100)
 			runtime.Gosched()
 		}
 		for !ctx.r32.CompareAndSwap(0, -1) {

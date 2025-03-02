@@ -7,6 +7,66 @@ import (
 	"time"
 )
 
+func TestMain12(t *testing.T) {
+	ctx1, done1 := WithWait(context.Background(), 0, time.Second*2)
+	ctx2, done2 := WithWait(ctx1, 0, time.Second*2)
+	go func() {
+		ctx3, done3 := WaitCtx(ctx2)
+		defer done3()
+		<-ctx3.Done()
+	}()
+	time.Sleep(time.Second)
+	if e := done2(); e != nil {
+		t.Fatal(e)
+	}
+	if e := done1(); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestMain11(t *testing.T) {
+	ctx1, done1 := WithWait(context.Background(), 0, time.Second*2)
+	ctx2, _ := WithWait(ctx1, 0, time.Second*2)
+	go func() {
+		ctx3, done3 := WaitCtx(ctx2)
+		defer done3()
+		<-ctx3.Done()
+	}()
+	time.Sleep(time.Second)
+	if e := done1(); e == nil {
+		t.Fatal(e)
+	}
+}
+
+func TestMain10(t *testing.T) {
+	ctx1, done := WithWait(context.Background(), 0, time.Second*2)
+	go func() {
+		ctx2, done2 := WaitCtx(ctx1)
+		_, done3 := WaitCtx(ctx2)
+		defer done2()
+		defer done3()
+		<-ctx2.Done()
+	}()
+	time.Sleep(time.Second)
+	if e := done(); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestMain9(t *testing.T) {
+	ctx1, done := WithWait(context.Background(), 0, time.Second*2)
+	go func() {
+		ctx2, done2 := WaitCtx(ctx1)
+		_, _ = WaitCtx(ctx2)
+		defer done2()
+		<-ctx2.Done()
+	}()
+	time.Sleep(time.Second)
+	if e := done(); e == nil {
+		t.Fatal(e)
+	}
+}
+
 func TestMain(t *testing.T) {
 	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
 	t0 := time.Now()
