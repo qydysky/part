@@ -1,8 +1,8 @@
 package part
 
 import (
-	"runtime"
 	"sync/atomic"
+	"time"
 )
 
 type Signal struct {
@@ -39,7 +39,7 @@ func (i *Signal) Done() {
 	if i.Islive() {
 		close(i.c)
 		for !i.waitCount.CompareAndSwap(0, -1) {
-			runtime.Gosched()
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 }

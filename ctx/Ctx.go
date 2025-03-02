@@ -3,11 +3,12 @@ package ctx
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+const sleepDru = 100
 
 var (
 	ptr            = &struct{}{}
@@ -64,15 +65,15 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
-			time.Sleep(time.Millisecond * 100)
-			runtime.Gosched()
+			time.Sleep(time.Millisecond * sleepDru)
+			// runtime.Gosched()
 		}
 		for !ctx.r32.CompareAndSwap(0, -1) {
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
-			time.Sleep(time.Millisecond * 100)
-			runtime.Gosched()
+			time.Sleep(time.Millisecond * sleepDru)
+			// runtime.Gosched()
 		}
 		if len(to) > 0 && time.Since(be) > to[0] {
 			return ErrWaitTo
