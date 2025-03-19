@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,28 +53,19 @@ func (t *Web) Shutdown(ctx ...context.Context) {
 
 type WebSync struct {
 	Server *http.Server
-	FD     uintptr
 	mux    *http.ServeMux
 	wrs    *WebPath
 }
 
 func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync) {
-	if o, e := NewSyncMapNoPanic(conf, 0, m, matchFunc...); e != nil {
+	if o, e := NewSyncMapNoPanic(conf, m, matchFunc...); e != nil {
 		panic(e)
 	} else {
 		return o
 	}
 }
 
-func NewSyncMapFD(conf *http.Server, fd uintptr, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync) {
-	if o, e := NewSyncMapNoPanic(conf, fd, m, matchFunc...); e != nil {
-		panic(e)
-	} else {
-		return o
-	}
-}
-
-func NewSyncMapNoPanic(conf *http.Server, fd uintptr, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync, err error) {
+func NewSyncMapNoPanic(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync, err error) {
 
 	o = new(WebSync)
 
@@ -88,34 +78,15 @@ func NewSyncMapNoPanic(conf *http.Server, fd uintptr, m *WebPath, matchFunc ...f
 	matchFunc = append(matchFunc, o.wrs.Load)
 
 	var ln net.Listener
-	if fd != 0 {
-		if tmp, err := net.FileListener(os.NewFile(fd, "")); err != nil {
-			return nil, err
-		} else {
-			ln = tmp
-		}
+	if tmp, err := net.Listen("tcp", conf.Addr); err != nil {
+		return nil, err
 	} else {
-		if tmp, err := net.Listen("tcp", conf.Addr); err != nil {
-			return nil, err
-		} else {
-			ln = tmp
-		}
+		ln = tmp
 	}
 	if conf.TLSConfig != nil {
 		ln = tls.NewListener(ln, conf.TLSConfig)
 	}
-	switch t := ln.(type) {
-	case *net.TCPListener:
-		c, _ := t.SyscallConn()
-		c.Control(func(fd uintptr) {
-			o.FD = fd
-		})
-	case *net.UnixListener:
-		c, _ := t.SyscallConn()
-		c.Control(func(fd uintptr) {
-			o.FD = fd
-		})
-	}
+
 	go o.Server.Serve(ln)
 
 	if o.Server.Handler == nil {
