@@ -17,13 +17,66 @@ import (
 	reqf "github.com/qydysky/part/reqf"
 )
 
+func TestMain1(t *testing.T) {
+	var fd uintptr
+	r := reqf.New()
+	var stop func(ctx ...context.Context)
+	var stop2 func(ctx ...context.Context)
+	{
+		ser := &http.Server{Addr: "127.0.0.1:18081"}
+		wp := &WebPath{}
+		wp.Store("/test/", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("1"))
+		})
+		o, e := NewSyncMapNoPanic(ser, 0, wp, wp.Load)
+		if e != nil {
+			t.Fatal(e)
+		}
+		fd = o.FD
+		stop = o.Shutdown
+	}
+	time.Sleep(time.Second)
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:18081/test/",
+		})
+		if !bytes.Equal(r.Respon, []byte("1")) {
+			t.Fatal(r.Respon)
+		}
+	}
+	{
+		ser := &http.Server{Addr: "127.0.0.1:18082"}
+		wp := &WebPath{}
+		wp.Store("/test/", func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("2"))
+		})
+		o, e := NewSyncMapNoPanic(ser, fd, wp, wp.Load)
+		if e != nil {
+			t.Fatal(e)
+		}
+		fd = o.FD
+		stop2 = o.Shutdown
+	}
+	stop()
+	time.Sleep(time.Second)
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:18081/test/",
+		})
+		if !bytes.Equal(r.Respon, []byte("2")) {
+			t.Fatal(r.Respon)
+		}
+	}
+	stop2()
+}
+
 func TestMain(t *testing.T) {
 	ser := &http.Server{
 		Addr: "127.0.0.1:18081",
 	}
 	wp := &WebPath{}
-	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
-	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
+	t.Log(NewSyncMapNoPanic(ser, 0, wp, wp.Load))
+	t.Log(NewSyncMapNoPanic(ser, 0, wp, wp.Load))
 }
 
 func Test_Exprier(t *testing.T) {
