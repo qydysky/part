@@ -14,6 +14,12 @@ var a11 = a1.Append("1")
 func TestXxx(t *testing.T) {
 	var err error
 
+	err = a0
+
+	if !Catch(err, a0) {
+		t.Fatal()
+	}
+
 	err = New("r0", a0)
 
 	if !Catch(err, a0) {

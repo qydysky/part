@@ -25,6 +25,13 @@ func (t Action) Error() string {
 	return string(t)
 }
 
+func (t Action) Unwrap() error {
+	return Error{
+		action: t,
+		Reason: string(t),
+	}
+}
+
 type Error struct {
 	Reason string
 	action Action
