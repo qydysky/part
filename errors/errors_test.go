@@ -16,7 +16,18 @@ func TestXxx(t *testing.T) {
 
 	err = a0
 
+	if !Catch(err, a0) || !a0.Catch(err) {
+		t.Fatal()
+	}
+
+	err = Join(err, a1)
+	err = Join(a11, err)
+
 	if !Catch(err, a0) {
+		t.Fatal()
+	}
+
+	if !a0.Catch(err) || !a1.Catch(err) || !a11.Catch(err) {
 		t.Fatal()
 	}
 

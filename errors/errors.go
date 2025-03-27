@@ -25,11 +25,17 @@ func (t Action) Error() string {
 	return string(t)
 }
 
-func (t Action) Unwrap() error {
-	return Error{
-		action: t,
-		Reason: string(t),
+func (t Action) Unwrap() []error {
+	return []error{
+		Error{
+			action: t,
+			Reason: string(t),
+		},
 	}
+}
+
+func (t Action) Catch(e error) bool {
+	return Catch(e, t)
 }
 
 type Error struct {
