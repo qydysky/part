@@ -22,8 +22,12 @@ func TestMain(t *testing.T) {
 		Addr: "127.0.0.1:18081",
 	}
 	wp := &WebPath{}
-	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
-	t.Log(NewSyncMapNoPanic(ser, wp, wp.Load))
+	if _, e := NewSyncMapNoPanic(ser, wp, wp.Load); e != nil {
+		t.Fatal()
+	}
+	if _, e := NewSyncMapNoPanic(ser, wp, wp.Load); e == nil {
+		t.Fatal()
+	}
 }
 
 func Test_Exprier(t *testing.T) {
@@ -105,6 +109,9 @@ func Test_Server(t *testing.T) {
 		`/no`: func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("abc强强强强"))
 		},
+		`//no1`: func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("abc强强强强1"))
+		},
 	})
 
 	time.Sleep(time.Second)
@@ -116,6 +123,14 @@ func Test_Server(t *testing.T) {
 		})
 		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
 			t.Fatal(r.Respon)
+		}
+	}
+	{
+		r.Reqf(reqf.Rval{
+			Url: "http://127.0.0.1:13000//no1",
+		})
+		if !bytes.Equal(r.Respon, []byte("abc强强强强1")) {
+			t.Fatal(string(r.Respon))
 		}
 	}
 }
