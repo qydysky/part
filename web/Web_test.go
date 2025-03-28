@@ -135,6 +135,118 @@ func Test_Server(t *testing.T) {
 	}
 }
 
+func Test_double(t *testing.T) {
+	ch := make(chan int, 10)
+	webpath := &WebPath{}
+	webpath.Store(`/`, func(w http.ResponseWriter, _ *http.Request) {
+		ch <- 0
+	})
+	webpath.Store(`//`, func(w http.ResponseWriter, _ *http.Request) {
+		ch <- 1
+	})
+	webpath.Store(`//1`, func(w http.ResponseWriter, _ *http.Request) {
+		ch <- 2
+	})
+	webpath.Store(`//1/`, func(w http.ResponseWriter, _ *http.Request) {
+		ch <- 3
+	})
+	data, _ := json.Marshal(webpath)
+	fmt.Println(string(data))
+	if f, ok := webpath.LoadPerfix(`//`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadPerfix(`//2`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadPerfix(`//1`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadPerfix(`//1/`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if <-ch != 1 {
+		t.Fatal()
+	}
+	if <-ch != 1 {
+		t.Fatal()
+	}
+	if i := <-ch; i != 2 {
+		t.Fatal(i)
+	}
+	if <-ch != 3 {
+		t.Fatal()
+	}
+
+	if f, ok := webpath.Load(`//`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if _, ok := webpath.Load(`//2`); ok {
+		t.Fatal()
+	}
+	if f, ok := webpath.Load(`//1`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.Load(`//1/`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if <-ch != 1 {
+		t.Fatal()
+	}
+	if i := <-ch; i != 2 {
+		t.Fatal(i)
+	}
+	if <-ch != 3 {
+		t.Fatal()
+	}
+
+	if f, ok := webpath.LoadOnePerfix(`//`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadOnePerfix(`//1`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadOnePerfix(`//2`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if f, ok := webpath.LoadOnePerfix(`//1/`); !ok {
+		t.Fatal()
+	} else {
+		f(nil, nil)
+	}
+	if <-ch != 1 {
+		t.Fatal()
+	}
+	if i := <-ch; i != 2 {
+		t.Fatal(i)
+	}
+	if <-ch != 1 {
+		t.Fatal()
+	}
+	if <-ch != 3 {
+		t.Fatal()
+	}
+}
+
 func failIfNot[T comparable](t *testing.T, a, b T) {
 	t.Logf("a:'%v' b:'%v'", a, b)
 	if a != b {

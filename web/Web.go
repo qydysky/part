@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -129,6 +130,7 @@ func NewHandler(dealF func(path string) (func(w http.ResponseWriter, r *http.Req
 }
 
 func (t *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL.Path)
 	if f, ok := t.DealF(r.URL.Path); ok {
 		f(w, r)
 	} else {
@@ -249,10 +251,18 @@ func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http
 
 	if key, left, fin := parsePath(path); t.Path == "/" {
 		f = t.f
-		if t.Path != key {
+		if t.Path != key { // next
 			if t.Next != nil {
 				if f1, ok := t.Next.LoadPerfix(path); ok {
 					f = f1
+				}
+			}
+		} else { // same
+			if !fin {
+				if t.Same != nil {
+					if f1, ok := t.Same.LoadPerfix(left); ok {
+						f = f1
+					}
 				}
 			}
 		}
