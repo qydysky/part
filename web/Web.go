@@ -21,7 +21,7 @@ import (
 
 type Web struct {
 	Server *http.Server
-	mux    *http.ServeMux
+	// mux    *http.ServeMux
 }
 
 func New(conf *http.Server) (o *Web) {
@@ -30,31 +30,34 @@ func New(conf *http.Server) (o *Web) {
 
 	o.Server = conf
 
-	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
-	}
+	// if o.Server.Handler == nil {
+	// o.mux = http.NewServeMux()
+	// o.Server.Handler = o.mux
+	// }
 
-	go o.Server.ListenAndServe()
+	go func() {
+		_ = o.Server.ListenAndServe()
+	}()
 
 	return
 }
 
 func (t *Web) Handle(path_func map[string]func(http.ResponseWriter, *http.Request)) {
-	for k, v := range path_func {
-		t.mux.HandleFunc(k, v)
-	}
+	t.Server.Handler = NewHandler(func(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
+		f, ok := path_func[path]
+		return f, ok
+	})
 }
 
 func (t *Web) Shutdown(ctx ...context.Context) {
 	ctx = append(ctx, context.Background())
-	t.Server.Shutdown(ctx[0])
+	_ = t.Server.Shutdown(ctx[0])
 }
 
 type WebSync struct {
 	Server *http.Server
-	mux    *http.ServeMux
-	wrs    *WebPath
+	// mux    *http.ServeMux
+	wrs *WebPath
 }
 
 func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync) {
@@ -87,28 +90,50 @@ func NewSyncMapNoPanic(conf *http.Server, m *WebPath, matchFunc ...func(path str
 		ln = tls.NewListener(ln, conf.TLSConfig)
 	}
 
-	go o.Server.Serve(ln)
+	go func() {
+		_ = o.Server.Serve(ln)
+	}()
 
 	if o.Server.Handler == nil {
-		o.mux = http.NewServeMux()
-		o.Server.Handler = o.mux
+		// o.mux = http.NewServeMux()
+		// o.Server.Handler = o.mux
+
+		o.Server.Handler = NewHandler(matchFunc[0])
 	}
 
-	o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		f, ok := matchFunc[0](r.URL.Path)
-		if ok {
-			f(w, r)
-		} else {
-			WithStatusCode(w, http.StatusNotFound)
-		}
-	})
+	// o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// 	f, ok := matchFunc[0](r.URL.Path)
+	// 	if ok {
+	// 		f(w, r)
+	// 	} else {
+	// 		WithStatusCode(w, http.StatusNotFound)
+	// 	}
+	// })
 
 	return
 }
 
 func (t *WebSync) Shutdown(ctx ...context.Context) {
 	ctx = append(ctx, context.Background())
-	t.Server.Shutdown(ctx[0])
+	_ = t.Server.Shutdown(ctx[0])
+}
+
+type Handler struct {
+	DealF func(path string) (func(w http.ResponseWriter, r *http.Request), bool)
+}
+
+func NewHandler(dealF func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) *Handler {
+	return &Handler{
+		DealF: dealF,
+	}
+}
+
+func (t *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if f, ok := t.DealF(r.URL.Path); ok {
+		f(w, r)
+	} else {
+		WithStatusCode(w, http.StatusNotFound)
+	}
 }
 
 type WebPath struct {
@@ -764,7 +789,7 @@ func Easy_boot() *Web {
 			http.ServeFile(w, r, path)
 		},
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
-			s.Server.Shutdown(context.Background())
+			_ = s.Server.Shutdown(context.Background())
 		},
 	})
 	return s

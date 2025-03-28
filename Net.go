@@ -3,6 +3,7 @@ package part
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -88,56 +89,51 @@ type ForwardMsg struct {
 }
 
 // 桥
-func connBridge(a, b net.Conn) {
-	fin := make(chan bool, 1)
+func connBridge(a, b net.Conn, bufSize int) {
+	fmt.Println(b.LocalAddr())
 	var wg sync.WaitGroup
 
 	wg.Add(2)
 	go func() {
 		defer func() {
-			fin <- true
+			fmt.Println("close r", b.LocalAddr())
 			wg.Done()
 		}()
 
-		buf := make([]byte, 20480)
+		buf := make([]byte, bufSize)
 
 		for {
-			select {
-			case <-fin:
+			if n, err := a.Read(buf); err != nil {
+				a.Close()
 				return
-			default:
-				if n, err := a.Read(buf); err != nil {
-					return
-				} else if _, err = b.Write(buf[:n]); err != nil {
-					return
-				}
+			} else if _, err = b.Write(buf[:n]); err != nil {
+				fmt.Println(err)
+				return
 			}
 		}
 	}()
 
 	go func() {
 		defer func() {
-			fin <- true
+			fmt.Println("close w", b.LocalAddr())
 			wg.Done()
 		}()
 
-		buf := make([]byte, 20480)
+		buf := make([]byte, bufSize)
 
 		for {
-			select {
-			case <-fin:
+			if n, err := b.Read(buf); err != nil {
+				b.Close()
 				return
-			default:
-				if n, err := b.Read(buf); err != nil {
-					return
-				} else if _, err = a.Write(buf[:n]); err != nil {
-					return
-				}
+			} else if _, err = a.Write(buf[:n]); err != nil {
+				fmt.Println(err)
+				return
 			}
 		}
 	}()
 
 	wg.Wait()
+	fmt.Println("close", b.LocalAddr())
 }
 
 func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func(), msg_chan chan ForwardMsg) {
@@ -272,7 +268,6 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 				proxyconn.Close()
 				continue
 			}
-
 			//返回Accept
 			select {
 			default:
@@ -301,9 +296,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string) (closef func()
 					return
 				}
 
-				connBridge(proxyconn, targetconn)
-				proxyconn.Close()
-				targetconn.Close()
+				connBridge(proxyconn, targetconn, 20480)
 
 				switch lisNet {
 				case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
@@ -328,7 +321,7 @@ func NewUdpConn(per []byte, remoteAdd *net.UDPAddr, conn *net.UDPConn) *udpConn 
 	return &udpConn{
 		conn:      conn,
 		remoteAdd: remoteAdd,
-		reader:    io.MultiReader(bytes.NewReader(per), conn),
+		reader:    bytes.NewReader(per),
 	}
 }
 func (t udpConn) Read(b []byte) (n int, err error) {
