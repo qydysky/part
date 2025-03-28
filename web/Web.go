@@ -249,10 +249,18 @@ func (t *WebPath) LoadPerfix(path string) (f func(w http.ResponseWriter, r *http
 
 	if key, left, fin := parsePath(path); t.Path == "/" {
 		f = t.f
-		if t.Path != key {
+		if t.Path != key { // next
 			if t.Next != nil {
 				if f1, ok := t.Next.LoadPerfix(path); ok {
 					f = f1
+				}
+			}
+		} else { // same
+			if !fin {
+				if t.Same != nil {
+					if f1, ok := t.Same.LoadPerfix(left); ok {
+						f = f1
+					}
 				}
 			}
 		}
