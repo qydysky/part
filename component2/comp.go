@@ -35,6 +35,12 @@ func Register[TargetInterface any](id string, _interface TargetInterface) error 
 	return nil
 }
 
+func RegisterOrPanic[TargetInterface any](id string, _interface TargetInterface) {
+	if e := Register(id, _interface); e != nil {
+		panic(e)
+	}
+}
+
 func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_interface TargetInterface) {
 	if len(prefunc) == 0 {
 		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
