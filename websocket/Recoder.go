@@ -46,12 +46,12 @@ func (t *Recorder) Start(filePath string) error {
 	}
 	f.Create()
 
+	t.stopflag = ctx.CarryCancel(context.WithCancel(context.Background()))
+
 	go func() {
 		defer f.Close()
 
 		var startTimeStamp time.Time
-
-		t.stopflag = ctx.CarryCancel(context.WithCancel(context.Background()))
 
 		if startTimeStamp.IsZero() {
 			startTimeStamp = time.Now()
