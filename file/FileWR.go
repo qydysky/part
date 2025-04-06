@@ -108,6 +108,48 @@ type Config struct {
 	Coder encoder.Encoding
 }
 
+type FS interface {
+	fs.FS
+	OpenFile(name string) (*File, error)
+}
+
+type dirFS string
+
+func (dir dirFS) Open(name string) (fs.File, error) {
+	return dir.OpenFile(name)
+}
+
+func (dir dirFS) OpenFile(name string) (*File, error) {
+	fullname, err := dir.join(name)
+	if err != nil {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
+	}
+	return Open(fullname).CheckRoot(string(dir)), nil
+}
+
+// join returns the path for name in dir.
+func (dir dirFS) join(name string) (string, error) {
+	if dir == "" {
+		return "", errors.New("os: DirFS with empty root")
+	}
+	name, err := filepath.Localize(name)
+	if err != nil {
+		return "", fs.ErrInvalid
+	}
+	if os.IsPathSeparator(dir[len(dir)-1]) {
+		return string(dir) + name, nil
+	}
+	return string(dir) + string(os.PathSeparator) + name, nil
+}
+
+func DirFS(dir string) FS {
+	return dirFS(dir)
+}
+
+func Open(filePath string) *File {
+	return New(filePath, 0, false)
+}
+
 func New(filePath string, curIndex int64, autoClose bool) *File {
 	return &File{
 		Config: Config{
@@ -125,6 +167,16 @@ func (t *File) CheckRoot(root string) *File {
 	} else {
 		t.Config.FilePath = rel
 	}
+	newPath(dos{
+		create:    os.Create,
+		lstat:     os.Lstat,
+		mkdir:     os.Mkdir,
+		open:      os.Open,
+		openFile:  os.OpenFile,
+		remove:    os.Remove,
+		removeAll: os.RemoveAll,
+		stat:      os.Stat,
+	}, t.Config.root+"/.t", fs.ModeDir)
 	return t
 }
 
@@ -648,6 +700,10 @@ func (t *File) IsExist() bool {
 		}
 	}
 	return err == nil
+}
+
+func IsExist(path string) bool {
+	return Open(path).IsExist()
 }
 
 func (t *File) IsDir() bool {

@@ -16,6 +16,23 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
+func TestDir(t *testing.T) {
+	Open("test2").Delete()
+	if Open("test2").IsExist() {
+		t.Fatal()
+	}
+	if f, e := DirFS("test2").Open("FileWR.go"); e != nil {
+		t.Fatal(e)
+	} else if _, e := f.(*File).Write([]byte{'1'}, false); e != nil {
+		t.Fatal(e)
+	} else {
+		f.(*File).Delete()
+	}
+	if !Open("test2").IsExist() {
+		t.Fatal()
+	}
+}
+
 func TestMain(t *testing.T) {
 	if runtime.GOOS == `windows` {
 		if filepath.Join(`c:\`, "s/as") != `c:\s\as` {
