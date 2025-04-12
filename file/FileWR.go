@@ -176,7 +176,7 @@ func (t *File) CheckRoot(root string) *File {
 		remove:    os.Remove,
 		removeAll: os.RemoveAll,
 		stat:      os.Stat,
-	}, t.Config.root+"/.t", fs.ModeDir)
+	}, t.Config.root+"/.t", fs.ModePerm|fs.ModeDir)
 	return t
 }
 
