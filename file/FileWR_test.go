@@ -17,18 +17,18 @@ import (
 )
 
 func TestDir(t *testing.T) {
-	Open("test2").Delete()
-	if Open("test2").IsExist() {
+	Open("./test2").Delete()
+	if Open("./test2").IsExist() {
 		t.Fatal()
 	}
-	if f, e := DirFS("test2").Open("FileWR.go"); e != nil {
+	if f, e := DirFS("./test2").Open("1.txt"); e != nil {
 		t.Fatal(e)
 	} else if _, e := f.(*File).Write([]byte{'1'}, false); e != nil {
 		t.Fatal(e)
 	} else {
 		f.(*File).Delete()
 	}
-	if !Open("test2").IsExist() {
+	if !Open("./test2").IsExist() {
 		t.Fatal()
 	}
 }

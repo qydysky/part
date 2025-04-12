@@ -674,7 +674,7 @@ func (t *Exprier) Reg(dur time.Duration, reNewKey ...string) (string, error) {
 			for {
 				select {
 				case key1 := <-t.mc:
-					if t.m.Delete(key1) {
+					if _, ok := t.m.LoadAndDelete(key1); ok {
 						t.mc <- newkey
 						t.m.Store(newkey, time.Now().Add(dur))
 						return newkey, nil

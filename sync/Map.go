@@ -3,8 +3,22 @@ package part
 import (
 	"sync"
 	"sync/atomic"
-	"time"
 )
+
+type MapFunc[T, E any] interface {
+	Clear()
+	CompareAndDelete(key T, old E) (deleted bool)
+	CompareAndSwap(key T, old E, new E) (swapped bool)
+	Delete(key T)
+	Load(key T) (value E, ok bool)
+	LoadAndDelete(key T) (value E, loaded bool)
+	LoadOrStore(key T, value E) (actual E, loaded bool)
+	Range(f func(key T, value E) bool)
+	Store(key T, value E)
+	Swap(key T, value E) (previous E, loaded bool)
+}
+
+var _ = MapFunc[any, any](&Map{})
 
 type Map struct {
 	size atomic.Int64
@@ -17,52 +31,36 @@ func (t *Map) Store(k, v any) {
 	}
 }
 
+func (t *Map) CompareAndSwap(key any, old any, new any) (swapped bool) {
+	return t.m.CompareAndSwap(key, old, new)
+}
+
+func (t *Map) CompareAndDelete(key any, old any) (deleted bool) {
+	deleted = t.m.CompareAndDelete(key, old)
+	if deleted {
+		t.size.Add(-1)
+	}
+	return
+}
+
+func (t *Map) LoadAndDelete(key any) (value any, loaded bool) {
+	value, loaded = t.m.LoadAndDelete(key)
+	if loaded {
+		t.size.Add(-1)
+	}
+	return
+}
+
+func (t *Map) Swap(key any, value any) (previous any, loaded bool) {
+	return t.m.Swap(key, value)
+}
+
 func (t *Map) LoadOrStore(k, v any) (actual any, loaded bool) {
 	actual, loaded = t.m.LoadOrStore(k, v)
 	if !loaded {
 		t.size.Add(1)
 	}
 	return
-}
-
-type LoadOrStoreFunc[T any] struct {
-	Init  func() *T
-	cache *T
-	l     sync.Mutex
-}
-
-func (l *LoadOrStoreFunc[T]) LoadOrStore(t interface {
-	LoadOrStore(k, v any) (actual any, loaded bool)
-}, k any) (actual T, loaded bool) {
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.cache == nil {
-		l.cache = l.Init()
-	}
-	if actual, loaded := t.LoadOrStore(k, l.cache); !loaded {
-		l.cache = nil
-		return *(actual.(*T)), false
-	} else {
-		return *(actual.(*T)), true
-	}
-}
-
-func (l *LoadOrStoreFunc[T]) LoadOrStoreP(t interface {
-	LoadOrStore(k, v any) (actual any, loaded bool)
-}, k any) (actual *T, loaded bool) {
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.cache == nil {
-		l.cache = l.Init()
-	}
-	if actual, loaded := t.LoadOrStore(k, l.cache); !loaded {
-		l.cache = nil
-		return actual.(*T), false
-	} else {
-		return actual.(*T), true
-	}
 }
 
 func (t *Map) Load(k any) (any, bool) {
@@ -78,12 +76,14 @@ func (t *Map) Range(f func(key, value any) bool) {
 	t.m.Range(f)
 }
 
-func (t *Map) Delete(k any) (ok bool) {
+func (t *Map) Delete(k any) {
 	if _, ok := t.m.LoadAndDelete(k); ok {
 		t.size.Add(-1)
-		return true
 	}
-	return false
+}
+
+func (t *Map) Clear() {
+	t.ClearAll()
 }
 
 func (t *Map) ClearAll() {
@@ -121,100 +121,4 @@ func Copy[T comparable, S any](s map[T]S) map[T]S {
 		t[k] = v
 	}
 	return t
-}
-
-type MapExceeded[K, V any] struct {
-	m Map
-}
-
-type mapExceededItem[V any] struct {
-	data     V
-	exceeded time.Time
-	wait     sync.RWMutex
-}
-
-func (t *MapExceeded[K, V]) Copy() (m *MapExceeded[K, V]) {
-	m = &MapExceeded[K, V]{}
-	t.m.Range(func(key, value any) bool {
-		if value.(*mapExceededItem[V]).exceeded.After(time.Now()) {
-			m.m.Store(key, value)
-		}
-		return true
-	})
-	return
-}
-
-func (t *MapExceeded[K, V]) Store(k K, v V, dur time.Duration) {
-	t.m.Store(k, &mapExceededItem[V]{
-		data:     v,
-		exceeded: time.Now().Add(dur),
-	})
-}
-
-func (t *MapExceeded[K, V]) Load(k K) (v V, ok bool) {
-	if v, ok := t.m.LoadV(k).(*mapExceededItem[V]); ok {
-		if v.exceeded.After(time.Now()) {
-			return v.data, true
-		}
-		t.Delete(k)
-	}
-	return
-}
-
-func (t *MapExceeded[K, V]) Range(f func(key K, value *V) bool) {
-	t.m.Range(func(key, value any) bool {
-		if value.(*mapExceededItem[V]).exceeded.After(time.Now()) {
-			return f(key.(K), value.(*V))
-		}
-		t.Delete(key.(K))
-		return true
-	})
-}
-
-func (t *MapExceeded[K, V]) Len() int {
-	return t.m.Len()
-}
-
-func (t *MapExceeded[K, V]) GC() {
-	t.m.Range(func(key, value any) bool {
-		if value.(*mapExceededItem[V]).exceeded.Before(time.Now()) {
-			t.Delete(key.(K))
-		}
-		return true
-	})
-}
-
-func (t *MapExceeded[K, V]) Delete(k K) {
-	t.m.Delete(k)
-}
-
-func (t *MapExceeded[K, V]) LoadOrStore(k K) (vr V, loaded bool, store func(v1 V, dur time.Duration)) {
-	store = func(v1 V, dur time.Duration) {}
-	var actual any
-	actual, loaded = t.m.LoadOrStore(k, &mapExceededItem[V]{})
-	v := actual.(*mapExceededItem[V])
-	v.wait.RLock()
-	exp := v.exceeded
-	vr = v.data
-	v.wait.RUnlock()
-	if loaded && time.Now().Before(exp) {
-		return
-	}
-	if !loaded || (loaded && !exp.IsZero()) {
-		store = func(v1 V, dur time.Duration) {
-			v.wait.Lock()
-			v.data = v1
-			v.exceeded = time.Now().Add(dur)
-			v.wait.Unlock()
-		}
-		return
-	}
-	for loaded && exp.IsZero() {
-		time.Sleep(time.Millisecond * 20)
-		v.wait.RLock()
-		exp = v.exceeded
-		vr = v.data
-		v.wait.RUnlock()
-	}
-	return
 }
