@@ -16,6 +16,7 @@ var (
 	ErrPemType = errors.New(`ErrPemType`)
 )
 
+// Deprecated: 使用 asymmetric 包
 func NewKey() (pri, pub []byte, e error) {
 	if p1, e := ecdh.X25519().GenerateKey(rand.Reader); e != nil {
 		return nil, nil, e
@@ -30,6 +31,7 @@ func NewKey() (pri, pub []byte, e error) {
 	}
 }
 
+// Deprecated: 使用 asymmetric 包
 func Encrypt(msg, pubKey []byte) (b []byte, e error) {
 	c := ecdh.X25519()
 	var (
@@ -70,6 +72,7 @@ func Encrypt(msg, pubKey []byte) (b []byte, e error) {
 	return
 }
 
+// Deprecated: 使用 asymmetric 包
 func Decrypt(b, priKey []byte) (msg []byte, e error) {
 	var (
 		q1     *ecdh.PublicKey
