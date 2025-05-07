@@ -68,13 +68,18 @@ func Test_Client(t *testing.T) {
 		}
 
 		ws.Pull_tag_only(`rec`, func(wm *WsMsg) (disable bool) {
-			if string(wm.Msg) != "test" {
-				t.Fatal()
-			}
+			wm.Msg(func(b []byte) error {
+				if string(b) != "test" {
+					t.Fatal()
+				}
+				return nil
+			})
 			return false
 		})
 		ws.PushLock_tag(`send`, &WsMsg{
-			Msg: []byte("test"),
+			Msg: func(f func([]byte) error) error {
+				return f([]byte("test"))
+			},
 		})
 
 		go func() {
@@ -115,13 +120,18 @@ func Test_Client(t *testing.T) {
 		}
 
 		ws.Pull_tag_only(`rec`, func(wm *WsMsg) (disable bool) {
-			if string(wm.Msg) != "test" {
-				t.Fatal()
-			}
+			wm.Msg(func(b []byte) error {
+				if string(b) != "test" {
+					t.Fatal()
+				}
+				return nil
+			})
 			return false
 		})
 		ws.PushLock_tag(`send`, &WsMsg{
-			Msg: []byte("test"),
+			Msg: func(f func([]byte) error) error {
+				return f([]byte("test"))
+			},
 		})
 
 		go func() {

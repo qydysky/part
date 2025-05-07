@@ -42,13 +42,14 @@ func NewBlocks[T any](blockSize int, blockNum int) BlocksI[T] {
 		free: make(chan int, blockNum+1),
 		buf:  make([]T, blockSize*blockNum),
 	}
-	for i := 0; i < blockNum; i++ {
+	for i := range blockNum {
 		p.free <- i
 	}
 	return p
 }
 
 func (t *blocks[T]) Get() ([]T, func(), error) {
+	t.gc()
 	select {
 	case offset := <-t.free:
 		return t.buf[offset*t.size : (offset+1)*t.size], func() {
@@ -61,15 +62,22 @@ func (t *blocks[T]) Get() ([]T, func(), error) {
 }
 
 func (t *blocks[T]) GetAuto() (b []T, e error) {
+	t.gc()
 	select {
 	case offset := <-t.free:
 		b = t.buf[offset*t.size : (offset+1)*t.size]
-		runtime.SetFinalizer(&b, func(p any) {
-			clear(*p.(*[]T))
+		runtime.AddCleanup(&b, func(offset int) {
+			clear(t.buf[offset*t.size : (offset+1)*t.size])
 			t.free <- offset
-		})
+		}, offset)
 		return
 	default:
 		return nil, ErrOverflow
+	}
+}
+
+func (t *blocks[T]) gc() {
+	if len(t.free) == 0 {
+		runtime.GC()
 	}
 }
