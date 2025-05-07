@@ -26,6 +26,22 @@ func TestMain(t *testing.T) {
 	}
 }
 
+func TestMain2(t *testing.T) {
+	buf := NewBlocks[byte](1024, 1)
+	if tmpbuf, e := buf.GetAuto(); e == nil {
+		clear(tmpbuf)
+	} else {
+		t.Fatal()
+	}
+	if tmpbuf, e := buf.GetAuto(); e == nil {
+		clear(tmpbuf)
+		if tmpbuf, e := buf.GetAuto(); e != nil {
+			clear(tmpbuf)
+			t.Fatal()
+		}
+	}
+}
+
 // 374.4 ns/op            32 B/op          1 allocs/op
 func Benchmark(b *testing.B) {
 	buf := NewBlocks[byte](1024, 1)
