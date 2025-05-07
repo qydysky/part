@@ -2,6 +2,7 @@ package part
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -99,6 +100,34 @@ func (t *BlockFuncN) BlockAll() (unBlock func()) {
 	return func() {
 		for i := cap(t.n); i > 0; i-- {
 			<-t.n
+		}
+	}
+}
+
+type RangeSource[T any] iter.Seq[T]
+
+func (i RangeSource[T]) RangeCtx(pctx context.Context) iter.Seq2[context.Context, T] {
+	return func(yield func(context.Context, T) bool) {
+		for o := range i {
+			ctx, cancle := context.WithCancel(pctx)
+			exit := !yield(ctx, o)
+			cancle()
+			if exit {
+				return
+			}
+		}
+	}
+}
+
+func (i RangeSource[T]) RangeCtxCancel(pctx context.Context, cancle context.CancelFunc) iter.Seq2[context.Context, T] {
+	return func(yield func(context.Context, T) bool) {
+		for o := range i {
+			ctx, cancle := context.WithCancel(pctx)
+			exit := !yield(ctx, o)
+			cancle()
+			if exit {
+				return
+			}
 		}
 	}
 }
