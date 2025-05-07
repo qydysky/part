@@ -1,9 +1,58 @@
 package part
 
 import (
+	"context"
 	"testing"
 	"time"
 )
+
+func Test_RangeCtx(t *testing.T) {
+	var rs RangeSource[int] = func(yield func(int) bool) {
+		for i := range 10 {
+			if !yield(i) {
+				return
+			}
+		}
+	}
+
+	for ctx, val := range rs.RangeCtxCancel(context.WithTimeout(context.Background(), time.Millisecond*2500)) {
+		select {
+		case <-ctx.Done():
+			if val < 2 {
+				t.Fatal()
+			}
+		case <-time.After(time.Second):
+			if val > 1 {
+				t.Fatal()
+			}
+		}
+	}
+}
+
+func Test_RangeCtx2(t *testing.T) {
+	var i int
+	var rs RangeSource[any] = func(yield func(any) bool) {
+		for i < 10 {
+			if !yield(nil) {
+				return
+			}
+		}
+	}
+
+	for ctx := range rs.RangeCtxCancel(context.WithTimeout(context.Background(), time.Millisecond*2500)) {
+		i++
+		select {
+		case <-ctx.Done():
+			if i < 2 {
+				t.Fatal()
+			}
+		case <-time.After(time.Second):
+			if i > 2 {
+				t.Fatal()
+			}
+		}
+	}
+}
 
 func Test_SkipFunc(t *testing.T) {
 	var c = make(chan int, 2)
