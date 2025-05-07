@@ -31,13 +31,13 @@ func TestMain2(t *testing.T) {
 	if tmpbuf, e := buf.GetAuto(); e == nil {
 		clear(tmpbuf)
 	} else {
-		t.Fail()
+		t.Fatal()
 	}
 	if tmpbuf, e := buf.GetAuto(); e == nil {
 		clear(tmpbuf)
-		if tmpbuf, e := buf.GetAuto(); e != ErrOverflow {
+		if tmpbuf, e := buf.GetAuto(); e != nil {
 			clear(tmpbuf)
-			t.Fail()
+			t.Fatal()
 		}
 	}
 }
