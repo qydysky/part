@@ -154,7 +154,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		buf := make([]byte, humanize.KByte)
-		var msgs = pslice.NewBlocks[byte](humanize.KByte, o.BufSize)
+		var msgs = pslice.NewFlexBlocks[byte](o.BufSize)
 		var err error
 		for err == nil {
 			if e := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); e != nil {
