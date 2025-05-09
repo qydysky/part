@@ -2,6 +2,7 @@ package part
 
 import (
 	"encoding/json"
+	"iter"
 	"net"
 	"net/http"
 	"strings"
@@ -88,6 +89,15 @@ func Cookies_String_2_Map(Cookies string) (o map[string]string) {
 		}
 		o[s[0]] = s[1]
 	}
+	return
+}
+
+func Iter_2_Cookies_String(Cookies iter.Seq2[string, string]) (o string) {
+	for k, v := range Cookies {
+		o += k + `=` + v + `; `
+	}
+	t := []rune(o)
+	o = string(t[:len(t)-2])
 	return
 }
 

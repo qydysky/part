@@ -122,3 +122,18 @@ func Copy[T comparable, S any](s map[T]S) map[T]S {
 	}
 	return t
 }
+
+func StoreAll[T comparable, S any, A, B any](d MapFunc[A, B], s map[T]S) {
+	for k, v := range s {
+		d.Store(any(k).(A), any(v).(B))
+	}
+}
+
+func Contains[A, B any](m MapFunc[A, B], keys ...A) (missKey []A) {
+	for _, tk := range keys {
+		if _, ok := m.Load(tk); !ok {
+			missKey = append(missKey, tk)
+		}
+	}
+	return
+}
