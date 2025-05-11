@@ -21,10 +21,9 @@ type Client struct {
 	// rec send close
 	msg *msgq.MsgType[*WsMsg]
 
-	TO    int // depercated: use RTOMs WTOMs instead
-	RTOMs int
-	WTOMs int
-	// Deprecated: not used anymore
+	TO      int // depercated: use RTOMs WTOMs instead
+	RTOMs   int
+	WTOMs   int
 	BufSize int // msg buf 1: always use single buf >1: use bufs cycle
 	Header  map[string]string
 	Proxy   string
@@ -155,7 +154,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		buf := make([]byte, humanize.KByte)
-		var msgs = pslice.NewFlexBlocks[byte]()
+		var msgs = pslice.NewFlexBlocks[byte](o.BufSize)
 		var err error
 		for err == nil {
 			if e := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); e != nil {

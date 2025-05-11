@@ -9,7 +9,7 @@ import (
 
 func TestMain3(t *testing.T) {
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-	buf := NewFlexBlocks[byte]()
+	buf := NewPoolBlocks[byte]()
 	if tmpbuf, putBack, e := buf.Get(); e == nil {
 		tmpbuf = append(tmpbuf[:0], []byte("123")...)
 		// do something with tmpbuf
