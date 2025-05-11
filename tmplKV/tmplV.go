@@ -12,7 +12,7 @@ type tmplV struct {
 	Druation      int64
 	now           int64
 	deleteNum     int
-	pool          *idpool.Idpool
+	pool          *idpool.Idpool[struct{}]
 	kvt_map       map[uintptr]tmplV_item
 	sync.RWMutex
 }
@@ -20,7 +20,7 @@ type tmplV struct {
 type tmplV_item struct {
 	kv  string
 	kt  int64
-	uid *idpool.Id
+	uid *idpool.Id[struct{}]
 }
 
 func New_tmplV(SumInDruation, Druation int64) *tmplV {
@@ -29,7 +29,7 @@ func New_tmplV(SumInDruation, Druation int64) *tmplV {
 		SumInDruation: SumInDruation,
 		Druation:      Druation,
 		kvt_map:       make(map[uintptr]tmplV_item),
-		pool:          idpool.New(func() interface{} { return new(struct{}) }),
+		pool:          idpool.New(func() *struct{} { return new(struct{}) }),
 	}
 	go func() {
 		ticker := time.NewTicker(time.Second)
@@ -43,7 +43,7 @@ func New_tmplV(SumInDruation, Druation int64) *tmplV {
 
 func (s *tmplV) Set(contect string) (key uintptr) {
 
-	if s.SumInDruation >= 0 && s.pool.Len() >= s.SumInDruation { //不为无限&&达到限额 随机替代
+	if s.SumInDruation >= 0 && s.pool.InUse() >= s.SumInDruation { //不为无限&&达到限额 随机替代
 		s.Lock()
 		for key, item := range s.kvt_map {
 			s.kvt_map[key] = tmplV_item{

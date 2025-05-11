@@ -12,7 +12,7 @@ type tmplK struct {
 	SumInDruation int64
 	Druation      int64
 	now           int64
-	pool          *idpool.Idpool
+	pool          *idpool.Idpool[struct{}]
 	kvt_map       syncmap.Map
 	slowBackList  *list.List
 }
@@ -20,7 +20,7 @@ type tmplK struct {
 type tmplK_item struct {
 	kv  uintptr
 	kt  int64
-	uid *idpool.Id
+	uid *idpool.Id[struct{}]
 }
 
 func New_tmplK(SumInDruation, Druation int64) *tmplK {
@@ -28,7 +28,7 @@ func New_tmplK(SumInDruation, Druation int64) *tmplK {
 	s := &tmplK{
 		SumInDruation: SumInDruation,
 		Druation:      Druation,
-		pool:          idpool.New(func() interface{} { return new(struct{}) }),
+		pool:          idpool.New(func() *struct{} { return new(struct{}) }),
 		slowBackList:  list.New(),
 	}
 	go func() {
@@ -94,15 +94,15 @@ func (s *tmplK) Len() (int64, int) {
 }
 
 func (s *tmplK) freeLen() int64 {
-	return int64(int(s.pool.Len()) + s.slowBackList.Len())
+	return int64(int(s.pool.InUse()) + s.slowBackList.Len())
 }
 
-func (s *tmplK) free(i *idpool.Id) {
+func (s *tmplK) free(i *idpool.Id[struct{}]) {
 	s.slowBackList.PushBack(i)
 	if s.freeLen() > s.SumInDruation {
 		if el := s.slowBackList.Front(); el != nil && el.Value != nil {
 			e := s.slowBackList.Remove(el)
-			s.pool.Put(e.(*idpool.Id))
+			s.pool.Put(e.(*idpool.Id[struct{}]))
 		}
 	}
 }

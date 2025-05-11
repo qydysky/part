@@ -7,18 +7,21 @@ import (
 type test struct{}
 
 func Test(t *testing.T) {
-	pool := New(func() interface{} {
+	pool := New(func() *test {
 		return &test{}
 	})
 	a := pool.Get()
 	b := pool.Get()
-	t.Log(a.Id, a.Item, pool.Len())
-	t.Log(b.Id, b.Item)
-	pool.Put(a)
-	pool.Put(a)
-	t.Log(a.Id, a.Item, pool.Len())
-	t.Log(b.Id, b.Item)
+	if pool.InUse() != 2 {
+		t.Fatal()
+	}
+	bid := b.Id
+	pool.Put(b)
+	if pool.InUse() != 1 {
+		t.Fatal()
+	}
 	a = pool.Get()
-	t.Log(a.Id, a.Item, pool.Len())
-	t.Log(b.Id, b.Item)
+	if bid != a.Id {
+		t.Fatal()
+	}
 }
