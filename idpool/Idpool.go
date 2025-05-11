@@ -6,23 +6,23 @@ import (
 	"unsafe"
 )
 
-type Idpool struct {
+type Idpool[T any] struct {
 	pool  sync.Pool
 	sum   int64
-	initF func() interface{}
+	initF func() *T
 }
 
-type Id struct {
+type Id[T any] struct {
 	Id   uintptr
-	Item interface{}
+	Item *T
 }
 
-func New(f func() interface{}) *Idpool {
-	return &Idpool{
+func New[T any](f func() *T) *Idpool[T] {
+	return &Idpool[T]{
 		initF: f,
 		pool: sync.Pool{
-			New: func() interface{} {
-				var o = new(Id)
+			New: func() any {
+				var o = new(Id[T])
 				o.Item = f()
 				o.Id = uintptr(unsafe.Pointer(&o.Item))
 				return o
@@ -31,8 +31,8 @@ func New(f func() interface{}) *Idpool {
 	}
 }
 
-func (t *Idpool) Get() (o *Id) {
-	o = t.pool.Get().(*Id)
+func (t *Idpool[T]) Get() (o *Id[T]) {
+	o = t.pool.Get().(*Id[T])
 	if o.Item == nil {
 		o.Item = t.initF()
 		o.Id = uintptr(unsafe.Pointer(&o.Item))
@@ -41,14 +41,16 @@ func (t *Idpool) Get() (o *Id) {
 	return
 }
 
-func (t *Idpool) Put(i *Id) {
-	if i.Item == nil {
-		return
+func (t *Idpool[T]) Put(is ...*Id[T]) {
+	for _, i := range is {
+		if i.Item == nil {
+			continue
+		}
+		t.pool.Put(i)
+		atomic.AddInt64(&t.sum, -1)
 	}
-	t.pool.Put(i)
-	atomic.AddInt64(&t.sum, -1)
 }
 
-func (t *Idpool) Len() int64 {
+func (t *Idpool[T]) InUse() int64 {
 	return atomic.LoadInt64(&t.sum)
 }

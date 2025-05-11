@@ -3,6 +3,7 @@ package part
 import (
 	"errors"
 	"runtime"
+	"sync"
 )
 
 type noCopy struct{}
@@ -74,13 +75,24 @@ func (t *blocks[T]) GetAuto() (b []T, e error) {
 	}
 }
 
+type FlexBlocksI[T any] interface {
+	// // eg
+	//
+	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
+	// 		tmpbuf = append(tmpbuf[:0], b...)
+	//		// do something with tmpbuf
+	//		putBack(tmpbuf)
+	//	}
+	Get() ([]T, func([]T), error)
+}
+
 type flexBlocks[T any] struct {
 	_    noCopy
 	free chan int
 	buf  [][]T
 }
 
-func NewFlexBlocks[T any](blockNum int) BlocksI[T] {
+func NewFlexBlocks[T any](blockNum int) FlexBlocksI[T] {
 	p := &flexBlocks[T]{
 		free: make(chan int, blockNum+1),
 		buf:  make([][]T, blockNum),
@@ -91,26 +103,43 @@ func NewFlexBlocks[T any](blockNum int) BlocksI[T] {
 	return p
 }
 
-func (t *flexBlocks[T]) Get() ([]T, func(), error) {
+func (t *flexBlocks[T]) Get() ([]T, func([]T), error) {
 	select {
 	case offset := <-t.free:
-		return t.buf[offset], func() {
+		return t.buf[offset], func(ts []T) {
+			t.buf[offset] = ts
 			t.free <- offset
 		}, nil
 	default:
-		return nil, func() {}, ErrOverflow
+		return nil, func(_ []T) {}, ErrOverflow
 	}
 }
 
-func (t *flexBlocks[T]) GetAuto() (b []T, e error) {
-	select {
-	case offset := <-t.free:
-		b = t.buf[offset]
-		runtime.AddCleanup(&b, func(offset int) {
-			t.free <- offset
-		}, offset)
-		return
-	default:
-		return nil, ErrOverflow
+type PoolBlocksI[T any] interface {
+	// // eg
+	//
+	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
+	// 		tmpbuf = append(tmpbuf[:0], b...)
+	//		// do something with tmpbuf
+	//		putBack(tmpbuf)
+	//	}
+	Get() ([]T, func([]T), error)
+}
+
+type poolBlocks[T any] struct {
+	pool sync.Pool
+}
+
+func NewPoolBlocks[T any]() PoolBlocksI[T] {
+	t := &poolBlocks[T]{}
+	t.pool.New = func() any {
+		return []T{}
 	}
+	return t
+}
+
+func (t *poolBlocks[T]) Get() ([]T, func([]T), error) {
+	return t.pool.Get().([]T), func(ts []T) {
+		t.pool.Put(ts)
+	}, nil
 }

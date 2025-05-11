@@ -13,7 +13,7 @@ import (
 
 type Server struct {
 	ws_mq    *mq.Msgq
-	userpool *idpool.Idpool
+	userpool *idpool.Idpool[struct{}]
 	m        sync.Mutex
 }
 
@@ -29,8 +29,8 @@ type uinterface struct { //内部消息
 
 func New_server() *Server {
 	return &Server{
-		ws_mq:    mq.New(),                                                //收发通道
-		userpool: idpool.New(func() interface{} { return new(struct{}) }), //浏览器标签页池
+		ws_mq:    mq.New(),                                              //收发通道
+		userpool: idpool.New(func() *struct{} { return new(struct{}) }), //浏览器标签页池
 	}
 }
 
@@ -157,5 +157,5 @@ func (t *Server) Interface() *mq.Msgq {
 }
 
 func (t *Server) Len() int64 {
-	return t.userpool.Len()
+	return t.userpool.InUse()
 }

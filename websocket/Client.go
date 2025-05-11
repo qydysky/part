@@ -173,7 +173,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 						Type: websocket.PongMessage,
 						Msg: func(f func([]byte) error) error {
 							f(tmpbuf)
-							putBack()
+							putBack(tmpbuf)
 							return nil
 						},
 					})
@@ -194,7 +194,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 						Type: websocket.TextMessage,
 						Msg: func(f func([]byte) error) error {
 							f(tmpbuf)
-							putBack()
+							putBack(tmpbuf)
 							return nil
 						},
 					})
