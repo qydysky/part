@@ -67,6 +67,22 @@ func (t *Buf[T]) AppendTo(to *Buf[T]) error {
 
 var ErrOverMax = perrors.New("slices.Append", "ErrOverMax")
 
+func (t *Buf[T]) Cap() int {
+	t.l.RLock()
+	defer t.l.RUnlock()
+	return cap(t.buf)
+}
+
+func (t *Buf[T]) ExpandCapTo(size int) {
+	t.l.Lock()
+	defer t.l.Unlock()
+	if cap(t.buf) >= size {
+		return
+	} else {
+		t.buf = append(t.buf[:cap(t.buf)], make([]T, size-cap(t.buf))...)
+	}
+}
+
 func (t *Buf[T]) Append(data []T) error {
 	t.l.Lock()
 	defer t.l.Unlock()
@@ -76,10 +92,11 @@ func (t *Buf[T]) Append(data []T) error {
 	} else if len(t.buf) == 0 {
 		t.buf = make([]T, len(data))
 	} else {
-		diff := len(t.buf) - t.bufsize - len(data)
+		diff := cap(t.buf) - t.bufsize - len(data)
 		if diff < 0 {
-			t.buf = append(t.buf, make([]T, -diff)...)
+			t.buf = append(t.buf[:cap(t.buf)], make([]T, -diff)...)
 		}
+		t.buf = t.buf[:t.bufsize+len(data)]
 	}
 	t.bufsize += copy(t.buf[t.bufsize:], data)
 	t.modified.t += 1
@@ -234,7 +251,7 @@ func Del[S ~[]T, T any](s *S, f func(t *T) (del bool)) {
 	for i := 0; i < len(*s); i++ {
 		if f(&(*s)[i]) {
 			*s = append((*s)[:i], (*s)[i+1:]...)
-			i-=1
+			i -= 1
 		}
 	}
 }
