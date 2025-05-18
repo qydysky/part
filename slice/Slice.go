@@ -87,18 +87,13 @@ func (t *Buf[T]) Append(data []T) error {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
-		return ErrOverMax
-	} else if len(t.buf) == 0 {
+	if t.buf == nil {
 		t.buf = make([]T, len(data))
-	} else {
-		diff := cap(t.buf) - t.bufsize - len(data)
-		if diff < 0 {
-			t.buf = append(t.buf[:cap(t.buf)], make([]T, -diff)...)
-		}
-		t.buf = t.buf[:t.bufsize+len(data)]
+	} else if t.maxsize != 0 && t.bufsize+len(data) > t.maxsize {
+		return ErrOverMax
 	}
-	t.bufsize += copy(t.buf[t.bufsize:], data)
+	t.buf = append(t.buf[:t.bufsize], data...)
+	t.bufsize += len(data)
 	t.modified.t += 1
 	return nil
 }
@@ -107,17 +102,13 @@ func (t *Buf[T]) SetFrom(data []T) error {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	if t.maxsize != 0 && len(t.buf)+len(data) > t.maxsize {
-		return ErrOverMax
-	} else if len(t.buf) == 0 {
+	if t.buf == nil {
 		t.buf = make([]T, len(data))
-	} else {
-		diff := len(t.buf) - t.bufsize - len(data)
-		if diff < 0 {
-			t.buf = append(t.buf, make([]T, -diff)...)
-		}
+	} else if t.maxsize != 0 && t.bufsize+len(data) > t.maxsize {
+		return ErrOverMax
 	}
-	t.bufsize = copy(t.buf, data)
+	t.buf = append(t.buf[:0], data...)
+	t.bufsize = len(data)
 	t.modified.t += 1
 	return nil
 }
