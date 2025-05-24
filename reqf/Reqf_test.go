@@ -149,7 +149,7 @@ func Test14(t *testing.T) {
 		Url:         "http://" + addr + "/stream",
 		Ctx:         ctx,
 		NoResponse:  true,
-		SaveToPipe:  &pio.IOpipe{R: i, W: o},
+		SaveToPipe:  pio.NewPipeRaw(i, o),
 		Async:       true,
 		WriteLoopTO: 5*1000*2 + 1,
 	}); e != nil {
@@ -349,7 +349,7 @@ func Test_req9(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/1min",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		if r.Wait() != nil {
@@ -370,7 +370,7 @@ func Test_req8(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/1min",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		if !IsCancel(r.Wait()) {
@@ -415,7 +415,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/br",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -432,7 +432,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/gzip",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -449,7 +449,7 @@ func Test_req3(t *testing.T) {
 		}()
 		if e := r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 		}); e != nil {
 			t.Error(e)
 		}
@@ -470,7 +470,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -500,7 +500,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			NoResponse: true,
 			Async:      true,
 		})
