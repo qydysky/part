@@ -19,6 +19,8 @@ import (
 
 var addr = "127.0.0.1:10001"
 
+var reuse = New()
+
 func init() {
 	s := web.New(&http.Server{
 		Addr:         addr,
@@ -105,8 +107,53 @@ func init() {
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
+		`/header`: func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range r.Header {
+				w.Header().Set(k, v[0])
+			}
+		},
 	})
 	time.Sleep(time.Second)
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/no",
+	})
+}
+
+func Test_6(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/header",
+		Header: map[string]string{
+			`I`: `1`,
+		},
+	})
+	if reuse.Response.Header.Get(`I`) != `1` {
+		t.Fail()
+	}
+}
+
+// go test -timeout 30s -run ^Test_reuse$ github.com/qydysky/part/reqf -race -count=1 -v -memprofile mem.out
+func Test_reuse(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/no",
+	})
+	if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
+		t.Fail()
+	}
+}
+
+// 2710            430080 ns/op            9896 B/op        111 allocs/op
+func Benchmark(b *testing.B) {
+	rval := Rval{
+		Url: "http://" + addr + "/no",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reuse.Reqf(rval)
+		if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
+			b.Fail()
+		}
+	}
 }
 
 func Test14(t *testing.T) {
@@ -119,7 +166,7 @@ func Test14(t *testing.T) {
 		Url:         "http://" + addr + "/stream",
 		Ctx:         ctx,
 		NoResponse:  true,
-		SaveToPipe:  &pio.IOpipe{R: i, W: o},
+		SaveToPipe:  pio.NewPipeRaw(i, o),
 		Async:       true,
 		WriteLoopTO: 5*1000*2 + 1,
 	}); e != nil {
@@ -167,12 +214,14 @@ func Test_req13(t *testing.T) {
 }
 
 func Test_req7(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	r.Reqf(Rval{
+		Ctx:   ctx,
 		Url:   "http://" + addr + "/to",
 		Async: true,
 	})
-	r.Cancel()
+	ctxc()
 	if !IsCancel(r.Wait()) {
 		t.Error("async Cancel fail")
 	}
@@ -288,14 +337,16 @@ func Test_req4(t *testing.T) {
 // }
 
 func Test_req11(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	{
 		timer := time.NewTimer(time.Second)
 		go func() {
 			<-timer.C
-			r.Cancel()
+			ctxc()
 		}()
 		e := r.Reqf(Rval{
+			Ctx: ctx,
 			Url: "http://" + addr + "/to",
 		})
 		if !IsCancel(e) {
@@ -319,7 +370,7 @@ func Test_req9(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/1min",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		if r.Wait() != nil {
@@ -329,6 +380,7 @@ func Test_req9(t *testing.T) {
 }
 
 func Test_req8(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	{
 		rc, wc := io.Pipe()
@@ -336,11 +388,12 @@ func Test_req8(t *testing.T) {
 			var buf []byte = make([]byte, 1<<16)
 			_, _ = rc.Read(buf)
 			time.Sleep(time.Millisecond * 500)
-			r.Cancel()
+			ctxc()
 		}()
 		r.Reqf(Rval{
+			Ctx:        ctx,
 			Url:        "http://" + addr + "/1min",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		if !IsCancel(r.Wait()) {
@@ -385,7 +438,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/br",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -402,7 +455,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/gzip",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -419,7 +472,7 @@ func Test_req3(t *testing.T) {
 		}()
 		if e := r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 		}); e != nil {
 			t.Error(e)
 		}
@@ -440,7 +493,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
 		})
 		<-c
@@ -470,7 +523,7 @@ func Test_req3(t *testing.T) {
 		}()
 		r.Reqf(Rval{
 			Url:        "http://" + addr + "/flate",
-			SaveToPipe: &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			NoResponse: true,
 			Async:      true,
 		})

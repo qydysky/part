@@ -19,6 +19,7 @@ import (
 	flate "compress/flate"
 	gzip "compress/gzip"
 
+	"github.com/dustin/go-humanize"
 	br "github.com/qydysky/brotli"
 	pe "github.com/qydysky/part/errors"
 	pio "github.com/qydysky/part/io"
@@ -36,7 +37,7 @@ type Rval struct {
 	Timeout int
 	// Millisecond
 	SleepTime int
-	// Millisecond
+	// Deprecated: use Timeout
 	WriteLoopTO      int
 	JustResponseCode bool
 	NoResponse       bool
@@ -80,9 +81,9 @@ type Req struct {
 	Response *http.Response
 	UsedTime time.Duration
 
-	cancelP atomic.Pointer[context.CancelFunc]
-	state   atomic.Int32
+	state atomic.Int32
 
+	client     *http.Client
 	responFile *os.File
 	responBuf  *bytes.Buffer
 	err        error
@@ -100,22 +101,21 @@ func (t *Req) Reqf(val Rval) error {
 	t.l.Lock()
 	t.state.Store(running)
 
-	pctx, cancelF := t.prepare(&val)
-	t.cancelP.Store(&cancelF)
+	t.prepare(&val)
 
 	if !val.Async {
 		// 同步
-		t.reqfM(pctx, cancelF, val)
+		t.reqfM(val.Ctx, val)
 		return t.err
 	} else {
 		//异步
-		go t.reqfM(pctx, cancelF, val)
+		go t.reqfM(val.Ctx, val)
 	}
 
 	return nil
 }
 
-func (t *Req) reqfM(ctxMain context.Context, cancelMain context.CancelFunc, val Rval) {
+func (t *Req) reqfM(ctxMain context.Context, val Rval) {
 	beginTime := time.Now()
 
 	for i := 0; i <= val.Retry; i++ {
@@ -130,7 +130,6 @@ func (t *Req) reqfM(ctxMain context.Context, cancelMain context.CancelFunc, val 
 		}
 	}
 
-	cancelMain()
 	t.updateUseDur(beginTime)
 	t.clean(&val)
 	t.state.Store(free)
@@ -138,28 +137,15 @@ func (t *Req) reqfM(ctxMain context.Context, cancelMain context.CancelFunc, val 
 }
 
 func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
-	var (
-		Header map[string]string = val.Header
-		client http.Client
-	)
-
-	if Header == nil {
-		Header = make(map[string]string)
+	if t.client.Transport == nil {
+		t.client.Transport = &http.Transport{}
 	}
-
 	if val.Proxy != "" {
-		proxy := func(_ *http.Request) (*url.URL, error) {
+		t.client.Transport.(*http.Transport).Proxy = func(_ *http.Request) (*url.URL, error) {
 			return url.Parse(val.Proxy)
 		}
-		client.Transport = &http.Transport{
-			Proxy:           proxy,
-			IdleConnTimeout: time.Minute,
-		}
-	} else {
-		client.Transport = &http.Transport{
-			IdleConnTimeout: time.Minute,
-		}
 	}
+	t.client.Transport.(*http.Transport).IdleConnTimeout = time.Minute
 
 	if val.Url == "" {
 		return ErrEmptyUrl.New()
@@ -178,9 +164,6 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 
 	if len(val.PostStr) > 0 {
 		body = strings.NewReader(val.PostStr)
-		if _, ok := Header["Content-Type"]; !ok {
-			Header["Content-Type"] = "application/x-www-form-urlencoded"
-		}
 	}
 
 	req, e := http.NewRequestWithContext(ctx, val.Method, val.Url, body)
@@ -192,34 +175,39 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		req.AddCookie(v)
 	}
 
-	if _, ok := Header["Accept"]; !ok {
-		Header["Accept"] = defaultAccept
-	}
-	if _, ok := Header["Connection"]; !ok {
-		Header["Connection"] = "keep-alive"
-	}
-	if _, ok := Header["Accept-Encoding"]; !ok {
-		Header["Accept-Encoding"] = "gzip, deflate, br"
-	}
-	if val.SaveToPath != "" || val.SaveToPipe != nil {
-		Header["Accept-Encoding"] = "identity"
-	}
-	if _, ok := Header["User-Agent"]; !ok {
-		Header["User-Agent"] = defaultUA
-	}
-
-	for k, v := range Header {
+	for k, v := range val.Header {
 		req.Header.Set(k, v)
 	}
 
-	resp, e := client.Do(req)
+	if len(val.PostStr) > 0 {
+		if _, ok := req.Header["Content-Type"]; !ok {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
+	}
+	if _, ok := req.Header["Accept"]; !ok {
+		req.Header.Set("Accept", defaultAccept)
+	}
+	if _, ok := req.Header["Connection"]; !ok {
+		req.Header.Set("Connection", "keep-alive")
+	}
+	if _, ok := req.Header["Accept-Encoding"]; !ok {
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	}
+	if val.SaveToPath != "" || val.SaveToPipe != nil {
+		req.Header.Set("Accept-Encoding", "identity")
+	}
+	if _, ok := req.Header["User-Agent"]; !ok {
+		req.Header.Set("User-Agent", defaultUA)
+	}
+
+	resp, e := t.client.Do(req)
 
 	if e != nil {
 		return pe.Join(ErrClientDo.New(), e)
 	}
 
-	if v, ok := Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
-		defer client.CloseIdleConnections()
+	if v, ok := val.Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
+		defer t.client.CloseIdleConnections()
 	}
 
 	t.Response = resp
@@ -264,27 +252,26 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		}
 	}
 
-	writeLoopTO := val.WriteLoopTO
-	if writeLoopTO == 0 {
-		if val.Timeout > 0 {
-			writeLoopTO = val.Timeout + 500
-		} else {
-			writeLoopTO = 1000
-		}
-	}
-
 	// io copy
-	errChan := make(chan error, 3)
-	errChan <- pio.WithCtxCopy(
-		req.Context(),
-		t.callTree,
-		t.copyResBuf[:],
-		time.Duration(int(time.Millisecond)*writeLoopTO), io.MultiWriter(ws...),
-		resReadCloser,
-		func(s string) { errChan <- pe.New(s) },
-	)
-	for len(errChan) > 0 {
-		err = pe.Join(err, <-errChan)
+	{
+		w := io.MultiWriter(ws...)
+		for {
+			n, e := resReadCloser.Read(t.copyResBuf)
+			if n != 0 {
+				n, e := w.Write(t.copyResBuf[:n])
+				if n == 0 && e != nil {
+					if !errors.Is(e, io.EOF) {
+						err = pe.Join(err, e)
+					}
+					break
+				}
+			} else if e != nil {
+				if !errors.Is(e, io.EOF) {
+					err = pe.Join(err, e)
+				}
+				break
+			}
+		}
 	}
 
 	if t.responBuf != nil {
@@ -304,10 +291,9 @@ func (t *Req) Wait() (err error) {
 }
 
 func (t *Req) Close() { t.Cancel() }
+
+// Deprecated: use rval.Ctx.Cancle
 func (t *Req) Cancel() {
-	if p := t.cancelP.Load(); p != nil {
-		(*p)()
-	}
 }
 
 func (t *Req) IsLive() bool {
@@ -330,14 +316,14 @@ func (t *Req) prepareRes(ctx context.Context, val *Rval) (ctx1 context.Context, 
 	t.err = nil
 
 	if val.Timeout > 0 {
-		ctx1, ctxf1 = context.WithTimeout(ctx, time.Duration(val.Timeout*int(time.Millisecond)))
+		ctx1, ctxf1 = context.WithTimeout(ctx, time.Duration(val.Timeout)*time.Millisecond)
 	} else {
 		ctx1, ctxf1 = context.WithCancel(ctx)
 	}
 	return
 }
 
-func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc) {
+func (t *Req) prepare(val *Rval) {
 	t.UsedTime = 0
 	t.responFile = nil
 	t.callTree = ""
@@ -349,29 +335,21 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 		}
 	}
 	if cap(t.copyResBuf) == 0 {
-		t.copyResBuf = make([]byte, 1<<17)
-	}
-	if val.Ctx != nil {
-		ctx, cancel = context.WithCancel(val.Ctx)
+		t.copyResBuf = make([]byte, humanize.KByte*4)
 	} else {
-		ctx, cancel = context.WithCancel(context.Background())
+		t.copyResBuf = t.copyResBuf[:cap(t.copyResBuf)]
 	}
-
+	if t.client == nil {
+		t.client = &http.Client{}
+	}
+	if val.Ctx == nil {
+		val.Ctx = context.Background()
+	}
 	if val.SaveToPipe != nil {
-		go func() {
-			<-ctx.Done()
-			if e := val.SaveToPipe.CloseWithError(context.Canceled); e != nil {
-				println(e)
-			}
-		}()
+		val.SaveToPipe.WithCtx(val.Ctx)
 	}
 	if val.RawPipe != nil {
-		go func() {
-			<-ctx.Done()
-			if e := val.RawPipe.ResCloseWithError(context.Canceled); e != nil {
-				println(e)
-			}
-		}()
+		val.RawPipe.WithCtx(val.Ctx)
 	}
 
 	if val.Method == "" {
@@ -383,8 +361,6 @@ func (t *Req) prepare(val *Rval) (ctx context.Context, cancel context.CancelFunc
 			val.Method = "GET"
 		}
 	}
-
-	return
 }
 
 func (t *Req) clean(val *Rval) {

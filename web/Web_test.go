@@ -93,7 +93,7 @@ func Test_Mod(t *testing.T) {
 			},
 		})
 		if r.Response.StatusCode != http.StatusNotModified {
-			t.Fatal(r.Respon)
+			t.Fatal(string(r.Respon))
 		}
 	}
 	time.Sleep(time.Second)
@@ -622,7 +622,7 @@ func Test_ClientBlock(t *testing.T) {
 		}()
 		r.Reqf(reqf.Rval{
 			Url:         "http://127.0.0.1:13001/to",
-			SaveToPipe:  &pio.IOpipe{R: rc, W: wc},
+			SaveToPipe:  pio.NewPipeRaw(rc, wc),
 			WriteLoopTO: 5000,
 			Async:       true,
 		})
