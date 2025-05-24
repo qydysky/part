@@ -19,6 +19,8 @@ import (
 
 var addr = "127.0.0.1:10001"
 
+var reuse = New()
+
 func init() {
 	s := web.New(&http.Server{
 		Addr:         addr,
@@ -107,6 +109,34 @@ func init() {
 		},
 	})
 	time.Sleep(time.Second)
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/no",
+	})
+}
+
+// go test -timeout 30s -run ^Test_reuse$ github.com/qydysky/part/reqf -race -count=1 -v -memprofile mem.out
+func Test_reuse(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/no",
+	})
+	if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
+		t.Fail()
+	}
+}
+
+// 2710            430080 ns/op            9896 B/op        111 allocs/op
+func Benchmark(b *testing.B) {
+	rval := Rval{
+		Url: "http://" + addr + "/no",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reuse.Reqf(rval)
+		if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
+			b.Fail()
+		}
+	}
 }
 
 func Test14(t *testing.T) {

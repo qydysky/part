@@ -51,9 +51,11 @@ func RW2Chan(r io.ReadCloser, w io.WriteCloser) (rc, wc chan []byte) {
 	return
 }
 
-func NewPipe() *IOpipe {
+func NewPipe() (u *IOpipe) {
 	r, w := io.Pipe()
-	return &IOpipe{R: r, W: w}
+	u = &IOpipe{R: r, W: w}
+	u.ctx, u.ctxC = context.WithCancel(context.Background())
+	return
 }
 
 type onceError struct {
@@ -76,10 +78,12 @@ func (a *onceError) Load() error {
 }
 
 type IOpipe struct {
-	R  *io.PipeReader
-	W  *io.PipeWriter
-	re onceError
-	we onceError
+	R    *io.PipeReader
+	W    *io.PipeWriter
+	ctx  context.Context
+	ctxC context.CancelFunc
+	re   onceError
+	we   onceError
 }
 
 func (t *IOpipe) Write(p []byte) (n int, err error) {
@@ -107,6 +111,7 @@ func (t *IOpipe) Close() (err error) {
 	if t.R != nil {
 		err = errors.Join(err, t.R.Close())
 	}
+	t.ctxC()
 	return
 }
 func (t *IOpipe) CloseWithError(e error) (err error) {
@@ -118,7 +123,25 @@ func (t *IOpipe) CloseWithError(e error) (err error) {
 		t.re.Store(e)
 		err = errors.Join(err, t.R.CloseWithError(e))
 	}
+	t.ctxC()
 	return
+}
+func (t *IOpipe) WithCtx(ctx context.Context) *IOpipe {
+	go func() {
+		select {
+		case <-ctx.Done():
+			if t.W != nil {
+				t.we.Store(ctx.Err())
+				t.W.CloseWithError(ctx.Err())
+			}
+			if t.R != nil {
+				t.re.Store(ctx.Err())
+				t.R.CloseWithError(ctx.Err())
+			}
+		case <-t.ctx.Done():
+		}
+	}()
+	return t
 }
 
 type RWC struct {
@@ -284,6 +307,26 @@ func WithCtxCopy(ctx context.Context, callTree string, copybuf []byte, to time.D
 				}
 				return nil
 			}
+		}
+	}
+}
+
+func WithCtxCopyNoCheck(ctx context.Context, copybuf []byte, w io.Writer, r io.Reader) error {
+	for {
+		n, e := r.Read(copybuf)
+		if n != 0 {
+			n, e := w.Write(copybuf[:n])
+			if n == 0 && e != nil {
+				if !errors.Is(e, io.EOF) {
+					return errors.Join(ErrWrite, e)
+				}
+				return nil
+			}
+		} else if e != nil {
+			if !errors.Is(e, io.EOF) {
+				return errors.Join(ErrRead, e)
+			}
+			return nil
 		}
 	}
 }

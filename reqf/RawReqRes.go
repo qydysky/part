@@ -1,6 +1,7 @@
 package part
 
 import (
+	"context"
 	"io"
 	"sync/atomic"
 
@@ -40,6 +41,11 @@ func (t RawReqRes) ResClose() error {
 	return nil
 }
 
+func (t RawReqRes) WithCtx(ctx context.Context) {
+	if !t.resC.Swap(true) {
+		t.res.WithCtx(ctx)
+	}
+}
 func (t RawReqRes) ResCloseWithError(e error) error {
 	if !t.resC.Swap(true) {
 		return t.res.CloseWithError(e)
