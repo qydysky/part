@@ -320,14 +320,16 @@ func Test_req4(t *testing.T) {
 // }
 
 func Test_req11(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	{
 		timer := time.NewTimer(time.Second)
 		go func() {
 			<-timer.C
-			r.Cancel()
+			ctxc()
 		}()
 		e := r.Reqf(Rval{
+			Ctx: ctx,
 			Url: "http://" + addr + "/to",
 		})
 		if !IsCancel(e) {
@@ -361,6 +363,7 @@ func Test_req9(t *testing.T) {
 }
 
 func Test_req8(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	{
 		rc, wc := io.Pipe()
@@ -368,9 +371,10 @@ func Test_req8(t *testing.T) {
 			var buf []byte = make([]byte, 1<<16)
 			_, _ = rc.Read(buf)
 			time.Sleep(time.Millisecond * 500)
-			r.Cancel()
+			ctxc()
 		}()
 		r.Reqf(Rval{
+			Ctx:        ctx,
 			Url:        "http://" + addr + "/1min",
 			SaveToPipe: pio.NewPipeRaw(rc, wc),
 			Async:      true,
