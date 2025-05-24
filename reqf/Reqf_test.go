@@ -197,12 +197,14 @@ func Test_req13(t *testing.T) {
 }
 
 func Test_req7(t *testing.T) {
+	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	r.Reqf(Rval{
+		Ctx:   ctx,
 		Url:   "http://" + addr + "/to",
 		Async: true,
 	})
-	r.Cancel()
+	ctxc()
 	if !IsCancel(r.Wait()) {
 		t.Error("async Cancel fail")
 	}
