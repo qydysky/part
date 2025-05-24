@@ -107,11 +107,28 @@ func init() {
 		`/exit`: func(_ http.ResponseWriter, _ *http.Request) {
 			s.Server.Shutdown(context.Background())
 		},
+		`/header`: func(w http.ResponseWriter, r *http.Request) {
+			for k, v := range r.Header {
+				w.Header().Set(k, v[0])
+			}
+		},
 	})
 	time.Sleep(time.Second)
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/no",
 	})
+}
+
+func Test_6(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/header",
+		Header: map[string]string{
+			`I`: `1`,
+		},
+	})
+	if reuse.Response.Header.Get(`I`) != `1` {
+		t.Fail()
+	}
 }
 
 // go test -timeout 30s -run ^Test_reuse$ github.com/qydysky/part/reqf -race -count=1 -v -memprofile mem.out

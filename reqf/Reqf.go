@@ -175,24 +175,28 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		req.AddCookie(v)
 	}
 
+	for k, v := range val.Header {
+		req.Header.Set(k, v)
+	}
+
 	if len(val.PostStr) > 0 {
-		if _, ok := val.Header["Content-Type"]; !ok {
+		if _, ok := req.Header["Content-Type"]; !ok {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		}
 	}
-	if _, ok := val.Header["Accept"]; !ok {
+	if _, ok := req.Header["Accept"]; !ok {
 		req.Header.Set("Accept", defaultAccept)
 	}
-	if _, ok := val.Header["Connection"]; !ok {
+	if _, ok := req.Header["Connection"]; !ok {
 		req.Header.Set("Connection", "keep-alive")
 	}
-	if _, ok := val.Header["Accept-Encoding"]; !ok {
+	if _, ok := req.Header["Accept-Encoding"]; !ok {
 		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	}
 	if val.SaveToPath != "" || val.SaveToPipe != nil {
 		req.Header.Set("Accept-Encoding", "identity")
 	}
-	if _, ok := val.Header["User-Agent"]; !ok {
+	if _, ok := req.Header["User-Agent"]; !ok {
 		req.Header.Set("User-Agent", defaultUA)
 	}
 

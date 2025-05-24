@@ -93,7 +93,7 @@ func Test_Mod(t *testing.T) {
 			},
 		})
 		if r.Response.StatusCode != http.StatusNotModified {
-			t.Fatal(r.Respon)
+			t.Fatal(string(r.Respon))
 		}
 	}
 	time.Sleep(time.Second)
