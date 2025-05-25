@@ -621,10 +621,10 @@ func Test_ClientBlock(t *testing.T) {
 			close(c)
 		}()
 		r.Reqf(reqf.Rval{
-			Url:         "http://127.0.0.1:13001/to",
-			SaveToPipe:  pio.NewPipeRaw(rc, wc),
-			WriteLoopTO: 5000,
-			Async:       true,
+			Url:                 "http://127.0.0.1:13001/to",
+			SaveToPipe:          pio.NewPipeRaw(rc, wc),
+			CopyResponseTimeout: 5000,
+			Async:               true,
 		})
 		<-c
 	}
