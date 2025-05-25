@@ -101,6 +101,7 @@ func init() {
 				default:
 					w.Write([]byte{'0'})
 					flusher.Flush()
+					time.Sleep(time.Millisecond * 500)
 				}
 			}
 		},
@@ -112,11 +113,24 @@ func init() {
 				w.Header().Set(k, v[0])
 			}
 		},
+		`/nores`: func(w http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
+		},
 	})
 	time.Sleep(time.Second)
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/no",
 	})
+}
+
+func Test_7(t *testing.T) {
+	e := reuse.Reqf(Rval{
+		Url:                   "http://" + addr + "/nores",
+		ResponseHeaderTimeout: 500,
+	})
+	if !IsTimeout(e) {
+		t.Fatal(e)
+	}
 }
 
 func Test_6(t *testing.T) {
@@ -156,6 +170,35 @@ func Benchmark(b *testing.B) {
 	}
 }
 
+func Test15(t *testing.T) {
+	i, o := io.Pipe()
+
+	if e := reuse.Reqf(Rval{
+		Url:                 "http://" + addr + "/stream",
+		NoResponse:          true,
+		SaveToPipe:          pio.NewPipeRaw(i, o),
+		Async:               true,
+		CopyResponseTimeout: 100,
+	}); e != nil {
+		t.Log(e)
+	}
+
+	go func() {
+		buf := make([]byte, 1<<8)
+		for {
+			if n, e := i.Read(buf); n != 0 {
+				continue
+			} else if e != nil {
+				break
+			}
+		}
+	}()
+
+	if !errors.Is(reuse.Wait(), ErrCopyRes) {
+		t.Fatal()
+	}
+}
+
 func Test14(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -163,12 +206,12 @@ func Test14(t *testing.T) {
 
 	r := New()
 	if e := r.Reqf(Rval{
-		Url:         "http://" + addr + "/stream",
-		Ctx:         ctx,
-		NoResponse:  true,
-		SaveToPipe:  pio.NewPipeRaw(i, o),
-		Async:       true,
-		WriteLoopTO: 5*1000*2 + 1,
+		Url:                 "http://" + addr + "/stream",
+		Ctx:                 ctx,
+		NoResponse:          true,
+		SaveToPipe:          pio.NewPipeRaw(i, o),
+		Async:               true,
+		CopyResponseTimeout: 5*1000*2 + 1,
 	}); e != nil {
 		t.Log(e)
 	}
