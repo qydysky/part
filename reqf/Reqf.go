@@ -87,6 +87,7 @@ type Req struct {
 	state atomic.Int32
 
 	client     *http.Client
+	reqProxy   string
 	responFile *os.File
 	responBuf  *bytes.Buffer
 	reqBody    io.Reader
@@ -302,7 +303,6 @@ func (t *Req) prepareRes(val *Rval) {
 	if reader, ok := t.reqBody.(*strings.Reader); ok {
 		reader.Seek(0, io.SeekStart)
 	}
-	return
 }
 
 func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCauseFunc, e error) {
@@ -337,21 +337,33 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 	if t.client == nil {
 		t.client = &http.Client{}
 	}
+
+	var initTransport bool
 	if t.client.Transport == nil {
-		t.client.Transport = &http.Transport{}
+		initTransport = true
+	} else if httpTransport, ok := t.client.Transport.(*http.Transport); !ok {
+		initTransport = true
+	} else if val.IdleConnTimeout > 0 && int64(val.IdleConnTimeout) != httpTransport.IdleConnTimeout.Milliseconds() {
+		initTransport = true
+	} else if val.ResponseHeaderTimeout > 0 && int64(val.ResponseHeaderTimeout) != httpTransport.ResponseHeaderTimeout.Milliseconds() {
+		initTransport = true
+	} else if t.reqProxy != val.Proxy {
+		initTransport = true
 	}
-	if val.Proxy != "" {
-		t.client.Transport.(*http.Transport).Proxy = func(_ *http.Request) (*url.URL, error) {
-			return url.Parse(val.Proxy)
+	if initTransport {
+		t.client.Transport = http.DefaultTransport.(*http.Transport).Clone()
+		if val.Proxy != "" {
+			t.reqProxy = val.Proxy
+			t.client.Transport.(*http.Transport).Proxy = func(_ *http.Request) (*url.URL, error) {
+				return url.Parse(val.Proxy)
+			}
 		}
-	}
-	if val.IdleConnTimeout == 0 {
-		t.client.Transport.(*http.Transport).IdleConnTimeout = time.Minute
-	} else if val.IdleConnTimeout > 0 {
-		t.client.Transport.(*http.Transport).IdleConnTimeout = time.Duration(val.IdleConnTimeout) * time.Millisecond
-	}
-	if val.ResponseHeaderTimeout > 0 {
-		t.client.Transport.(*http.Transport).ResponseHeaderTimeout = time.Duration(val.ResponseHeaderTimeout) * time.Millisecond
+		if val.IdleConnTimeout > 0 {
+			t.client.Transport.(*http.Transport).IdleConnTimeout = time.Duration(val.IdleConnTimeout) * time.Millisecond
+		}
+		if val.ResponseHeaderTimeout > 0 {
+			t.client.Transport.(*http.Transport).ResponseHeaderTimeout = time.Duration(val.ResponseHeaderTimeout) * time.Millisecond
+		}
 	}
 	if val.Ctx == nil {
 		val.Ctx = context.Background()
