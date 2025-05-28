@@ -28,11 +28,15 @@ import (
 )
 
 type Rval struct {
-	Method  string
-	Url     string
-	PostStr string
-	Proxy   string
-	Retry   int
+	Method string
+	Url    string
+
+	PostStr    string
+	PostByt    []byte
+	PostReader io.Reader
+
+	Proxy string
+	Retry int
 	// Millisecond，总体请求超时，context.DeadlineExceeded，IsTimeout()==true
 	Timeout int
 	// Millisecond，Retry重试间隔
@@ -91,6 +95,7 @@ type Req struct {
 	responFile *os.File
 	responBuf  *bytes.Buffer
 	reqBody    io.Reader
+	allTO      *time.Timer
 	rwTO       *time.Timer
 	err        error
 	callTree   string
@@ -125,7 +130,10 @@ func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval
 	beginTime := time.Now()
 
 	for i := 0; i <= val.Retry; i++ {
-		t.prepareRes(&val)
+		t.err = t.prepareRes(&val)
+		if t.err != nil {
+			break
+		}
 		t.err = t.reqf(ctx, val)
 		if t.err == nil || IsCancel(t.err) {
 			break
@@ -285,7 +293,7 @@ func (t *Req) IsLive() bool {
 	return t.state.Load() == running
 }
 
-func (t *Req) prepareRes(val *Rval) {
+func (t *Req) prepareRes(val *Rval) (e error) {
 	if !val.NoResponse {
 		if t.responBuf == nil {
 			t.responBuf = new(bytes.Buffer)
@@ -300,9 +308,10 @@ func (t *Req) prepareRes(val *Rval) {
 	t.Response = nil
 	t.err = nil
 
-	if reader, ok := t.reqBody.(*strings.Reader); ok {
-		reader.Seek(0, io.SeekStart)
+	if seeker, ok := t.reqBody.(io.Seeker); ok {
+		_, e = seeker.Seek(0, io.SeekStart)
 	}
+	return
 }
 
 func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCauseFunc, e error) {
@@ -386,21 +395,45 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 	}
 	if val.RawPipe != nil {
 		t.reqBody = val.RawPipe
-	}
-	if len(val.PostStr) > 0 {
+	} else if len(val.PostStr) > 0 {
 		t.reqBody = strings.NewReader(val.PostStr)
+	} else if len(val.PostByt) > 0 {
+		t.reqBody = bytes.NewReader(val.PostByt)
+	} else if val.PostReader != nil {
+		t.reqBody = val.PostReader
+	} else {
+		t.reqBody = nil
 	}
 	{
-		var ctx context.Context
+		var (
+			ctx    context.Context
+			cancel context.CancelCauseFunc
+		)
 		if val.Ctx != nil {
 			ctx = val.Ctx
 		} else {
 			ctx = context.Background()
 		}
+		ctx1, cancel = context.WithCancelCause(ctx)
 		if val.Timeout > 0 {
-			ctx, _ = context.WithTimeout(ctx, time.Duration(val.Timeout)*time.Millisecond)
+			if t.allTO == nil {
+				t.allTO = time.NewTimer(time.Duration(val.Timeout) * time.Millisecond)
+			}
+			t.allTO.Reset(time.Duration(val.Timeout) * time.Millisecond)
+			ctxf1 = func(cause error) {
+				cancel(cause)
+				t.allTO.Stop()
+			}
+			go func() {
+				select {
+				case <-t.allTO.C:
+					ctxf1(context.DeadlineExceeded)
+				case <-ctx1.Done():
+				}
+			}()
+		} else {
+			ctxf1 = cancel
 		}
-		ctx1, ctxf1 = context.WithCancelCause(ctx)
 	}
 	if t.rwTO == nil {
 		t.rwTO = time.NewTimer(time.Duration(val.CopyResponseTimeout) * time.Millisecond)
