@@ -145,6 +145,22 @@ func Test_6(t *testing.T) {
 	}
 }
 
+func Test_8(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url:     "http://" + addr + "/reply",
+		PostStr: "123",
+	})
+	if !bytes.Equal([]byte("123"), reuse.Respon) {
+		t.Fatal()
+	}
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/reply",
+	})
+	if bytes.Equal([]byte("123"), reuse.Respon) {
+		t.Fatal()
+	}
+}
+
 // go test -timeout 30s -run ^Test_reuse$ github.com/qydysky/part/reqf -race -count=1 -v -memprofile mem.out
 func Test_reuse(t *testing.T) {
 	reuse.Reqf(Rval{
