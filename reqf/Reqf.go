@@ -95,6 +95,7 @@ type Req struct {
 	responFile *os.File
 	responBuf  *bytes.Buffer
 	reqBody    io.Reader
+	allTO      *time.Timer
 	rwTO       *time.Timer
 	err        error
 	callTree   string
@@ -404,21 +405,35 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		t.reqBody = nil
 	}
 	{
-		var ctx context.Context
+		var (
+			ctx    context.Context
+			cancel context.CancelCauseFunc
+		)
 		if val.Ctx != nil {
 			ctx = val.Ctx
 		} else {
 			ctx = context.Background()
 		}
-		ctx1, ctxf1 = context.WithCancelCause(ctx)
+		ctx1, cancel = context.WithCancelCause(ctx)
+		if t.allTO == nil {
+			t.allTO = time.NewTimer(time.Duration(val.Timeout) * time.Millisecond)
+		} else {
+			t.allTO.Reset(time.Duration(val.Timeout) * time.Millisecond)
+		}
 		if val.Timeout > 0 {
-			timer := time.AfterFunc(time.Duration(val.Timeout)*time.Millisecond, func() {
-				ctxf1(context.DeadlineExceeded)
-			})
-			return ctx1, func(cause error) {
-				ctxf1(cause)
-				timer.Stop()
-			}, e
+			go func() {
+				select {
+				case <-t.allTO.C:
+					ctxf1(context.DeadlineExceeded)
+				case <-ctx1.Done():
+				}
+			}()
+			ctxf1 = func(cause error) {
+				cancel(cause)
+				t.allTO.Stop()
+			}
+		} else {
+			ctxf1 = cancel
 		}
 	}
 	if t.rwTO == nil {

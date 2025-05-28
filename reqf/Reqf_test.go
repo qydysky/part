@@ -134,12 +134,14 @@ func Test_7(t *testing.T) {
 }
 
 func Test_6(t *testing.T) {
-	reuse.Reqf(Rval{
+	if e := reuse.Reqf(Rval{
 		Url: "http://" + addr + "/header",
 		Header: map[string]string{
 			`I`: `1`,
 		},
-	})
+	}); e != nil {
+		t.Fatal(e)
+	}
 	if reuse.Response.Header.Get(`I`) != `1` {
 		t.Fail()
 	}
