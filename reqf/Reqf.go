@@ -415,12 +415,15 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 			ctx = context.Background()
 		}
 		ctx1, cancel = context.WithCancelCause(ctx)
-		if t.allTO == nil {
-			t.allTO = time.NewTimer(time.Duration(val.Timeout) * time.Millisecond)
-		} else {
-			t.allTO.Reset(time.Duration(val.Timeout) * time.Millisecond)
-		}
 		if val.Timeout > 0 {
+			if t.allTO == nil {
+				t.allTO = time.NewTimer(time.Duration(val.Timeout) * time.Millisecond)
+			}
+			t.allTO.Reset(time.Duration(val.Timeout) * time.Millisecond)
+			ctxf1 = func(cause error) {
+				cancel(cause)
+				t.allTO.Stop()
+			}
 			go func() {
 				select {
 				case <-t.allTO.C:
@@ -428,10 +431,6 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 				case <-ctx1.Done():
 				}
 			}()
-			ctxf1 = func(cause error) {
-				cancel(cause)
-				t.allTO.Stop()
-			}
 		} else {
 			ctxf1 = cancel
 		}
