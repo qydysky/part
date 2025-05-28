@@ -130,7 +130,7 @@ func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval
 
 	for i := 0; i <= val.Retry; i++ {
 		t.err = t.prepareRes(&val)
-		if t.err == nil {
+		if t.err != nil {
 			break
 		}
 		t.err = t.reqf(ctx, val)
