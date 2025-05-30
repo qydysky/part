@@ -125,13 +125,28 @@ func (t *Req) Reqf(val Rval) error {
 func (t *Req) ResStatusCode() (code int) {
 	t.l.RLock()
 	defer t.l.RUnlock()
+	if t.response == nil {
+		return 0
+	}
 	return t.response.StatusCode
 }
 
 func (t *Req) ResHeader() http.Header {
 	t.l.RLock()
 	defer t.l.RUnlock()
+	if t.response == nil {
+		return nil
+	}
 	return t.response.Header.Clone()
+}
+
+func (t *Req) ResCookies(f func(cs []*http.Cookie) error) error {
+	t.l.RLock()
+	defer t.l.RUnlock()
+	if t.response == nil {
+		return nil
+	}
+	return f(t.response.Cookies())
 }
 
 func (t *Req) Response(f func(r *http.Response) error) error {

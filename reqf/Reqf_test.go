@@ -123,6 +123,16 @@ func init() {
 	})
 }
 
+func Test_9(t *testing.T) {
+	reuse.Reqf(Rval{
+		Url:                   "http://" + addr + "1/nores",
+		ResponseHeaderTimeout: 500,
+	})
+	if reuse.ResStatusCode() != 0 {
+		t.Fatal()
+	}
+}
+
 func Test_7(t *testing.T) {
 	e := reuse.Reqf(Rval{
 		Url:                   "http://" + addr + "/nores",
