@@ -85,7 +85,7 @@ func Test_Mod(t *testing.T) {
 		})
 		r.Respon(func(rRespon []byte) error {
 			if !bytes.Equal(rRespon, []byte("abc强强强强")) {
-				t.Fatal(r.Respon)
+				t.Fatal(rRespon)
 			}
 			return nil
 		})
@@ -129,7 +129,7 @@ func Test_Server(t *testing.T) {
 		})
 		r.Respon(func(rRespon []byte) error {
 			if !bytes.Equal(rRespon, []byte("abc强强强强")) {
-				t.Fatal(r.Respon)
+				t.Fatal(rRespon)
 			}
 			return nil
 		})
@@ -140,7 +140,7 @@ func Test_Server(t *testing.T) {
 		})
 		r.Respon(func(rRespon []byte) error {
 			if !bytes.Equal(rRespon, []byte("abc强强强强1")) {
-				t.Fatal(r.Respon)
+				t.Fatal(rRespon)
 			}
 			return nil
 		})
@@ -519,7 +519,7 @@ func Test_Server2(t *testing.T) {
 		})
 		r.Respon(func(buf []byte) error {
 			if !bytes.Equal(buf, []byte("/1")) {
-				t.Fatal(r.Respon)
+				t.Fatal(buf)
 			}
 			return nil
 		})
@@ -530,7 +530,7 @@ func Test_Server2(t *testing.T) {
 		})
 		r.Respon(func(rRespon []byte) error {
 			if !bytes.Equal(rRespon, []byte("/")) {
-				t.Fatal(r.Respon)
+				t.Fatal(rRespon)
 			}
 			return nil
 		})
@@ -709,7 +709,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -721,7 +721,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -733,7 +733,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -745,7 +745,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -763,7 +763,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -775,7 +775,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
@@ -787,7 +787,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	})
 	r.Respon(func(rRespon []byte) error {
 		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(r.Respon)
+			t.Fatal(rRespon)
 		}
 		return nil
 	})
