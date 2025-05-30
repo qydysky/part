@@ -83,17 +83,23 @@ func Test_Mod(t *testing.T) {
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/mod",
 		})
-		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Fatal(r.Respon)
-		}
+		r.Respon(func(rRespon []byte) error {
+			if !bytes.Equal(rRespon, []byte("abc强强强强")) {
+				t.Fatal(rRespon)
+			}
+			return nil
+		})
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/mod",
 			Header: map[string]string{
-				`If-None-Match`: r.Response.Header.Get(`ETag`),
+				`If-None-Match`: r.ResHeader().Get(`ETag`),
 			},
 		})
-		if r.Response.StatusCode != http.StatusNotModified {
-			t.Fatal(string(r.Respon))
+		if r.ResStatusCode() != http.StatusNotModified {
+			r.Respon(func(rRespon []byte) error {
+				t.Fatal(string(rRespon))
+				return nil
+			})
 		}
 	}
 	time.Sleep(time.Second)
@@ -121,17 +127,23 @@ func Test_Server(t *testing.T) {
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/no",
 		})
-		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Fatal(r.Respon)
-		}
+		r.Respon(func(rRespon []byte) error {
+			if !bytes.Equal(rRespon, []byte("abc强强强强")) {
+				t.Fatal(rRespon)
+			}
+			return nil
+		})
 	}
 	{
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000//no1",
 		})
-		if !bytes.Equal(r.Respon, []byte("abc强强强强1")) {
-			t.Fatal(string(r.Respon))
-		}
+		r.Respon(func(rRespon []byte) error {
+			if !bytes.Equal(rRespon, []byte("abc强强强强1")) {
+				t.Fatal(rRespon)
+			}
+			return nil
+		})
 	}
 }
 
@@ -505,17 +517,23 @@ func Test_Server2(t *testing.T) {
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13001/1",
 		})
-		if !bytes.Equal(r.Respon, []byte("/1")) {
-			t.Fatal(r.Respon)
-		}
+		r.Respon(func(buf []byte) error {
+			if !bytes.Equal(buf, []byte("/1")) {
+				t.Fatal(buf)
+			}
+			return nil
+		})
 	}
 	{
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13001/2",
 		})
-		if !bytes.Equal(r.Respon, []byte("/")) {
-			t.Fatal(r.Respon)
-		}
+		r.Respon(func(rRespon []byte) error {
+			if !bytes.Equal(rRespon, []byte("/")) {
+				t.Fatal(rRespon)
+			}
+			return nil
+		})
 	}
 }
 
@@ -549,21 +567,30 @@ func Test_ServerSyncMap(t *testing.T) {
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/1",
 		})
-		if !bytes.Equal(r.Respon, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
-			t.Error(string(r.Respon))
-		}
+		r.Respon(func(buf []byte) error {
+			if !bytes.Equal(buf, []byte("{\"code\":0,\"message\":\"ok\",\"data\":{\"a\":\"0\",\"b\":[\"0\"],\"c\":{\"0\":1}}}")) {
+				t.Error(string(buf))
+			}
+			return nil
+		})
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/2",
 		})
-		if r.Response.StatusCode != 404 {
-			t.Error(string(r.Respon))
+		if r.ResStatusCode() != 404 {
+			r.Respon(func(buf []byte) error {
+				t.Error(string(buf))
+				return nil
+			})
 		}
 		m.Store("/2/", nil)
 		r.Reqf(reqf.Rval{
 			Url: "http://127.0.0.1:13000/2/",
 		})
-		if r.Response.StatusCode != 404 {
-			t.Error(string(r.Respon))
+		if r.ResStatusCode() != 404 {
+			r.Respon(func(buf []byte) error {
+				t.Error(string(buf))
+				return nil
+			})
 		}
 	}
 }
@@ -617,7 +644,7 @@ func Test_ClientBlock(t *testing.T) {
 			time.Sleep(time.Second * 3)
 			d, _ := io.ReadAll(rc)
 			fmt.Println(string(d))
-			fmt.Println(r.Response.Status)
+			fmt.Println(r.ResStatusCode())
 			close(c)
 		}()
 		r.Reqf(reqf.Rval{
@@ -680,55 +707,75 @@ func Test_ServerSyncMapP(t *testing.T) {
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/conn",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.Respon(func(rRespon []byte) error {
+		if json.Unmarshal(rRespon, &res) != nil {
+			t.Fatal(rRespon)
+		}
+		return nil
+	})
 	if res.Message != "ok" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.Respon(func(rRespon []byte) error {
+		if json.Unmarshal(rRespon, &res) != nil {
+			t.Fatal(rRespon)
+		}
+		return nil
+	})
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.Respon(func(rRespon []byte) error {
+		if json.Unmarshal(rRespon, &res) != nil {
+			t.Fatal(rRespon)
+		}
+		return nil
+	})
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/2",
 	})
-	if r.Response.StatusCode != 404 {
+	if r.ResStatusCode() != 404 {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/23",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/2/3",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/2",
 	})
-	json.Unmarshal(r.Respon, &res)
+	r.Respon(func(rRespon []byte) error {
+		if json.Unmarshal(rRespon, &res) != nil {
+			t.Fatal(rRespon)
+		}
+		return nil
+	})
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/2" {
 		t.Fatal("")
 	}

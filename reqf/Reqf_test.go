@@ -142,9 +142,12 @@ func Test_6(t *testing.T) {
 	}); e != nil {
 		t.Fatal(e)
 	}
-	if reuse.Response.Header.Get(`I`) != `1` {
-		t.Fail()
-	}
+	reuse.Response(func(r *http.Response) error {
+		if r.Header.Get(`I`) != `1` {
+			t.Fail()
+		}
+		return nil
+	})
 }
 
 func Test_8(t *testing.T) {
@@ -152,24 +155,29 @@ func Test_8(t *testing.T) {
 		Url:     "http://" + addr + "/reply",
 		PostStr: "123",
 	})
-	if !bytes.Equal([]byte("123"), reuse.Respon) {
-		t.Fatal()
-	}
+	reuse.Respon(func(b []byte) error {
+		if !bytes.Equal([]byte("123"), b) {
+			t.Fatal()
+		}
+		return nil
+	})
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/reply",
 	})
-	if bytes.Equal([]byte("123"), reuse.Respon) {
-		t.Fatal()
-	}
+	reuse.Respon(func(b []byte) error {
+		if bytes.Equal([]byte("123"), b) {
+			t.Fatal()
+		}
+		return nil
+	})
 }
 
 // go test -timeout 30s -run ^Test_reuse$ github.com/qydysky/part/reqf -race -count=1 -v -memprofile mem.out
 func Test_reuse(t *testing.T) {
-	reuse.Reqf(Rval{
-		Url: "http://" + addr + "/no",
-	})
-	if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
-		t.Fail()
+	for i := 0; i < 20; i++ {
+		reuse.Reqf(Rval{
+			Url: "http://" + addr + "/no",
+		})
 	}
 }
 
@@ -182,9 +190,12 @@ func Benchmark(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		reuse.Reqf(rval)
-		if !bytes.Equal(reuse.Respon, []byte("abc强强强强")) {
-			b.Fail()
-		}
+		reuse.Respon(func(buf []byte) error {
+			if !bytes.Equal([]byte("abc强强强强"), buf) {
+				b.Fail()
+			}
+			return nil
+		})
 	}
 }
 
@@ -289,25 +300,33 @@ func Test_req7(t *testing.T) {
 }
 
 func Test_req(t *testing.T) {
-	r := New()
-	r.Reqf(Rval{
+	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/br",
 	})
-	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-		t.Error("br fail", r.Respon)
-	}
-	r.Reqf(Rval{
+	reuse.Respon(func(buf []byte) error {
+		if !bytes.Equal([]byte("abc强强强强"), buf) {
+			t.Fail()
+		}
+		return nil
+	})
+	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/gzip",
 	})
-	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-		t.Error("gzip fail")
-	}
-	r.Reqf(Rval{
+	reuse.Respon(func(buf []byte) error {
+		if !bytes.Equal([]byte("abc强强强强"), buf) {
+			t.Error("gzip fail")
+		}
+		return nil
+	})
+	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/flate",
 	})
-	if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-		t.Error("flate fail")
-	}
+	reuse.Respon(func(buf []byte) error {
+		if !bytes.Equal([]byte("abc强强强强"), buf) {
+			t.Error("flate fail")
+		}
+		return nil
+	})
 }
 
 type J struct {
@@ -315,14 +334,18 @@ type J struct {
 }
 
 func Test_req12(t *testing.T) {
-	r := New()
-	r.Reqf(Rval{
+	reuse.Reqf(Rval{
 		Url:     "http://" + addr + "/json",
 		Timeout: 10 * 1000,
 		Retry:   2,
 	})
 	var j J
-	json.Unmarshal(r.Respon, &j)
+	reuse.Respon(func(buf []byte) error {
+		if json.Unmarshal(buf, &j) != nil {
+			t.Error("json fail")
+		}
+		return nil
+	})
 }
 
 func Test_req2(t *testing.T) {
@@ -565,9 +588,12 @@ func Test_req3(t *testing.T) {
 			Async: true,
 		})
 		r.Wait()
-		if !bytes.Equal(r.Respon, []byte("abc强强强强")) {
-			t.Error("async fail", r.Respon)
-		}
+		r.Respon(func(buf []byte) error {
+			if !bytes.Equal(buf, []byte("abc强强强强")) {
+				t.Error("async fail", buf)
+			}
+			return nil
+		})
 	}
 	{
 		var wg sync.WaitGroup
@@ -589,9 +615,12 @@ func Test_req3(t *testing.T) {
 			Async:      true,
 		})
 		r.Wait()
-		if len(r.Respon) != 0 {
-			t.Error("io async fail", r.Respon)
-		}
+		r.Respon(func(buf []byte) error {
+			if len(buf) != 0 {
+				t.Error("io async fail", buf)
+			}
+			return nil
+		})
 		wg.Wait()
 	}
 }
@@ -602,9 +631,12 @@ func Test_req5(t *testing.T) {
 		Url:     "http://" + addr + "/reply",
 		PostStr: "123",
 	})
-	if !bytes.Equal(r.Respon, []byte("123")) {
-		t.Fatal()
-	}
+	r.Respon(func(buf []byte) error {
+		if !bytes.Equal(buf, []byte("123")) {
+			t.Fatal()
+		}
+		return nil
+	})
 
 	raw := NewRawReqRes()
 	buf := []byte("123")
@@ -623,10 +655,12 @@ func Test_req5(t *testing.T) {
 		t.Fatal(e)
 	}
 	if !bytes.Equal([]byte("123"), buf) {
-		t.Log(r.Respon, buf)
 		t.Fatal()
 	}
-	if _, e := ResDate(r.Response); e != nil {
-		t.Fatal()
-	}
+	reuse.Response(func(r *http.Response) error {
+		if _, e := ResDate(r); e != nil {
+			t.Fatal()
+		}
+		return nil
+	})
 }
