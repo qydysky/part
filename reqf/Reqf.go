@@ -49,10 +49,12 @@ type Rval struct {
 	CopyResponseTimeout int
 	JustResponseCode    bool
 	NoResponse          bool
-	// 当Async为true时，Respon、Response必须在Wait()之后读取，否则有DATA RACE可能
-	Async   bool
-	Cookies []*http.Cookie
-	Ctx     context.Context
+	Async               bool
+	Cookies             []*http.Cookie
+	Ctx                 context.Context
+
+	// 预分配响应长度，若合理设置，将可以节约内存
+	ResponsePreCap int
 
 	SaveToPath string
 	// 为避免write阻塞导致panic，请使用此项目io包中的NewPipe()，或在ctx done时，自行关闭pipe writer reader
@@ -82,14 +84,9 @@ var (
 )
 
 type Req struct {
-	// 当Async为true时，必须在Wait()之后读取，否则有DATA RACE可能
-	Respon []byte
-	// 当Async为true时，必须在Wait()之后读取，否则有DATA RACE可能
-	Response *http.Response
-	UsedTime time.Duration
-
-	state atomic.Int32
-
+	UsedTime   time.Duration
+	response   *http.Response
+	state      atomic.Int32
 	client     *http.Client
 	reqProxy   string
 	responFile *os.File
@@ -99,7 +96,6 @@ type Req struct {
 	rwTO       *time.Timer
 	err        error
 	callTree   string
-
 	copyResBuf []byte
 	l          sync.RWMutex
 }
@@ -126,11 +122,47 @@ func (t *Req) Reqf(val Rval) error {
 	return nil
 }
 
+func (t *Req) ResStatusCode() (code int) {
+	t.l.RLock()
+	defer t.l.RUnlock()
+	return t.response.StatusCode
+}
+
+func (t *Req) ResHeader() http.Header {
+	t.l.RLock()
+	defer t.l.RUnlock()
+	return t.response.Header.Clone()
+}
+
+func (t *Req) Response(f func(r *http.Response) error) error {
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	return f(t.response)
+}
+
+func (t *Req) Respon(f func(b []byte) error) error {
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	return f(t.responBuf.Bytes())
+}
+
+func (t *Req) ResponUnmarshal(f func(b []byte, v any) error, v any) error {
+	t.l.RLock()
+	defer t.l.RUnlock()
+
+	return f(t.responBuf.Bytes(), v)
+}
+
 func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval) {
-	beginTime := time.Now()
+	defer func() {
+		t.UsedTime = time.Since(time.Now())
+		t.l.Unlock()
+	}()
 
 	for i := 0; i <= val.Retry; i++ {
-		t.err = t.prepareRes(&val)
+		t.err = t.prepareRes()
 		if t.err != nil {
 			break
 		}
@@ -144,10 +176,8 @@ func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval
 	}
 
 	ctxf1(nil)
-	t.updateUseDur(beginTime)
 	t.clean(&val)
 	t.state.Store(free)
-	t.l.Unlock()
 }
 
 func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
@@ -190,12 +220,13 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	if e != nil {
 		return pe.Join(ErrClientDo.New(), e)
 	}
+	defer resp.Body.Close()
 
 	if v, ok := val.Header["Connection"]; ok && strings.ToLower(v) != "keep-alive" {
 		defer t.client.CloseIdleConnections()
 	}
 
-	t.Response = resp
+	t.response = resp
 
 	if val.JustResponseCode {
 		return
@@ -267,12 +298,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		t.rwTO.Stop()
 	}
 
-	if t.responBuf != nil {
-		t.Respon = t.responBuf.Bytes()
-	}
-
-	resReadCloser.Close()
-
+	t.response.Body = io.NopCloser(t.responBuf)
 	return
 }
 
@@ -293,19 +319,9 @@ func (t *Req) IsLive() bool {
 	return t.state.Load() == running
 }
 
-func (t *Req) prepareRes(val *Rval) (e error) {
-	if !val.NoResponse {
-		if t.responBuf == nil {
-			t.responBuf = new(bytes.Buffer)
-			t.Respon = t.responBuf.Bytes()
-		} else {
-			t.responBuf.Reset()
-		}
-	} else {
-		t.Respon = []byte{}
-		t.responBuf = nil
-	}
-	t.Response = nil
+func (t *Req) prepareRes() (e error) {
+	t.responBuf.Reset()
+	t.response = nil
 	t.err = nil
 
 	if seeker, ok := t.reqBody.(io.Seeker); ok {
@@ -327,7 +343,6 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		e = ErrCantRetry.New()
 		return
 	}
-
 	t.UsedTime = 0
 	t.responFile = nil
 	t.callTree = ""
@@ -404,6 +419,13 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 	} else {
 		t.reqBody = nil
 	}
+	if t.responBuf == nil {
+		t.responBuf = new(bytes.Buffer)
+	}
+	t.responBuf.Reset()
+	if val.ResponsePreCap > 0 {
+		t.responBuf.Grow(val.ResponsePreCap)
+	}
 	{
 		var (
 			ctx    context.Context
@@ -462,10 +484,6 @@ func (t *Req) clean(val *Rval) {
 		val.RawPipe.ReqClose()
 		val.RawPipe.ResClose()
 	}
-}
-
-func (t *Req) updateUseDur(u time.Time) {
-	t.UsedTime = time.Since(u)
 }
 
 func IsTimeout(e error) bool {
