@@ -731,12 +731,7 @@ func Test_ServerSyncMapP(t *testing.T) {
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1",
 	})
-	r.Respon(func(rRespon []byte) error {
-		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(rRespon)
-		}
-		return nil
-	})
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/" {
 		t.Fatal("")
 	}
@@ -761,24 +756,14 @@ func Test_ServerSyncMapP(t *testing.T) {
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/23",
 	})
-	r.Respon(func(rRespon []byte) error {
-		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(rRespon)
-		}
-		return nil
-	})
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
 	r.Reqf(reqf.Rval{
 		Url: "http://127.0.0.1:13002/1/2/3",
 	})
-	r.Respon(func(rRespon []byte) error {
-		if json.Unmarshal(rRespon, &res) != nil {
-			t.Fatal(rRespon)
-		}
-		return nil
-	})
+	r.ResponUnmarshal(json.Unmarshal, &res)
 	if data, ok := res.Data.(map[string]any); !ok || data["path"].(string) != "/1/" {
 		t.Fatal("")
 	}
