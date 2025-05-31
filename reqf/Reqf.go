@@ -326,6 +326,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	}
 
 	t.response.Body = io.NopCloser(t.responBuf)
+	resp.Body.Close()
 	return
 }
 

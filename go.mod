@@ -6,7 +6,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.17.11
 	github.com/miekg/dns v1.1.62
-	github.com/qydysky/brotli v0.0.0-20240828134800-e9913a6e7ed9
+	github.com/qydysky/brotli v0.0.0-20250531004300-54adcf96cc4a
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	golang.org/x/crypto v0.37.0
