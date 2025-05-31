@@ -309,6 +309,30 @@ func Test_req7(t *testing.T) {
 	}
 }
 
+func Benchmark_req10(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// reuse.Reqf(Rval{
+		// 	Url: "http://" + addr + "/br",
+		// })
+		// reuse.Respon(func(buf []byte) error {
+		// 	if !bytes.Equal([]byte("abc强强强强"), buf) {
+		// 		b.Fail()
+		// 	}
+		// 	return nil
+		// })
+		reuse.Reqf(Rval{
+			Url: "http://" + addr + "/gzip",
+		})
+		reuse.Respon(func(buf []byte) error {
+			if !bytes.Equal([]byte("abc强强强强"), buf) {
+				b.Error("gzip fail")
+			}
+			return nil
+		})
+	}
+}
+
 func Test_req(t *testing.T) {
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/br",

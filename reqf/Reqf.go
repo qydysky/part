@@ -97,6 +97,8 @@ type Req struct {
 	err        error
 	callTree   string
 	copyResBuf []byte
+	brR        *br.Reader
+	gzR        *gzip.Reader
 	l          sync.RWMutex
 }
 
@@ -274,9 +276,19 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	if compress_type := resp.Header[`Content-Encoding`]; len(compress_type) != 0 {
 		switch compress_type[0] {
 		case `br`:
-			resReadCloser = pio.RWC{R: br.NewReader(resp.Body).Read}
+			if t.brR == nil {
+				t.brR = br.NewReader(resp.Body)
+			} else {
+				t.brR.Reset(resp.Body)
+			}
+			resReadCloser = pio.RWC{R: t.brR.Read}
 		case `gzip`:
-			resReadCloser, _ = gzip.NewReader(resp.Body)
+			if t.gzR == nil {
+				t.gzR, _ = gzip.NewReader(resp.Body)
+			} else {
+				t.gzR.Reset(resp.Body)
+			}
+			resReadCloser = t.gzR
 		case `deflate`:
 			resReadCloser = flate.NewReader(resp.Body)
 		default:
