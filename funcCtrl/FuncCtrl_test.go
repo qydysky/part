@@ -54,6 +54,21 @@ func Test_RangeCtx2(t *testing.T) {
 	}
 }
 
+func Test_RangeCtx3(t *testing.T) {
+	var rs RangeSource[any] = func(yield func(any) bool) {
+		if !yield(nil) {
+			return
+		}
+	}
+
+	ctx, c := context.WithCancel(context.Background())
+	c()
+
+	for range rs.RangeCtx(ctx) {
+		t.Fatal("should not call")
+	}
+}
+
 func Test_SkipFunc(t *testing.T) {
 	var c = make(chan int, 2)
 	var b SkipFunc
