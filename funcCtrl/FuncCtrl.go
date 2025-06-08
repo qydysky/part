@@ -109,6 +109,9 @@ type RangeSource[T any] iter.Seq[T]
 func (i RangeSource[T]) RangeCtx(pctx context.Context) iter.Seq2[context.Context, T] {
 	return func(yield func(context.Context, T) bool) {
 		for o := range i {
+			if pctx.Err() != nil {
+				return
+			}
 			ctx, cancle := context.WithCancel(pctx)
 			exit := !yield(ctx, o)
 			cancle()
@@ -122,6 +125,9 @@ func (i RangeSource[T]) RangeCtx(pctx context.Context) iter.Seq2[context.Context
 func (i RangeSource[T]) RangeCtxCancel(pctx context.Context, cancle context.CancelFunc) iter.Seq2[context.Context, T] {
 	return func(yield func(context.Context, T) bool) {
 		for o := range i {
+			if pctx.Err() != nil {
+				return
+			}
 			ctx, cancle := context.WithCancel(pctx)
 			exit := !yield(ctx, o)
 			cancle()
