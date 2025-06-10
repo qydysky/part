@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	pctx "github.com/qydysky/part/ctx"
+	funcCtrl "github.com/qydysky/part/funcCtrl"
 	psync "github.com/qydysky/part/sync"
 )
 
@@ -608,6 +610,61 @@ func Test_msgq5(t *testing.T) {
 		<-mun_c2
 		fin_turn += 1
 	}
+}
+
+func Test_msgq10(t *testing.T) {
+	t.Parallel()
+	msg := NewType[int]()
+
+	var fc funcCtrl.FlashFunc
+	go msg.Pull_tag(map[string]func(int) (disable bool){
+		`1`: func(b int) (disable bool) {
+
+			// 当cut时，取消上次录制
+			ctx1, done := pctx.WithWait(context.Background(), 1, time.Second*30)
+			fc.FlashWithCallback(func() {
+				fmt.Println("call done", b)
+				done()
+				fmt.Println("doned", b)
+			})
+			fmt.Println("start", b)
+
+			go func() {
+				defer fmt.Println("fin", b)
+
+				ctx1, done1 := pctx.WaitCtx(ctx1)
+				defer done1()
+
+				cancle := msg.Pull_tag(map[string]func(int) (disable bool){
+					`2`: func(i int) (disable bool) {
+						if pctx.Done(ctx1) {
+							return true
+						}
+						if b != i {
+							t.Logf("should not rev %d when %d has been closed", i, b)
+							// t.FailNow()
+						}
+						return false
+					},
+				})
+
+				<-ctx1.Done()
+				cancle()
+			}()
+			// if b != 0 {
+			// 	t.Fatal()
+			// }
+			return false
+		},
+	})
+	time.Sleep(time.Second)
+	msg.PushLock_tag(`1`, 0)
+	msg.PushLock_tag(`2`, 0)
+	time.Sleep(time.Second)
+	msg.PushLock_tag(`2`, 0)
+	msg.PushLock_tag(`1`, 1)
+	msg.PushLock_tag(`2`, 1)
+	time.Sleep(time.Second)
 }
 
 func Test_msgq6(t *testing.T) {

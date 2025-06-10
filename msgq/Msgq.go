@@ -171,6 +171,8 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 }
 
 // 不能在由Push*调用的Pull中以同步方式使用
+//
+// async类的Pull将会创建协程处理并退出，可能不会按预期工作
 func (m *Msgq) PushLock_tag(Tag string, Data any) {
 	defer m.PushingTO(lmt.Sprintf("\nPushLock_tag(`%v`)", Tag), getCall(1))()
 	m.PushLock(&Msgq_tag_data{
@@ -276,6 +278,8 @@ func (m *MsgType[T]) Push_tag(Tag string, Data T) {
 }
 
 // 不能在由Push*调用的Pull中以同步方式使用
+//
+// async类的Pull将会创建协程处理并退出，可能不会按预期工作
 func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 	m.m.PushLock(&MsgType_tag_data[T]{
 		Tag:  Tag,
