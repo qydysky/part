@@ -16,7 +16,7 @@ func TestMain(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		t.Log(`id1`)
 		if M.id1 != 0 {
 			return "", nil
@@ -64,7 +64,7 @@ func TestMain2(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -89,7 +89,7 @@ func TestMain2(t *testing.T) {
 		return "", nil
 	})
 
-	for node := range api.GetTrace(`id1`).CallTree() {
+	for node := range api.GetTrace(`id1`).Asc() {
 		t.Log(node)
 	}
 
@@ -109,7 +109,7 @@ func TestMain3(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -134,7 +134,7 @@ func TestMain3(t *testing.T) {
 	})
 
 	lastNode := api.GetTrace(`id1`)
-	for node := range lastNode.CallTree() {
+	for node := range lastNode.Asc() {
 		t.Log(node)
 	}
 
@@ -162,7 +162,7 @@ func TestMain4(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -175,7 +175,7 @@ func TestMain4(t *testing.T) {
 	})
 
 	lastNode := api.GetTrace(`id1`)
-	for node := range lastNode.CallTree() {
+	for node := range lastNode.Asc() {
 		t.Log(node)
 	}
 
@@ -203,7 +203,7 @@ func TestMain5(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -216,7 +216,7 @@ func TestMain5(t *testing.T) {
 	}).Reg(`id2`)
 
 	lastNode := api.GetTrace(`id1`)
-	for node := range lastNode.CallTree() {
+	for node := range lastNode.Asc() {
 		t.Log(node)
 	}
 
@@ -243,8 +243,8 @@ func TestMain6(t *testing.T) {
 		id1: 0,
 		id2: 0,
 	}
-
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	ccc := errors.New(`custom`)
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -259,7 +259,7 @@ func TestMain6(t *testing.T) {
 			return "", nil
 		}
 		// some method get id2 but wrong
-		return "", ErrNextMethod
+		return "", ErrNextMethod.NewErr(ccc)
 	}, func() (misskey string, err error) {
 		if M.id2 != 0 {
 			return "", nil
@@ -270,15 +270,20 @@ func TestMain6(t *testing.T) {
 	})
 
 	lastNode := api.GetTrace(`id1`)
-	for node := range lastNode.CallTree() {
+	for node := range lastNode.Asc() {
 		t.Log(node)
+		if node.Key == `id2` && node.MethodIndex == 0 {
+			if !errors.Is(node.Err, ccc) {
+				t.Fatal()
+			}
+		}
 	}
 
-	if lastNode.Err != ErrGetMissKeyFail {
+	if lastNode.Err != ErrKeyMissAgain {
 		t.Fatal()
 	}
 
-	if api.Get(`id1`) != ErrGetMissKeyFail {
+	if api.Get(`id1`) != ErrKeyMissAgain {
 		t.Fatal()
 	}
 
@@ -298,7 +303,7 @@ func TestMain7(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
 		if M.id1 != 0 {
 			return "", nil
 		}
@@ -311,19 +316,81 @@ func TestMain7(t *testing.T) {
 	})
 
 	lastNode := api.GetTrace(`id1`)
-	for node := range lastNode.CallTree() {
+	for node := range lastNode.Asc() {
 		t.Log(node)
 	}
 
-	if lastNode.Err != ErrGetMissKeyFail {
+	if lastNode.Err != ErrKeyMissAgain {
 		t.Fatal()
 	}
 
-	if api.Get(`id1`) != ErrGetMissKeyFail {
+	if api.Get(`id1`) != ErrKeyMissAgain {
 		t.Fatal()
 	}
 
 	if M.id1 != 0 || M.id2 != 0 {
 		t.Fatal(M)
+	}
+}
+
+func TestMain8(t *testing.T) {
+	type m struct {
+		id1 int
+		id2 int
+	}
+
+	M := m{
+		id1: 0,
+		id2: 0,
+	}
+
+	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
+		if M.id1 != 0 {
+			return "", nil
+		}
+		if M.id2 == 0 {
+			return `id2`, nil
+		}
+		// some method get id1
+		M.id1 = 1
+		return "", nil
+	}).Reg(`id2`, func() (misskey string, err error) {
+		if M.id1 != 0 {
+			return "", nil
+		}
+		if M.id2 == 0 {
+			return `id1`, nil
+		}
+		// some method get id1
+		M.id2 = 1
+		return "", nil
+	})
+
+	lastNode := api.GetTrace(`id1`)
+	for node := range lastNode.Asc() {
+		t.Log(node)
+	}
+
+	// if lastNode.Err != ErrKeyMissAgain {
+	// 	t.Fatal()
+	// }
+
+	// if api.Get(`id1`) != ErrKeyMissAgain {
+	// 	t.Fatal()
+	// }
+
+	// if M.id1 != 0 || M.id2 != 0 {
+	// 	t.Fatal(M)
+	// }
+}
+
+func Benchmark(b *testing.B) {
+	kf := NewKeyFunc().Reg(`1`, func() (misskey string, err error) {
+		return "", nil
+	})
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		kf.Get(`1`)
 	}
 }

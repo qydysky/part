@@ -52,6 +52,15 @@ func TestXxx(t *testing.T) {
 	}
 }
 
+func TestXxx3(t *testing.T) {
+	a1 := Action(`a1`)
+	err := a1.NewErr(io.EOF)
+	if !Catch(err, a1) {
+		t.Fatal()
+	}
+	t.Log(err.Error())
+}
+
 func TestXxx2(t *testing.T) {
 	err := Join(New("r1", a1), io.EOF)
 	if !Catch(err, a1) {

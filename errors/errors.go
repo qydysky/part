@@ -21,6 +21,10 @@ func (t Action) New(reason ...string) (e Error) {
 	return
 }
 
+func (t Action) NewErr(err ...error) (e error) {
+	return Join(append([]error{t}, err...)...)
+}
+
 func (t Action) Error() string {
 	return string(t)
 }
