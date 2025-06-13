@@ -286,3 +286,44 @@ func TestMain6(t *testing.T) {
 		t.Fatal(M)
 	}
 }
+
+func TestMain7(t *testing.T) {
+	type m struct {
+		id1 int
+		id2 int
+	}
+
+	M := m{
+		id1: 0,
+		id2: 0,
+	}
+
+	api := NewApi().Reg(`id1`, func() (misskey string, err error) {
+		if M.id1 != 0 {
+			return "", nil
+		}
+		if M.id2 == 0 {
+			return `id1`, nil
+		}
+		// some method get id1
+		M.id1 = 1
+		return "", nil
+	})
+
+	lastNode := api.GetTrace(`id1`)
+	for node := range lastNode.CallTree() {
+		t.Log(node)
+	}
+
+	if lastNode.Err != ErrGetMissKeyFail {
+		t.Fatal()
+	}
+
+	if api.Get(`id1`) != ErrGetMissKeyFail {
+		t.Fatal()
+	}
+
+	if M.id1 != 0 || M.id2 != 0 {
+		t.Fatal(M)
+	}
+}

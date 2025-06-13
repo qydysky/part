@@ -41,7 +41,7 @@ func (t *Api) Get(key string) (err error) {
 		for i := 0; i < len(fs); i++ {
 			missKey, err := fs[i]()
 			if missKey != "" {
-				if lastMisskey == missKey {
+				if lastMisskey == missKey || missKey == key {
 					return ErrGetMissKeyFail
 				}
 				lastMisskey = missKey
@@ -140,7 +140,7 @@ func (t *Api) GetTrace(key string) *Node {
 			missKey, err := fs[i]()
 			trace.Err = err
 			if missKey != "" {
-				if lastMisskey == missKey {
+				if lastMisskey == missKey || missKey == key {
 					trace.Err = ErrGetMissKeyFail
 					return trace
 				}
