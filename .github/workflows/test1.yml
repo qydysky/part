@@ -21,6 +21,7 @@ jobs:
     - name: Test
       run: |
         go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
@@ -61,6 +62,7 @@ jobs:
     - name: Test
       run: |
         go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
@@ -101,6 +103,7 @@ jobs:
     - name: Test
       run: |
         go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
