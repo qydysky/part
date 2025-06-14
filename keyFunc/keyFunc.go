@@ -27,14 +27,15 @@ func NewKeyFunc() *KeyFunc {
 
 // checkf func() bool
 //
-//	当key有效时，应返回true,否则false
+//   - 当key有效时，应返回true,否则false
 //
 // fs func() (misskeys string, err error):
 //
-//	若缺失依赖key,应返回misskey!=""
-//	若方法错误，但不是严重错误，应返回misskey=="" err==ErrNextMethod.NewErr(err)，以便尝试下一个fs
-//	若方法错误，需要立即退出，应返回misskey=="" err!=nil
-//	其他情况，应返回misskey=="" err==nil
+//   - 若缺失依赖key,应返回misskey!=""
+//   - 若方法错误，但不是严重错误，应返回misskey=="" err==ErrNextMethod.NewErr(err)，以便尝试下一个fs，
+//     当没有下个fs时，将会退出并返回ErrNextMethod.NewErr(err)，可以使用errors.Is比较err，也可以使用ErrNextMethod.catch捕获到ErrNextMethod
+//   - 若方法错误，需要立即退出，应返回misskey=="" err!=nil
+//   - 其他情况，应返回misskey=="" err==nil
 func (t *KeyFunc) Reg(key string, checkf func() bool, fs ...func() (misskey string, err error)) *KeyFunc {
 	t.keyGet[key] = fs
 	t.keyCheck[key] = checkf
