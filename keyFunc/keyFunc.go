@@ -51,6 +51,7 @@ type Node struct {
 	MethodIndex int
 	Err         error
 	perp        any
+	cup         any
 	nextp       any
 }
 
@@ -60,6 +61,7 @@ func newNode(key string, methodI int, err error) *Node {
 		MethodIndex: methodI,
 		Err:         err,
 	}
+	tmp.cup = tmp
 	return tmp
 }
 

@@ -67,15 +67,15 @@ func (t *FlashFunc) FlashWithCallback(f func()) {
 
 // 新的等待旧的
 type BlockFunc struct {
-	sync.Mutex
+	l sync.Mutex
 }
 
 func (t *BlockFunc) Block() {
-	t.Lock()
+	t.l.Lock()
 }
 
 func (t *BlockFunc) UnBlock() {
-	t.Unlock()
+	t.l.Unlock()
 }
 
 type BlockFuncN struct { //新的等待旧的 个数
