@@ -14,23 +14,30 @@ var (
 )
 
 type KeyFunc struct {
-	keyGet map[string][]func() (misskey string, err error)
+	keyGet   map[string][]func() (misskey string, err error)
+	keyCheck map[string]func() bool
 }
 
 func NewKeyFunc() *KeyFunc {
 	return &KeyFunc{
-		keyGet: make(map[string][]func() (misskey string, err error)),
+		keyGet:   make(map[string][]func() (misskey string, err error)),
+		keyCheck: make(map[string]func() bool),
 	}
 }
 
+// checkf func() bool
+//
+//	当key有效时，应返回true,否则false
+//
 // fs func() (misskeys string, err error):
 //
-//	当key有效时，应返回misskey=="" err==nil
-//	当key无效时，若缺失依赖key,应返回misskey!=""
-//	当key无效时，若方法错误，但不是严重错误，应返回misskey=="" err==ErrNextMethod.NewErr(err)，以便尝试下一个fs
-//	当key无效时，若方法错误，需要立即退出，应返回misskey=="" err!=nil
-func (t *KeyFunc) Reg(key string, fs ...func() (misskey string, err error)) *KeyFunc {
+//	若缺失依赖key,应返回misskey!=""
+//	若方法错误，但不是严重错误，应返回misskey=="" err==ErrNextMethod.NewErr(err)，以便尝试下一个fs
+//	若方法错误，需要立即退出，应返回misskey=="" err!=nil
+//	其他情况，应返回misskey=="" err==nil
+func (t *KeyFunc) Reg(key string, checkf func() bool, fs ...func() (misskey string, err error)) *KeyFunc {
 	t.keyGet[key] = fs
+	t.keyCheck[key] = checkf
 	return t
 }
 
@@ -46,7 +53,7 @@ type Node struct {
 	nextp       any
 }
 
-func NewNode(key string, methodI int, err error) *Node {
+func newNode(key string, methodI int, err error) *Node {
 	tmp := &Node{
 		Key:         key,
 		MethodIndex: methodI,
@@ -111,16 +118,19 @@ func (t *KeyFunc) GetTrace(key string) *Node {
 
 func (t *KeyFunc) getTrace(key string, trace *Node) *Node {
 	if fs, ok := t.keyGet[key]; !ok || len(fs) == 0 {
-		return NewNode(key, 0, ErrKeyNotReg)
+		return newNode(key, 0, ErrKeyNotReg)
 	} else {
 		for i := 0; i < len(fs); i++ {
 			if trace == nil {
-				trace = NewNode(key, i, nil)
+				trace = newNode(key, i, nil)
 			} else {
-				tmpp := NewNode(key, i, nil)
+				tmpp := newNode(key, i, nil)
 				trace.nextp = tmpp
 				tmpp.perp = trace
 				trace = tmpp
+			}
+			if t.keyCheck[key]() {
+				return trace
 			}
 			missKey, err := fs[i]()
 			trace.Err = err

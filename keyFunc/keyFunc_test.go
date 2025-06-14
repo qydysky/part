@@ -16,29 +16,24 @@ func TestMain(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		t.Log(`id1`)
-		if M.id1 != 0 {
-			return "", nil
-		}
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`, func() (misskey string, err error) {
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	}, func() (misskey string, err error) {
 		t.Log(`id2 1`)
-		if M.id2 != 0 {
-			return "", nil
-		}
 		// some method get id2 but wrong
 		return "", ErrNextMethod
 	}, func() (misskey string, err error) {
 		t.Log(`id2 2`)
-		if M.id2 != 0 {
-			return "", nil
-		}
 		// some method get id2
 		M.id2 = 1
 		return "", nil
@@ -64,26 +59,21 @@ func TestMain2(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
 		return "", ErrNextMethod
 	}, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
 		// some method get id2
 		M.id2 = 1
 		return "", nil
@@ -109,26 +99,21 @@ func TestMain3(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
 		return "", ErrNextMethod
 	}, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
 		// some method get id2 but wrong
 		return "", errors.New(`wrong`)
 	})
@@ -162,10 +147,9 @@ func TestMain4(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
@@ -203,17 +187,18 @@ func TestMain5(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`)
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	})
 
 	lastNode := api.GetTrace(`id1`)
 	for node := range lastNode.Asc() {
@@ -244,26 +229,21 @@ func TestMain6(t *testing.T) {
 		id2: 0,
 	}
 	ccc := errors.New(`custom`)
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
 		return "", ErrNextMethod.NewErr(ccc)
 	}, func() (misskey string, err error) {
-		if M.id2 != 0 {
-			return "", nil
-		}
 		// some method get id2 but id2 not get
 		M.id2 = 0
 		return "", nil
@@ -303,10 +283,9 @@ func TestMain7(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id1`, nil
 		}
@@ -344,20 +323,18 @@ func TestMain8(t *testing.T) {
 		id2: 0,
 	}
 
-	api := NewKeyFunc().Reg(`id1`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id2`, nil
 		}
 		// some method get id1
 		M.id1 = 1
 		return "", nil
-	}).Reg(`id2`, func() (misskey string, err error) {
-		if M.id1 != 0 {
-			return "", nil
-		}
+	}).Reg(`id2`, func() bool {
+		return M.id2 != 0
+	}, func() (misskey string, err error) {
 		if M.id2 == 0 {
 			return `id1`, nil
 		}
@@ -385,7 +362,11 @@ func TestMain8(t *testing.T) {
 }
 
 func Benchmark(b *testing.B) {
-	kf := NewKeyFunc().Reg(`1`, func() (misskey string, err error) {
+	M := false
+	kf := NewKeyFunc().Reg(`1`, func() bool {
+		return M
+	}, func() (misskey string, err error) {
+		M = true
 		return "", nil
 	})
 	b.ResetTimer()
