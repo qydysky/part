@@ -259,11 +259,11 @@ func TestMain6(t *testing.T) {
 		}
 	}
 
-	if lastNode.Err != ErrKeyMissAgain {
+	if !ErrKeyNotValid.Catch(lastNode.Err) {
 		t.Fatal()
 	}
 
-	if api.Get(`id1`) != ErrKeyMissAgain {
+	if !ErrKeyNotValid.Catch(api.Get(`id1`)) {
 		t.Fatal()
 	}
 
@@ -413,6 +413,10 @@ func TestMain10(t *testing.T) {
 	api := NewKeyFunc().Reg(`id1`, func() bool {
 		return M.id1 >= 0
 	}, func() (misskey string, err error) {
+		// some method get id1 but no right
+		M.id1 = -1
+		return "", nil
+	}, func() (misskey string, err error) {
 		// some method get id1
 		M.id1 = 1
 		return "", nil
@@ -420,6 +424,9 @@ func TestMain10(t *testing.T) {
 
 	lastNode := api.GetTrace(`id1`)
 	for node := range lastNode.Asc() {
+		if node.Key == `id1` && node.MethodIndex == 0 && !errors.Is(node.Err, ErrKeyNotValid) && !ErrKeyNotValid.Catch(node.Err) {
+			t.Fatal()
+		}
 		t.Log(node)
 	}
 

@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	ErrKeyMissAgain = errors.New(`ErrKeyMissAgain`)
 	ErrNextMethod   = perrors.Action(`ErrNextMethod`)
+	ErrKeyNotValid  = perrors.Action(`ErrKeyNotValid`)
+	ErrKeyMissAgain = errors.New(`ErrKeyMissAgain`)
 	ErrKeyNotReg    = errors.New(`ErrKeyNotReg`)
 )
 
@@ -150,6 +151,8 @@ func (t *KeyFunc) getTrace(key string, trace *Node) *Node {
 				}
 				if t.keyCheck[key]() {
 					return trace
+				} else {
+					trace.Err = ErrKeyNotValid.NewErr(trace.Err)
 				}
 			} else if perrors.Catch(trace.Err, ErrNextMethod) {
 				continue
