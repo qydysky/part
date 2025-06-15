@@ -132,9 +132,6 @@ func (t *KeyFunc) getTrace(key string, trace *Node) *Node {
 				tmpp.perp = trace
 				trace = tmpp
 			}
-			if t.keyCheck[key]() {
-				return trace
-			}
 			missKey, err := fs[i]()
 			trace.Err = err
 			if missKey != "" {
@@ -151,7 +148,9 @@ func (t *KeyFunc) getTrace(key string, trace *Node) *Node {
 					i -= 1
 					continue
 				}
-				return trace
+				if t.keyCheck[key]() {
+					return trace
+				}
 			} else if perrors.Catch(trace.Err, ErrNextMethod) {
 				continue
 			} else {
