@@ -259,11 +259,11 @@ func TestMain6(t *testing.T) {
 		}
 	}
 
-	if lastNode.Err != ErrKeyMissAgain {
+	if !ErrKeyNotValid.Catch(lastNode.Err) {
 		t.Fatal()
 	}
 
-	if api.Get(`id1`) != ErrKeyMissAgain {
+	if !ErrKeyNotValid.Catch(api.Get(`id1`)) {
 		t.Fatal()
 	}
 
