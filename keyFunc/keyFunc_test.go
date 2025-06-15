@@ -401,6 +401,33 @@ func TestMain9(t *testing.T) {
 	}
 }
 
+func TestMain10(t *testing.T) {
+	type m struct {
+		id1 int
+	}
+
+	M := m{
+		id1: 0,
+	}
+
+	api := NewKeyFunc().Reg(`id1`, func() bool {
+		return M.id1 >= 0
+	}, func() (misskey string, err error) {
+		// some method get id1
+		M.id1 = 1
+		return "", nil
+	})
+
+	lastNode := api.GetTrace(`id1`)
+	for node := range lastNode.Asc() {
+		t.Log(node)
+	}
+
+	if M.id1 != 1 {
+		t.Fatal()
+	}
+}
+
 func Benchmark(b *testing.B) {
 	M := false
 	kf := NewKeyFunc().Reg(`1`, func() bool {
