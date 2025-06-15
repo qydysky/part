@@ -124,6 +124,9 @@ func Unwrap(e error) []error {
 	return []error{errors.Unwrap(e)}
 }
 
+// 按格式显示err
+//
+//	默认使用ErrSimplifyFunc 即 e.Error() + "\n"
 func ErrorFormat(e error, format ...ErrFormat) (s string) {
 	if e == nil {
 		return ""
@@ -152,9 +155,13 @@ func ErrorFormat(e error, format ...ErrFormat) (s string) {
 type ErrFormat func(e error) string
 
 var (
+	// e.Error() + "\n"
 	ErrSimplifyFunc ErrFormat = func(e error) string {
 		return e.Error() + "\n"
 	}
+	// 如是action，则 string(err.action) + ":" + e.Error() + "\n"
+	//
+	// 否则e.Error() + "\n"
 	ErrActionSimplifyFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok && string(err.action) != err.Reason {
 			return string(err.action) + ":" + e.Error() + "\n"
@@ -162,9 +169,13 @@ var (
 			return e.Error() + "\n"
 		}
 	}
+	// "> " + e.Error() + " "
 	ErrInLineFunc ErrFormat = func(e error) string {
 		return "> " + e.Error() + " "
 	}
+	// 如是action，则 "> " + string(err.action) + ":" + e.Error() + " "
+	//
+	// 否则"> " + e.Error() + " "
 	ErrActionInLineFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok && string(err.action) != err.Reason {
 			return "> " + string(err.action) + ":" + e.Error() + " "
