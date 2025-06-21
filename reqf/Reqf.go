@@ -57,7 +57,10 @@ type Rval struct {
 	ResponsePreCap int
 
 	SaveToPath string
+
 	// 为避免write阻塞导致panic，请使用此项目io包中的NewPipe()，或在ctx done时，自行关闭pipe writer reader
+	//
+	// when ctx done, Read/Write will return io.ErrClosedPipe
 	SaveToPipe *pio.IOpipe
 
 	RawPipe *RawReqRes
@@ -421,7 +424,7 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		val.Ctx = context.Background()
 	}
 	if val.SaveToPipe != nil {
-		val.SaveToPipe.WithCtx(val.Ctx)
+		val.SaveToPipe.WithCtx(val.Ctx, false)
 	}
 	if val.RawPipe != nil {
 		val.RawPipe.WithCtx(val.Ctx)
