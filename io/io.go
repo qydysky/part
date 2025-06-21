@@ -51,6 +51,25 @@ func RW2Chan(r io.ReadCloser, w io.WriteCloser) (rc, wc chan []byte) {
 	return
 }
 
+type onceError struct {
+	sync.RWMutex // guards following
+	err          error
+}
+
+func (a *onceError) Store(err error) {
+	if a.Load() != nil {
+		return
+	}
+	a.Lock()
+	defer a.Unlock()
+	a.err = err
+}
+func (a *onceError) Load() error {
+	a.RLock()
+	defer a.RUnlock()
+	return a.err
+}
+
 func NewPipe() (u *IOpipe) {
 	r, w := io.Pipe()
 	u = &IOpipe{r: r, w: w}
@@ -63,52 +82,41 @@ func NewPipeRaw(r *io.PipeReader, w *io.PipeWriter) (u *IOpipe) {
 	return
 }
 
-type onceError struct {
-	sync.Mutex // guards following
-	err        error
-}
-
-func (a *onceError) Store(err error) {
-	a.Lock()
-	defer a.Unlock()
-	if a.err != nil {
-		return
-	}
-	a.err = err
-}
-func (a *onceError) Load() error {
-	a.Lock()
-	defer a.Unlock()
-	return a.err
-}
-
 type IOpipe struct {
 	r    *io.PipeReader
 	w    *io.PipeWriter
 	ctx  context.Context
 	ctxC context.CancelFunc
-	re   onceError
-	we   onceError
+	e    onceError
 }
 
+// return Write().err and pipeErr as err
 func (t *IOpipe) Write(p []byte) (n int, err error) {
 	if t.w != nil {
 		n, err = t.w.Write(p)
 		if errors.Is(err, io.ErrClosedPipe) {
-			err = errors.Join(err, t.we.Load())
+			err = errors.Join(err, t.e.Load())
 		}
 	}
 	return
 }
+
+// return Read().err and pipeErr as err
 func (t *IOpipe) Read(p []byte) (n int, err error) {
 	if t.r != nil {
 		n, err = t.r.Read(p)
 		if errors.Is(err, io.ErrClosedPipe) {
-			err = errors.Join(err, t.re.Load())
+			err = errors.Join(err, t.e.Load())
 		}
 	}
 	return
 }
+
+// 1. close pipe, return error of Close()
+//
+// 2. cancle pipeCtx
+//
+// 3. Read/Write will return io.ErrClosedPipe
 func (t *IOpipe) Close() (err error) {
 	if t.w != nil {
 		err = errors.Join(err, t.w.Close())
@@ -119,29 +127,39 @@ func (t *IOpipe) Close() (err error) {
 	t.ctxC()
 	return
 }
+
+// 1. close pipe, set e to pipeErr, return error of Close()
+//
+// 2. cancle pipeCtx
+//
+// 3. Read/Write will return io.ErrClosedPipe and pipeErr
 func (t *IOpipe) CloseWithError(e error) (err error) {
+	t.e.Store(e)
 	if t.w != nil {
-		t.we.Store(e)
 		err = errors.Join(err, t.w.CloseWithError(e))
 	}
 	if t.r != nil {
-		t.re.Store(e)
 		err = errors.Join(err, t.r.CloseWithError(e))
 	}
 	t.ctxC()
 	return
 }
-func (t *IOpipe) WithCtx(ctx context.Context) *IOpipe {
+
+// when ctx done
+//
+// 1. close pipe, if carryErr == true or carryErr not set, set ctx.Err() to pipeErr
+//
+// 2. cancle pipeCtx
+//
+// 3. Read/Write will return io.ErrClosedPipe and pipeErr
+func (t *IOpipe) WithCtx(ctx context.Context, carryErr ...bool) *IOpipe {
 	go func() {
 		select {
 		case <-ctx.Done():
-			if t.w != nil {
-				t.we.Store(ctx.Err())
-				t.w.CloseWithError(ctx.Err())
-			}
-			if t.r != nil {
-				t.re.Store(ctx.Err())
-				t.r.CloseWithError(ctx.Err())
+			if len(carryErr) > 0 && !carryErr[0] {
+				_ = t.Close()
+			} else {
+				_ = t.CloseWithError(ctx.Err())
 			}
 		case <-t.ctx.Done():
 		}
