@@ -160,6 +160,10 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 	}
 }
 
+func NewNoClose(filePath string) *File {
+	return New(filePath, 0, false)
+}
+
 func (t *File) CheckRoot(root string) *File {
 	t.Config.root = root
 	if rel, e := filepath.Rel(root, t.Config.FilePath); e != nil {
@@ -354,7 +358,11 @@ func (t *File) CopyToUntil(to *File, untilBytes []byte, perReadSize int, maxRead
 	return
 }
 
-func (t *File) Write(data []byte, tryLock bool) (int, error) {
+func (t *File) Write(data []byte) (int, error) {
+	return t.WriteRaw(data, true)
+}
+
+func (t *File) WriteRaw(data []byte, tryLock bool) (int, error) {
 	if e := t.getRWCloser(); e != nil {
 		return 0, e
 	}

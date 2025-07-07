@@ -23,7 +23,7 @@ func TestDir(t *testing.T) {
 	}
 	if f, e := DirFS("./test2").Open("1.txt"); e != nil {
 		t.Fatal(e)
-	} else if _, e := f.(*File).Write([]byte{'1'}, false); e != nil {
+	} else if _, e := f.(*File).WriteRaw([]byte{'1'}, false); e != nil {
 		t.Fatal(e)
 	} else {
 		f.(*File).Delete()
@@ -96,9 +96,9 @@ func TestNewPath(t *testing.T) {
 	}
 }
 
-func TestWriteReadDelSync(t *testing.T) {
+func TestWriteRawReadDelSync(t *testing.T) {
 	f := New("rwd.txt", -6, true)
-	if i, e := f.Write([]byte("sssa\n"), true); i == 0 || e != nil {
+	if i, e := f.WriteRaw([]byte("sssa\n"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -124,10 +124,10 @@ func TestWriteReadDelSync(t *testing.T) {
 	}
 }
 
-func TestWriteReadDel(t *testing.T) {
+func TestWriteRawReadDel(t *testing.T) {
 	f := New("rwd.txt", 0, false)
 	f.Config.Coder = unicode.UTF8
-	if i, e := f.Write([]byte("sssaaa"), true); i == 0 || e != nil {
+	if i, e := f.WriteRaw([]byte("sssaaa"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -159,7 +159,7 @@ func TestWriteReadDel(t *testing.T) {
 
 func TestSeek(t *testing.T) {
 	f := New("rwd.txt", 0, false)
-	if i, e := f.Write([]byte("12er4x3"), true); i == 0 || e != nil {
+	if i, e := f.WriteRaw([]byte("12er4x3"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -204,7 +204,7 @@ func TestSeek2(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	if i, e := f.Write([]byte("12345sser4x3"), true); i == 0 || e != nil {
+	if i, e := f.WriteRaw([]byte("12345sser4x3"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -231,7 +231,7 @@ func TestSeek2(t *testing.T) {
 
 func TestCopy(t *testing.T) {
 	sf := New("s.txt", 0, true)
-	if i, e := sf.Write([]byte("12er4x3"), true); i == 0 || e != nil {
+	if i, e := sf.WriteRaw([]byte("12er4x3"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -246,7 +246,7 @@ func TestCopy(t *testing.T) {
 
 func TestReadUntil(t *testing.T) {
 	f := New("s.txt", 0, false)
-	if i, e := f.Write([]byte("18u3y7\ns99s9\nuqienbs\n"), true); i == 0 || e != nil {
+	if i, e := f.WriteRaw([]byte("18u3y7\ns99s9\nuqienbs\n"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -292,7 +292,7 @@ func TestReadUntil(t *testing.T) {
 func TestEncoderDecoder(t *testing.T) {
 	sf := New("GBK.txt", 0, true)
 	sf.Config.Coder = simplifiedchinese.GBK
-	if i, e := sf.Write([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
+	if i, e := sf.WriteRaw([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 
@@ -316,7 +316,7 @@ func TestReadAll(t *testing.T) {
 	sf := New("t.txt", 0, true)
 	defer sf.Delete()
 
-	if i, e := sf.Write([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
+	if i, e := sf.WriteRaw([]byte("测1试s啊是3大家看s法$和"), true); i == 0 || e != nil {
 		t.Fatal(e)
 	}
 

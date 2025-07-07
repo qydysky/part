@@ -26,7 +26,7 @@ type Ctx struct {
 // planNum 可以为0 表示无法预知的调用次数，如果在mainDone调用前没有Wait、WithWait时，mainDone将返回ErrNothingWait
 //
 //		mainCtx, mainDone := WithWait(ctx, 0, time.Second)
-//		defer mainDone()// wait done1 or after one second
+//		defer mainDone()// done all child ctx then wait child done() called or after one second
 //
 //		go func(){
 //			ctx1, done1 := WaitCtx(mainCtx)

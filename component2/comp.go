@@ -1,7 +1,6 @@
 package component2
 
 import (
-	"os"
 	"runtime"
 	"strings"
 
@@ -11,9 +10,10 @@ import (
 var pkgInterfaceMap = make(map[string]any)
 
 var (
-	ErrEmptyPkgId = perrors.New("ErrEmptyPkgId")
-	ErrRegistered = perrors.New("ErrRegistered")
-	ErrGet        = perrors.New("ErrGet")
+	ErrEmptyPkgId    = perrors.New("ErrEmptyPkgId")
+	ErrRegistered    = perrors.New("ErrRegistered")
+	ErrNoFound       = perrors.Action("ErrNoFound")
+	ErrTypeAssertion = perrors.Action("ErrTypeAssertion")
 )
 
 func PkgId(varId ...string) string {
@@ -62,10 +62,45 @@ func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_
 	return *new(TargetInterface)
 }
 
+func GetV2[TargetInterface any](id string, prefunc PreFunc[TargetInterface]) *GetRunner[TargetInterface] {
+	runner := &GetRunner[TargetInterface]{}
+	if o, ok := pkgInterfaceMap[id]; !ok {
+		runner.err = prefunc.ErrNoFound(id)
+		return runner
+	} else if tmp, ok := o.(TargetInterface); !ok {
+		runner.err = prefunc.ErrTypeAssertion(id)
+		return runner
+	} else {
+		runner.inter = prefunc.Init(tmp)
+		return runner
+	}
+}
+
+type GetRunner[TargetInterface any] struct {
+	err   error
+	inter TargetInterface
+}
+
+func (t *GetRunner[TargetInterface]) Err() error {
+	return t.err
+}
+
+func (t *GetRunner[TargetInterface]) Run(f func(TargetInterface) error) error {
+	if t.err != nil {
+		return t.err
+	}
+	return f(t.inter)
+}
+
+// PreFuncCu[TargetInterface any]
+//
+// PreFuncErr[TargetInterface any]
+//
+// PreFuncPanic[TargetInterface any]
 type PreFunc[TargetInterface any] interface {
 	Init(TargetInterface) TargetInterface
-	ErrNoFound(id string)
-	ErrTypeAssertion(id string)
+	ErrNoFound(id string) error
+	ErrTypeAssertion(id string) error
 }
 
 type PreFuncPanic[TargetInterface any] struct{}
@@ -74,12 +109,12 @@ func (PreFuncPanic[TargetInterface]) Init(s TargetInterface) TargetInterface {
 	return s
 }
 
-func (PreFuncPanic[TargetInterface]) ErrNoFound(id string) {
-	panic(ErrGet.WithReason("ErrNoFound"))
+func (PreFuncPanic[TargetInterface]) ErrNoFound(id string) error {
+	panic(perrors.ErrorFormat(ErrNoFound.New(id), perrors.ErrActionInLineFunc))
 }
 
-func (PreFuncPanic[TargetInterface]) ErrTypeAssertion(id string) {
-	panic(ErrGet.WithReason("ErrTypeAssertion"))
+func (PreFuncPanic[TargetInterface]) ErrTypeAssertion(id string) error {
+	panic(perrors.ErrorFormat(ErrTypeAssertion.New(id), perrors.ErrActionInLineFunc))
 }
 
 type PreFuncErr[TargetInterface any] struct{}
@@ -88,18 +123,18 @@ func (PreFuncErr[TargetInterface]) Init(s TargetInterface) TargetInterface {
 	return s
 }
 
-func (PreFuncErr[TargetInterface]) ErrNoFound(id string) {
-	os.Stderr.WriteString(perrors.ErrorFormat(ErrGet.WithReason("ErrNoFound "+id), perrors.ErrActionSimplifyFunc))
+func (PreFuncErr[TargetInterface]) ErrNoFound(id string) error {
+	return ErrNoFound.New(id)
 }
 
-func (PreFuncErr[TargetInterface]) ErrTypeAssertion(id string) {
-	os.Stderr.WriteString(perrors.ErrorFormat(ErrGet.WithReason("ErrTypeAssertion "+id), perrors.ErrActionSimplifyFunc))
+func (PreFuncErr[TargetInterface]) ErrTypeAssertion(id string) error {
+	return ErrTypeAssertion.New(id)
 }
 
 type PreFuncCu[TargetInterface any] struct {
 	Initf             func(TargetInterface) TargetInterface
-	ErrNoFoundf       func(id string)
-	ErrTypeAssertionf func(id string)
+	ErrNoFoundf       func(id string) error
+	ErrTypeAssertionf func(id string) error
 }
 
 func (t PreFuncCu[TargetInterface]) Init(s TargetInterface) TargetInterface {
@@ -109,14 +144,18 @@ func (t PreFuncCu[TargetInterface]) Init(s TargetInterface) TargetInterface {
 	return s
 }
 
-func (t PreFuncCu[TargetInterface]) ErrNoFound(id string) {
+func (t PreFuncCu[TargetInterface]) ErrNoFound(id string) error {
 	if t.ErrNoFoundf != nil {
-		t.ErrNoFoundf(id)
+		return t.ErrNoFoundf(id)
+	} else {
+		return ErrNoFound.New(id)
 	}
 }
 
-func (t PreFuncCu[TargetInterface]) ErrTypeAssertion(id string) {
+func (t PreFuncCu[TargetInterface]) ErrTypeAssertion(id string) error {
 	if t.ErrTypeAssertionf != nil {
-		t.ErrTypeAssertionf(id)
+		return t.ErrTypeAssertionf(id)
+	} else {
+		return ErrTypeAssertion.New(id)
 	}
 }
