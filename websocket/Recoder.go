@@ -40,7 +40,7 @@ func (t *Recorder) Start(filePath string) error {
 		return ErrhadStart
 	}
 
-	f := file.New(filePath, 0, false)
+	f := file.Open(filePath)
 	if f.IsExist() {
 		return ErrIsExist
 	}
@@ -62,7 +62,7 @@ func (t *Recorder) Start(filePath string) error {
 					return true
 				}
 				if tmp, ok := data.(Uinterface); ok {
-					f.Write([]byte(fmt.Sprintf("%f,%d,%s\n", time.Since(startTimeStamp).Seconds(), tmp.Id, tmp.Data)), true)
+					f.Write([]byte(fmt.Sprintf("%f,%d,%s\n", time.Since(startTimeStamp).Seconds(), tmp.Id, tmp.Data)))
 					f.Sync()
 				}
 				return false
@@ -92,7 +92,7 @@ func Play(filePath string) (s *Server, close func()) {
 	}
 
 	go func() {
-		f := file.New(filePath, 0, false)
+		f := file.Open(filePath)
 		defer f.Close()
 
 		timer := time.NewTicker(time.Millisecond * 500)
