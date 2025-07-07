@@ -36,12 +36,12 @@ func (c C) CallF(a, b int) int {
 
 func Test2(t *testing.T) {
 	type a interface{ CallF(int, int) int }
-	if e := Register[a]("aa", C{func(a, b int) int { return a + b }}); e != nil {
+	if e := Register[a]("aa0", C{func(a, b int) int { return a + b }}); e != nil {
 		panic(e)
 	}
 
 	{
-		GetV2("aa", PreFuncCu[a]{}).Run(func(s a) error {
+		GetV2("aa0", PreFuncCu[a]{}).Run(func(s a) error {
 			if 3 != s.CallF(1, 2) {
 				t.Fatal()
 			}
@@ -51,7 +51,7 @@ func Test2(t *testing.T) {
 
 	{
 		ok := false
-		GetV2("aa", PreFuncCu[a]{
+		GetV2("aa0", PreFuncCu[a]{
 			Initf: func(b a) a {
 				ok = true
 				return b
@@ -77,7 +77,7 @@ func Test2(t *testing.T) {
 
 	{
 		ok := false
-		GetV2("aa", PreFuncCu[interface{ Add() }]{
+		GetV2("aa0", PreFuncCu[interface{ Add() }]{
 			ErrTypeAssertionf: func(id string) error {
 				ok = true
 				return ErrTypeAssertion
