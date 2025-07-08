@@ -7,7 +7,24 @@ import (
 	"time"
 )
 
+func TestMain13(t *testing.T) {
+	t.Parallel()
+	ctx1, done1 := WithWait(context.Background(), 0, time.Second*2)
+	go func() {
+		ctx2, done2 := WaitCtx(ctx1)
+		defer done2()
+		time.AfterFunc(time.Millisecond*100, func() { done1() })
+		<-ctx2.Done()
+		time.Sleep(time.Millisecond * 200)
+	}()
+	time.Sleep(time.Millisecond * 200)
+	if e := done1(true); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestMain12(t *testing.T) {
+	t.Parallel()
 	ctx1, done1 := WithWait(context.Background(), 0, time.Second*2)
 	ctx2, done2 := WithWait(ctx1, 0, time.Second*2)
 	go func() {
@@ -25,6 +42,7 @@ func TestMain12(t *testing.T) {
 }
 
 func TestMain11(t *testing.T) {
+	t.Parallel()
 	ctx1, done1 := WithWait(context.Background(), 0, time.Second*2)
 	ctx2, _ := WithWait(ctx1, 0, time.Second*2)
 	go func() {
@@ -39,6 +57,7 @@ func TestMain11(t *testing.T) {
 }
 
 func TestMain10(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 0, time.Second*2)
 	go func() {
 		ctx2, done2 := WaitCtx(ctx1)
@@ -54,6 +73,7 @@ func TestMain10(t *testing.T) {
 }
 
 func TestMain9(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 0, time.Second*2)
 	go func() {
 		ctx2, done2 := WaitCtx(ctx1)
@@ -68,6 +88,7 @@ func TestMain9(t *testing.T) {
 }
 
 func TestMain(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
 	t0 := time.Now()
 	go func() {
@@ -90,6 +111,7 @@ func TestMain(t *testing.T) {
 }
 
 func TestMain5(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 1)
 	t0 := time.Now()
 	go func() {
@@ -99,14 +121,14 @@ func TestMain5(t *testing.T) {
 		if time.Since(t0) < time.Millisecond*100 {
 			t.Fail()
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 200)
 	}()
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 200)
 	t1 := time.Now()
 	if done() != nil {
 		t.Fatal()
 	}
-	if time.Since(t1) < time.Second {
+	if time.Since(t1) < time.Millisecond*100 {
 		t.Fail()
 	}
 	if !errors.Is(done(), ErrDoneCalled) {
@@ -115,6 +137,7 @@ func TestMain5(t *testing.T) {
 }
 
 func TestMain7(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
 	go func() {
 		ctx2, done1 := WaitCtx(ctx1)
@@ -140,6 +163,7 @@ func TestMain7(t *testing.T) {
 }
 
 func TestMain6(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 1, time.Second*2)
 	go func() {
 		ctx2, done1 := WaitCtx(ctx1)
@@ -170,6 +194,7 @@ func TestMain6(t *testing.T) {
 }
 
 func TestMain1(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 1, time.Second)
 	t0 := time.Now()
 	go func() {
@@ -186,6 +211,7 @@ func TestMain1(t *testing.T) {
 }
 
 func TestMain2(t *testing.T) {
+	t.Parallel()
 	ctx1, done := WithWait(context.Background(), 0, time.Second)
 	t0 := time.Now()
 	go func() {
@@ -203,6 +229,7 @@ func TestMain2(t *testing.T) {
 }
 
 func TestMain3(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	val := Value[error]{}
 	ctx = val.LinkCtx(ctx)
@@ -213,6 +240,7 @@ func TestMain3(t *testing.T) {
 }
 
 func TestMain4(t *testing.T) {
+	t.Parallel()
 	ctx := CarryCancel(context.WithCancel(context.Background()))
 	time.AfterFunc(time.Millisecond*500, func() {
 		if CallCancel(ctx) != nil {
