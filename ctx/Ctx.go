@@ -18,9 +18,9 @@ var (
 )
 
 type Ctx struct {
-	Ctx context.Context
-	w32 *atomic.Int32
-	r32 *atomic.Int32
+	Ctx     context.Context
+	planC   *atomic.Int32
+	actualC *atomic.Int32
 }
 
 // planNum 可以为0 表示无法预知的调用次数，如果在mainDone调用前没有Wait、WithWait时，mainDone将返回ErrNothingWait
@@ -34,41 +34,42 @@ type Ctx struct {
 //			do something..
 //	 		<-ctx1.Done() // wait mainDone call
 //		}()
-func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx context.Context, done func() error) {
+func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx context.Context, done func(wait ...bool) error) {
 	if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
-		ctxp.r32.Add(1)
-		ctxp.w32.Add(-1)
+		ctxp.actualC.Add(1)
+		ctxp.planC.Add(-1)
 	}
 
-	ctx := &Ctx{w32: &atomic.Int32{}, r32: &atomic.Int32{}}
+	ctx := &Ctx{planC: &atomic.Int32{}, actualC: &atomic.Int32{}}
 	ctx.Ctx = context.WithValue(sctx, ptr, ctx)
-	ctx.w32.Add(planNum)
+	ctx.planC.Add(planNum)
 
 	var doneWait context.CancelFunc
 	dctx, doneWait = context.WithCancel(ctx.Ctx)
 
 	var oncef atomic.Bool
-	done = func() error {
-		if !oncef.CompareAndSwap(false, true) {
+	done = func(wait ...bool) error {
+		firstDone := oncef.CompareAndSwap(false, true)
+		if (len(wait) == 0 || !wait[0]) && !firstDone {
 			return ErrDoneCalled
 		}
 
 		doneWait()
-		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
-			defer ctxp.r32.Add(-1)
+		if ctxp, ok := sctx.Value(ptr).(*Ctx); ok && firstDone {
+			defer ctxp.actualC.Add(-1)
 		}
-		if planNum == 0 && ctx.w32.Load() == 0 {
+		if planNum == 0 && ctx.planC.Load() == 0 {
 			return ErrNothingWait
 		}
 		be := time.Now()
-		for ctx.w32.Load() > 0 {
+		for ctx.planC.Load() > 0 {
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
 			time.Sleep(time.Millisecond * sleepDru)
 			// runtime.Gosched()
 		}
-		for !ctx.r32.CompareAndSwap(0, -1) {
+		for ctx.actualC.Load() > 0 {
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
@@ -95,13 +96,13 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 func WaitCtx(ctx context.Context) (dctx context.Context, done func()) {
 	dctx1, done1 := context.WithCancel(ctx)
 	if ctxp, ok := dctx1.Value(ptr).(*Ctx); ok {
-		ctxp.r32.Add(1)
-		ctxp.w32.Add(-1)
+		ctxp.actualC.Add(1)
+		ctxp.planC.Add(-1)
 	}
 	return dctx1, sync.OnceFunc(func() {
 		done1()
 		if ctxp, ok := dctx1.Value(ptr).(*Ctx); ok {
-			ctxp.r32.Add(-1)
+			ctxp.actualC.Add(-1)
 		}
 	})
 }
