@@ -497,9 +497,15 @@ func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (d
 	return
 }
 
+// EOF will return
 func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) {
 	if e := t.getRWCloser(); e != nil {
 		return nil, e
+	}
+	if info, e := t.Stat(); e == nil && info.Size() > int64(maxReadSize) {
+		return nil, ErrMaxReadSizeReach
+	} else {
+		data = make([]byte, info.Size())
 	}
 	if t.Config.AutoClose {
 		defer t.Close()
@@ -513,23 +519,75 @@ func (t *File) ReadAll(perReadSize int, maxReadSize int) (data []byte, e error) 
 	var (
 		tmpArea = make([]byte, perReadSize)
 		n       int
+		total   int
 		reader  = t.read()
 	)
 
-	for maxReadSize > 0 {
+	for maxReadSize > total {
 		n, e = reader.Read(tmpArea)
 
 		if n == 0 && e != nil {
-			return
+			break
 		}
 
-		maxReadSize = maxReadSize - n
-		data = append(data, tmpArea[:n]...)
+		copy(data[total:], tmpArea[:n])
+		total += n
 	}
 
-	if maxReadSize <= 0 {
-		e = ErrMaxReadSizeReach
+	if maxReadSize <= total {
+		return nil, ErrMaxReadSizeReach
 	}
+
+	data = data[:total]
+
+	return
+}
+
+// EOF will return
+func (t *File) ReadToBuf(buf *[]byte, perReadSize int, maxReadSize int) (e error) {
+	if e := t.getRWCloser(); e != nil {
+		return e
+	}
+	if info, e := t.Stat(); e == nil && info.Size() > int64(maxReadSize) {
+		return ErrMaxReadSizeReach
+	} else if info.Size() > int64(cap(*buf)) {
+		*buf = append(*buf, make([]byte, info.Size()-int64(cap(*buf)))...)
+	}
+	clear(*buf)
+	*buf = (*buf)[:cap(*buf)]
+
+	if t.Config.AutoClose {
+		defer t.Close()
+	}
+
+	if !t.l.TryRLock() {
+		return ErrFailToLock
+	}
+	defer t.l.RUnlock()
+
+	var (
+		tmpArea = make([]byte, perReadSize)
+		n       int
+		total   int
+		reader  = t.read()
+	)
+
+	for maxReadSize > total {
+		n, e = reader.Read(tmpArea)
+
+		if n == 0 && e != nil {
+			break
+		}
+
+		copy((*buf)[total:], tmpArea[:n])
+		total += n
+	}
+
+	if maxReadSize <= total {
+		return ErrMaxReadSizeReach
+	}
+
+	*buf = (*buf)[:total]
 
 	return
 }

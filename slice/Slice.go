@@ -84,18 +84,38 @@ func (t *Buf[T]) ExpandCapTo(size int) {
 }
 
 func (t *Buf[T]) Append(data []T) error {
+	return t.Appends(func(ba *BufAppendsI[T]) {
+		ba.Append(data)
+	})
+}
+
+type BufAppendsI[T any] struct {
+	bufp *Buf[T]
+	e    error
+}
+
+func (t *BufAppendsI[T]) Append(data []T) *BufAppendsI[T] {
+	if t.e != nil || len(data) == 0 {
+		return t
+	}
+	if t.bufp.buf == nil {
+		t.bufp.buf = make([]T, len(data))
+	} else if t.bufp.maxsize != 0 && t.bufp.bufsize+len(data) > t.bufp.maxsize {
+		t.e = ErrOverMax
+		return t
+	}
+	t.bufp.buf = append(t.bufp.buf[:t.bufp.bufsize], data...)
+	t.bufp.bufsize += len(data)
+	t.bufp.modified.t += 1
+	return t
+}
+
+func (t *Buf[T]) Appends(f func(ba *BufAppendsI[T])) error {
 	t.l.Lock()
 	defer t.l.Unlock()
-
-	if t.buf == nil {
-		t.buf = make([]T, len(data))
-	} else if t.maxsize != 0 && t.bufsize+len(data) > t.maxsize {
-		return ErrOverMax
-	}
-	t.buf = append(t.buf[:t.bufsize], data...)
-	t.bufsize += len(data)
-	t.modified.t += 1
-	return nil
+	ba := &BufAppendsI[T]{bufp: t}
+	f(ba)
+	return ba.e
 }
 
 func (t *Buf[T]) SetFrom(data []T) error {

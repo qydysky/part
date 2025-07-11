@@ -11,10 +11,57 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	part "github.com/qydysky/part/io"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/encoding/unicode"
 )
+
+func Benchmark1(b *testing.B) {
+	s := "sssa\n"
+	f := Open("rwd.txt")
+	if i, e := f.WriteRaw([]byte(s), true); i == 0 || e != nil {
+		b.Fatal(e)
+	}
+
+	buf := []byte{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		f.SeekIndex(0, AtOrigin)
+		if e := f.ReadToBuf(&buf, 16, humanize.MByte); e != nil && !errors.Is(e, io.EOF) {
+			b.Fatal(e)
+		} else if string(buf) != s {
+			b.Fatal(buf)
+		}
+	}
+}
+func Test1(t *testing.T) {
+	s := "sssa\n"
+	f := Open("rwd.txt")
+	defer func() {
+		_ = f.Delete()
+	}()
+	if i, e := f.WriteRaw([]byte(s), true); i == 0 || e != nil {
+		t.Fatal(e)
+	}
+	f.SeekIndex(0, AtOrigin)
+
+	buf := []byte{}
+
+	if e := f.ReadToBuf(&buf, 1, 10); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	} else if string(buf) != s {
+		t.Log(buf)
+	}
+
+	f.SeekIndex(0, AtOrigin)
+	if e := f.ReadToBuf(&buf, 1, 10); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	} else if string(buf) != s {
+		t.Log(buf)
+	}
+}
 
 func TestDir(t *testing.T) {
 	Open("./test2").Delete()
