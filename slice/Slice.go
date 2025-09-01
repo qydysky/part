@@ -236,18 +236,28 @@ func DelFront[S ~[]T, T any](s *S, beforeIndex int) {
 	*s = (*s)[:copy(*s, (*s)[beforeIndex:])]
 }
 
-func AddFront[S ~[]*T, T any](s *S, t *T) {
-	*s = append(*s, nil)
+func AddFront[S ~[]T, T any](s *S, t *T) {
+	*s = append(*s, *new(T))
 	*s = (*s)[:1+copy((*s)[1:], *s)]
-	(*s)[0] = t
+	(*s)[0] = *t
 }
 
 func DelBack[S ~[]T, T any](s *S, fromIndex int) {
 	*s = (*s)[:fromIndex]
 }
 
-func AddBack[S ~[]*T, T any](s *S, t *T) {
-	*s = append(*s, t)
+func AddBack[S ~[]T, T any](s *S, t *T) {
+	*s = append(*s, *t)
+}
+
+func LoopAddBack[S ~[]T, T any](s *S, t *T) {
+	DelFront(s, 1)
+	AddBack(s, t)
+}
+
+func LoopAddFront[S ~[]T, T any](s *S, t *T) {
+	DelBack(s, len(*s)-1)
+	AddFront(s, t)
 }
 
 func Resize[S ~[]T, T any](s *S, size int) {

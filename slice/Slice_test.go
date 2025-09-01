@@ -2,6 +2,7 @@ package part
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 	"unsafe"
 )
@@ -167,9 +168,9 @@ func TestXxx2(t *testing.T) {
 
 func Test3(t *testing.T) {
 	i := 1
-	var s []*int
+	var s []int
 	var p = unsafe.Pointer(&s)
-	s = append(s, &i, &i, &i)
+	s = append(s, i, i, i)
 	if unsafe.Pointer(&s) != p || cap(s) != 3 || len(s) != 3 {
 		t.Fatal()
 	}
@@ -219,5 +220,34 @@ func Test4(t *testing.T) {
 
 	if !bytes.Equal(buf, []byte("22345")) {
 		t.Fatal(buf)
+	}
+}
+
+func Test(t *testing.T) {
+	var buf = []int{1, 2, 3}
+	var v int = 1
+	LoopAddBack(&buf, &v)
+	if !slices.Equal(buf, []int{2, 3, 1}) {
+		t.Fatal()
+	}
+	LoopAddFront(&buf, &v)
+	if !slices.Equal(buf, []int{1, 2, 3}) {
+		t.Fatal()
+	}
+}
+
+func Benchmark1(b *testing.B) {
+	var buf = []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	var t int = 1
+	for b.Loop() {
+		LoopAddBack(&buf, &t)
+	}
+}
+
+func Benchmark3(b *testing.B) {
+	var buf = []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	var t int = 1
+	for b.Loop() {
+		LoopAddFront(&buf, &t)
 	}
 }
