@@ -745,6 +745,16 @@ func (t *File) Delete() error {
 	return fos.Remove(t.Config.FilePath)
 }
 
+func (t *File) CloseErr(err ...*error) {
+	if t.file != nil {
+		if e := t.file.Close(); e != nil && len(err) > 0 {
+			*err[0] = e
+		} else {
+			t.file = nil
+		}
+	}
+}
+
 func (t *File) Close() error {
 	if t.file != nil {
 		if e := t.file.Close(); e != nil {
