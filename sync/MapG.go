@@ -6,12 +6,16 @@ import (
 )
 
 var (
-	_ = MapFunc[any, any](&MapG[any, any]{})
+	_ = MapFunc[any, any](NewMapG[any, any]())
 )
 
 type MapG[T, E any] struct {
 	size atomic.Int64
 	m    sync.Map
+}
+
+func NewMapG[T, E any]() *MapG[T, E] {
+	return &MapG[T, E]{}
 }
 
 func (t *MapG[T, E]) Store(k T, v E) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -123,6 +124,34 @@ import (
 // 	}
 // 	t.Log(`fin`)
 // }
+
+func Test2(t *testing.T) {
+	m := NewType[string]()
+
+	mg := psync.NewMapG[string, *func(string) (disable bool)]()
+	f1 := func(s string) (disable bool) {
+		if s != "1" {
+			t.Fatal()
+		}
+		return false
+	}
+	f2 := func(s string) (disable bool) {
+		if s != "2" {
+			t.Fatal()
+		}
+		return false
+	}
+	f3 := func(s string) (disable bool) {
+		return true
+	}
+	mg.Store("1", &f1)
+	m.Pull_tag_syncmap(mg)
+	m.Push_tag("1", "1")
+	mg.Store("1", &f2)
+	m.Push_tag("1", "2")
+	mg.Store("1", &f3)
+	m.Push_tag("1", "1")
+}
 
 func BenchmarkXxx(b *testing.B) {
 	mq := New()
@@ -617,7 +646,7 @@ func Test_msgq10(t *testing.T) {
 	msg := NewType[int]()
 
 	var fc funcCtrl.FlashFunc
-	go msg.Pull_tag(map[string]func(int) (disable bool){
+	msg.Pull_tag_async(map[string]func(int) (disable bool){
 		`1`: func(b int) (disable bool) {
 
 			// 当cut时，取消上次录制
@@ -661,9 +690,71 @@ func Test_msgq10(t *testing.T) {
 	msg.PushLock_tag(`1`, 0)
 	msg.PushLock_tag(`2`, 0)
 	time.Sleep(time.Second)
-	msg.PushLock_tag(`2`, 0)
+	fmt.Println("send wrong")
 	msg.PushLock_tag(`1`, 1)
+	time.Sleep(time.Second)
 	msg.PushLock_tag(`2`, 1)
+	time.Sleep(time.Second)
+}
+
+func Test_msgq11(t *testing.T) {
+	t.Parallel()
+	msg := NewType[string]()
+
+	var p atomic.Pointer[string]
+
+	var fc funcCtrl.FlashFunc
+	msg.Pull_tag_async(map[string]func(string) (disable bool){
+		`1`: func(b string) (disable bool) {
+
+			// 当cut时，取消上次录制
+			ctx1, done := pctx.WithWait(context.Background(), 1, time.Second*30)
+			fc.FlashWithCallback(func() {
+				fmt.Println("call done", b)
+				done()
+				fmt.Println("doned", b)
+			})
+			fmt.Println("start", b)
+
+			a := ""
+			p.Store(&a)
+
+			go func() {
+				defer fmt.Println("fin", b)
+
+				ctx1, done1 := pctx.WaitCtx(ctx1)
+				defer done1()
+
+				tmp := &b
+				cancle := msg.Pull_tag(map[string]func(string) (disable bool){
+					`2`: func(i string) (disable bool) {
+						if pctx.Done(ctx1) {
+							return true
+						}
+						if tmp != p.Load() {
+							t.Logf("should not rev %s when %s has been closed", i, b)
+							// t.FailNow()
+						}
+						return false
+					},
+				})
+
+				<-ctx1.Done()
+				cancle()
+			}()
+			// if b != 0 {
+			// 	t.Fatal()
+			// }
+			return false
+		},
+	})
+	time.Sleep(time.Second)
+	msg.PushLock_tag(`1`, `apath`)
+	msg.PushLock_tag(`2`, `apath`)
+	time.Sleep(time.Second)
+	fmt.Println("send wrong")
+	msg.PushLock_tag(`1`, `bpath`)
+	msg.PushLock_tag(`2`, `bpath`)
 	time.Sleep(time.Second)
 }
 
