@@ -333,13 +333,13 @@ func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) (cance
 	})
 }
 
-// func_map disabled will delete func_map.key, not remove func_map from msg
+// func return disable will compareAndDelete this func, not remove func_map from msg
 func (m *MsgType[T]) Pull_tag_syncmap(func_map psync.MapFunc[string, *func(T) (disable bool)]) (cancel func()) {
 	return m.m.Register(func(data any) (disable bool) {
 		if data1, ok := data.(*MsgType_tag_data[T]); ok {
 			if f, ok := func_map.Load(data1.Tag); ok {
-				if disabled := (*f)(*data1.Data); disabled {
-					func_map.Delete(data1.Tag)
+				if disable := (*f)(*data1.Data); disable {
+					func_map.CompareAndDelete(data1.Tag, f)
 				}
 			}
 		}

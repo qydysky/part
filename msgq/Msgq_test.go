@@ -141,16 +141,21 @@ func Test2(t *testing.T) {
 		}
 		return false
 	}
-	f3 := func(s string) (disable bool) {
-		return true
-	}
 	mg.Store("1", &f1)
 	m.Pull_tag_syncmap(mg)
 	m.Push_tag("1", "1")
 	mg.Store("1", &f2)
 	m.Push_tag("1", "2")
+
+	f3 := func(s string) (disable bool) {
+		mg.Store("1", &f2)
+		return true
+	}
 	mg.Store("1", &f3)
-	m.Push_tag("1", "1")
+	m.Push_tag("1", "3")
+	if f,ok:=mg.Load("1");!ok || f!= &f2 {
+		t.Fatal()
+	}
 }
 
 func BenchmarkXxx(b *testing.B) {
