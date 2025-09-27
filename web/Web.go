@@ -175,6 +175,10 @@ func (t *WebPath) Load(path string) (func(w http.ResponseWriter, r *http.Request
 	t.l.RLock()
 	defer t.l.RUnlock()
 
+	return t.load(path)
+}
+
+func (t *WebPath) load(path string) (func(w http.ResponseWriter, r *http.Request), bool) {
 	if key, left, fin := parsePath(path); t.Path == key {
 		if fin {
 			return t.f, t.f != nil
@@ -300,7 +304,7 @@ func parsePath(path string) (key string, left string, fin bool) {
 	}
 }
 
-func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
+func (t *WebPath) StoreIfNotExist(path string, f func(w http.ResponseWriter, r *http.Request)) {
 	if len(path) == 0 || path[0] != '/' {
 		return
 	}
@@ -313,6 +317,27 @@ func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Reque
 	t.l.Lock()
 	defer t.l.Unlock()
 
+	if _, ok := t.load(path); !ok {
+		t.store(path, f)
+	}
+}
+
+func (t *WebPath) Store(path string, f func(w http.ResponseWriter, r *http.Request)) {
+	if len(path) == 0 || path[0] != '/' {
+		return
+	}
+
+	if f == nil {
+		t.Delete(path)
+		return
+	}
+
+	t.l.Lock()
+	t.store(path, f)
+	t.l.Unlock()
+}
+
+func (t *WebPath) store(path string, f func(w http.ResponseWriter, r *http.Request)) {
 	if key, left, fin := parsePath(path); t.Path == "" {
 		t.Path = key
 		// self
