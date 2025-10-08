@@ -34,6 +34,24 @@ func Test3(t *testing.T) {
 	})
 }
 
+func Test1(t *testing.T) {
+	if e := Register[interface {
+		AddOne(any) int
+	}]("aa", &B{}); e != nil {
+		panic(e)
+	}
+
+	aa := GetV3[interface {
+		AddOne(any) int
+	}]("aa-1").Inter(func(err error) interface{ AddOne(any) int } {
+		return &B{}
+	})
+
+	if aa.AddOne(func(i int) int { return i + 1 }) != 2 {
+		t.Fatal()
+	}
+}
+
 func Test(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
