@@ -37,7 +37,7 @@ func Test3(t *testing.T) {
 func Test1(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa", &B{}); e != nil {
+	}]("aa1", &B{}); e != nil {
 		panic(e)
 	}
 
@@ -78,12 +78,12 @@ func (c C) CallF(a, b int) int {
 
 func Test2(t *testing.T) {
 	type a interface{ CallF(int, int) int }
-	if e := Register[a]("aa0", C{func(a, b int) int { return a + b }}); e != nil {
+	if e := Register[a]("aa20", C{func(a, b int) int { return a + b }}); e != nil {
 		panic(e)
 	}
 
 	{
-		GetV2("aa0", PreFuncCu[a]{}).Run(func(s a) error {
+		GetV2("aa20", PreFuncCu[a]{}).Run(func(s a) error {
 			if 3 != s.CallF(1, 2) {
 				t.Fatal()
 			}
@@ -93,7 +93,7 @@ func Test2(t *testing.T) {
 
 	{
 		ok := false
-		GetV2("aa0", PreFuncCu[a]{
+		GetV2("aa20", PreFuncCu[a]{
 			Initf: func(b a) a {
 				ok = true
 				return b
@@ -106,7 +106,7 @@ func Test2(t *testing.T) {
 
 	{
 		ok := false
-		GetV2("aa1", PreFuncCu[a]{
+		GetV2("aa21", PreFuncCu[a]{
 			ErrNoFoundf: func(id string) error {
 				ok = true
 				return ErrNoFound
@@ -119,7 +119,7 @@ func Test2(t *testing.T) {
 
 	{
 		ok := false
-		GetV2("aa0", PreFuncCu[interface{ Add() }]{
+		GetV2("aa20", PreFuncCu[interface{ Add() }]{
 			ErrTypeAssertionf: func(id string) error {
 				ok = true
 				return ErrTypeAssertion
