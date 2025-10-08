@@ -75,7 +75,7 @@ func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_
 //
 // PreFunc 大多数不需要进行特别申明
 func GetV2[TargetInterface any](id string, prefunc PreFunc[TargetInterface]) *GetRunner[TargetInterface] {
-	runner := &GetRunner[TargetInterface]{}
+	runner := &GetRunner[TargetInterface]{cmpid: id}
 	if o, ok := pkgInterfaceMap[id]; !ok {
 		runner.err = prefunc.ErrNoFound(id)
 		return runner
@@ -93,7 +93,7 @@ func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) 
 	if len(prefunc) == 0 {
 		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
 	}
-	runner := &GetRunner[TargetInterface]{}
+	runner := &GetRunner[TargetInterface]{cmpid: id}
 	if o, ok := pkgInterfaceMap[id]; !ok {
 		runner.err = prefunc[0].ErrNoFound(id)
 		return runner
@@ -112,12 +112,34 @@ func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) 
 //
 // Run3:初始化失败时，不执行，错误需要通过Err()获取。内部错误需要通过赋值外部变量获取
 type GetRunner[TargetInterface any] struct {
+	cmpid string
 	err   error
 	inter TargetInterface
 }
 
 func (t *GetRunner[TargetInterface]) Err() error {
 	return t.err
+}
+
+// 获取接口，当初始化失败时，调用ifFail进行初始化
+//
+// 当未传入ifFail时，将panic
+func (t *GetRunner[TargetInterface]) Inter(ifFail ...func(error) TargetInterface) TargetInterface {
+	if t.err != nil {
+		if len(ifFail) == 0 {
+			p := PreFuncPanic[TargetInterface]{}
+			if ErrNoFound.Catch(t.err) {
+				_ = p.ErrNoFound(t.cmpid)
+			}
+			if ErrTypeAssertion.Catch(t.err) {
+				_ = p.ErrTypeAssertion(t.cmpid)
+			}
+			panic(t.cmpid)
+		} else {
+			return ifFail[0](t.err)
+		}
+	}
+	return t.inter
 }
 
 // 初始化失败时，返回err，不执行。内部返回错误时，返回err
