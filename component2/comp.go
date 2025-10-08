@@ -23,6 +23,9 @@ func PkgId(varId ...string) string {
 	return ""
 }
 
+// 组件内部应自行处理协程安全
+//
+// 注册错误时，返回错误
 func Register[TargetInterface any](id string, _interface TargetInterface) error {
 	if id == "" {
 		return ErrEmptyPkgId
@@ -35,12 +38,18 @@ func Register[TargetInterface any](id string, _interface TargetInterface) error 
 	return nil
 }
 
+// 组件内部应自行处理协程安全
+//
+// 注册错误时，抛出恐慌
 func RegisterOrPanic[TargetInterface any](id string, _interface TargetInterface) {
 	if e := Register(id, _interface); e != nil {
 		panic(e)
 	}
 }
 
+// Deprecated: use GetV3
+//
+// 接口可能未初始化
 func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_interface TargetInterface) {
 	if len(prefunc) == 0 {
 		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
@@ -62,6 +71,9 @@ func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_
 	return *new(TargetInterface)
 }
 
+// Deprecated: use GetV3
+//
+// PreFunc 大多数不需要进行特别申明
 func GetV2[TargetInterface any](id string, prefunc PreFunc[TargetInterface]) *GetRunner[TargetInterface] {
 	runner := &GetRunner[TargetInterface]{}
 	if o, ok := pkgInterfaceMap[id]; !ok {
@@ -76,6 +88,29 @@ func GetV2[TargetInterface any](id string, prefunc PreFunc[TargetInterface]) *Ge
 	}
 }
 
+// default prefunc PreFuncErr
+func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) *GetRunner[TargetInterface] {
+	if len(prefunc) == 0 {
+		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
+	}
+	runner := &GetRunner[TargetInterface]{}
+	if o, ok := pkgInterfaceMap[id]; !ok {
+		runner.err = prefunc[0].ErrNoFound(id)
+		return runner
+	} else if tmp, ok := o.(TargetInterface); !ok {
+		runner.err = prefunc[0].ErrTypeAssertion(id)
+		return runner
+	} else {
+		runner.inter = prefunc[0].Init(tmp)
+		return runner
+	}
+}
+
+// Run:初始化失败时，返回err，不执行。内部返回错误时，返回err
+//
+// Run2:初始化失败时，返回err，不执行。内部错误需要通过赋值外部变量获取
+//
+// Run3:初始化失败时，不执行，错误需要通过Err()获取。内部错误需要通过赋值外部变量获取
 type GetRunner[TargetInterface any] struct {
 	err   error
 	inter TargetInterface
@@ -85,6 +120,7 @@ func (t *GetRunner[TargetInterface]) Err() error {
 	return t.err
 }
 
+// 初始化失败时，返回err，不执行。内部返回错误时，返回err
 func (t *GetRunner[TargetInterface]) Run(f func(TargetInterface) error) error {
 	if t.err != nil {
 		return t.err
@@ -92,11 +128,27 @@ func (t *GetRunner[TargetInterface]) Run(f func(TargetInterface) error) error {
 	return f(t.inter)
 }
 
-// PreFuncCu[TargetInterface any]
+// 初始化失败时，返回err，不执行。内部错误需要通过赋值外部变量获取
+func (t *GetRunner[TargetInterface]) Run2(f func(inter TargetInterface)) error {
+	if t.err != nil {
+		return t.err
+	}
+	f(t.inter)
+	return nil
+}
+
+// 初始化失败时，不执行，错误需要通过Err()获取。内部错误需要通过赋值外部变量获取
+func (t *GetRunner[TargetInterface]) Run3(f func(inter TargetInterface)) {
+	if t.err == nil {
+		f(t.inter)
+	}
+}
+
+// PreFuncCu[TargetInterface any] 自定义的初始化，错误处理
 //
-// PreFuncErr[TargetInterface any]
+// PreFuncErr[TargetInterface any] 无初始化，错误处理为调用时返回error
 //
-// PreFuncPanic[TargetInterface any]
+// PreFuncPanic[TargetInterface any] 无初始化，错误处理为立刻panic
 type PreFunc[TargetInterface any] interface {
 	Init(TargetInterface) TargetInterface
 	ErrNoFound(id string) error

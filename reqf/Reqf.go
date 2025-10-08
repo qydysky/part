@@ -282,14 +282,14 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 			if t.brR == nil {
 				t.brR = br.NewReader(resp.Body)
 			} else {
-				t.brR.Reset(resp.Body)
+				_ = t.brR.Reset(resp.Body)
 			}
 			resReadCloser = pio.RWC{R: t.brR.Read}
 		case `gzip`:
 			if t.gzR == nil {
 				t.gzR, _ = gzip.NewReader(resp.Body)
 			} else {
-				t.gzR.Reset(resp.Body)
+				_ = t.gzR.Reset(resp.Body)
 			}
 			resReadCloser = t.gzR
 		case `deflate`:

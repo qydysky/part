@@ -4,16 +4,40 @@ import (
 	"testing"
 )
 
-type B struct{}
+type B struct {
+	i int
+}
 
-func (b B) AddOne(any) int {
+func (b *B) AddOne(any) int {
 	return 2
+}
+
+func Test4(t *testing.T) {
+	t.Log(PkgId())
+}
+
+func Test3(t *testing.T) {
+	if e := Register[interface {
+		AddOne(any) int
+	}]("aa3", &B{}); e != nil {
+		panic(e)
+	}
+
+	aa := GetV3[interface {
+		AddOne(any) int
+	}]("aa3")
+
+	aa.Run2(func(inter interface{ AddOne(any) int }) {
+		if inter.AddOne(func(i int) int { return i + 1 }) != 2 {
+			t.Fatal()
+		}
+	})
 }
 
 func Test(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa", B{}); e != nil {
+	}]("aa", &B{}); e != nil {
 		panic(e)
 	}
 
