@@ -110,7 +110,7 @@ func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) 
 //
 // Run2:初始化失败时，返回err，不执行。内部错误需要通过赋值外部变量获取
 //
-// Run3:初始化失败时，不执行，错误需要通过Err()获取。内部错误需要通过赋值外部变量获取
+// Run3:初始化失败时，传递error。内部错误需要通过赋值外部变量获取
 type GetRunner[TargetInterface any] struct {
 	cmpid string
 	err   error
@@ -159,11 +159,9 @@ func (t *GetRunner[TargetInterface]) Run2(f func(inter TargetInterface)) error {
 	return nil
 }
 
-// 初始化失败时，不执行，错误需要通过Err()获取。内部错误需要通过赋值外部变量获取
-func (t *GetRunner[TargetInterface]) Run3(f func(inter TargetInterface)) {
-	if t.err == nil {
-		f(t.inter)
-	}
+// Run3:初始化失败时，传递error。内部错误需要通过赋值外部变量获取
+func (t *GetRunner[TargetInterface]) Run3(f func(inter TargetInterface, e error)) {
+	f(t.inter, t.err)
 }
 
 // PreFuncCu[TargetInterface any] 自定义的初始化，错误处理
