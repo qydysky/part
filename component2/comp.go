@@ -108,7 +108,7 @@ func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) 
 
 // Run:初始化失败时，返回err，不执行。内部返回错误时，返回err
 //
-// Run2:初始化失败时，返回err，不执行。内部错误需要通过赋值外部变量获取
+// Run2:初始化失败时，不执行。内部错误需要通过赋值外部变量获取
 //
 // Run3:初始化失败时，传递error。内部错误需要通过赋值外部变量获取
 type GetRunner[TargetInterface any] struct {
@@ -150,13 +150,11 @@ func (t *GetRunner[TargetInterface]) Run(f func(TargetInterface) error) error {
 	return f(t.inter)
 }
 
-// 初始化失败时，返回err，不执行。内部错误需要通过赋值外部变量获取
-func (t *GetRunner[TargetInterface]) Run2(f func(inter TargetInterface)) error {
-	if t.err != nil {
-		return t.err
+// Run2:初始化失败时，不执行。内部错误需要通过赋值外部变量获取
+func (t *GetRunner[TargetInterface]) Run2(f func(inter TargetInterface)) {
+	if t.err == nil {
+		f(t.inter)
 	}
-	f(t.inter)
-	return nil
 }
 
 // Run3:初始化失败时，传递error。内部错误需要通过赋值外部变量获取
