@@ -12,16 +12,20 @@ func (b *B) AddOne(any) int {
 	return 2
 }
 
+func Test4(t *testing.T) {
+	t.Log(PkgId())
+}
+
 func Test3(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa", &B{}); e != nil {
+	}]("aa3", &B{}); e != nil {
 		panic(e)
 	}
 
 	aa := GetV3[interface {
 		AddOne(any) int
-	}]("aa")
+	}]("aa3")
 
 	aa.Run2(func(inter interface{ AddOne(any) int }) {
 		if inter.AddOne(func(i int) int { return i + 1 }) != 2 {
