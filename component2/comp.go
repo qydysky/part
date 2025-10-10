@@ -5,9 +5,10 @@ import (
 	"strings"
 
 	perrors "github.com/qydysky/part/errors"
+	psync "github.com/qydysky/part/sync"
 )
 
-var pkgInterfaceMap = make(map[string]any)
+var pkgInterfaceMap = psync.NewMapG[string, any]()
 
 var (
 	ErrEmptyPkgId    = perrors.New("ErrEmptyPkgId")
@@ -30,10 +31,8 @@ func Register[TargetInterface any](id string, _interface TargetInterface) error 
 	if id == "" {
 		return ErrEmptyPkgId
 	}
-	if _interfaceReg, ok := pkgInterfaceMap[id]; ok && _interfaceReg != nil {
+	if _, ok := pkgInterfaceMap.LoadOrStore(id, _interface); ok {
 		return ErrRegistered
-	} else {
-		pkgInterfaceMap[id] = _interface
 	}
 	return nil
 }
@@ -47,6 +46,16 @@ func RegisterOrPanic[TargetInterface any](id string, _interface TargetInterface)
 	}
 }
 
+func UnRegist(id string) error {
+	if id == "" {
+		return ErrEmptyPkgId
+	}
+	if _, ok := pkgInterfaceMap.LoadAndDelete(id); !ok {
+		return ErrNoFound
+	}
+	return nil
+}
+
 // Deprecated: use GetV3
 //
 // 接口可能未初始化
@@ -54,7 +63,7 @@ func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_
 	if len(prefunc) == 0 {
 		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
 	}
-	if o, ok := pkgInterfaceMap[id]; !ok {
+	if o, ok := pkgInterfaceMap.Load(id); !ok {
 		for i := 0; i < len(prefunc); i++ {
 			prefunc[i].ErrNoFound(id)
 		}
@@ -76,7 +85,7 @@ func Get[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) (_
 // PreFunc 大多数不需要进行特别申明
 func GetV2[TargetInterface any](id string, prefunc PreFunc[TargetInterface]) *GetRunner[TargetInterface] {
 	runner := &GetRunner[TargetInterface]{cmpid: id}
-	if o, ok := pkgInterfaceMap[id]; !ok {
+	if o, ok := pkgInterfaceMap.Load(id); !ok {
 		runner.err = prefunc.ErrNoFound(id)
 		return runner
 	} else if tmp, ok := o.(TargetInterface); !ok {
@@ -94,7 +103,7 @@ func GetV3[TargetInterface any](id string, prefunc ...PreFunc[TargetInterface]) 
 		prefunc = append(prefunc, PreFuncErr[TargetInterface]{})
 	}
 	runner := &GetRunner[TargetInterface]{cmpid: id}
-	if o, ok := pkgInterfaceMap[id]; !ok {
+	if o, ok := pkgInterfaceMap.Load(id); !ok {
 		runner.err = prefunc[0].ErrNoFound(id)
 		return runner
 	} else if tmp, ok := o.(TargetInterface); !ok {

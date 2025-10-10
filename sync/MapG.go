@@ -39,7 +39,7 @@ func (t *MapG[T, E]) CompareAndDelete(key T, old E) (deleted bool) {
 func (t *MapG[T, E]) LoadAndDelete(key T) (value E, loaded bool) {
 	v, l := t.m.LoadAndDelete(key)
 	loaded = l
-	value = v.(E)
+	value, _ = v.(E)
 	if l {
 		t.size.Add(-1)
 	}
@@ -49,31 +49,33 @@ func (t *MapG[T, E]) LoadAndDelete(key T) (value E, loaded bool) {
 func (t *MapG[T, E]) Swap(key T, value E) (previous E, loaded bool) {
 	v, l := t.m.Swap(key, value)
 	loaded = l
-	previous = v.(E)
+	previous, _ = v.(E)
 	return
 }
 
 func (t *MapG[T, E]) LoadOrStore(key T, value E) (actual E, loaded bool) {
 	v, l := t.m.LoadOrStore(key, value)
 	loaded = l
-	actual = v.(E)
+	actual, _ = v.(E)
 	if !loaded {
 		t.size.Add(1)
 	}
 	return
 }
 
-func (t *MapG[T, E]) Load(k T) (E, bool) {
+func (t *MapG[T, E]) Load(k T) (val E, loaded bool) {
 	v, ok := t.m.Load(k)
 	if ok {
-		return v.(E), true
+		val, _ = v.(E)
+		return val, true
 	}
 	return *new(E), false
 }
 
 func (t *MapG[T, E]) Range(f func(key T, value E) bool) {
 	t.m.Range(func(key, value any) bool {
-		return f(key.(T), value.(E))
+		val, _ := value.(E)
+		return f(key.(T), val)
 	})
 }
 

@@ -1,3 +1,4 @@
+// Deprecaated: use component2
 package part
 
 import (

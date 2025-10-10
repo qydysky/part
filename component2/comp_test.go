@@ -12,6 +12,22 @@ func (b *B) AddOne(any) int {
 	return 2
 }
 
+func Test5(t *testing.T) {
+	if e := Register[interface {
+		AddOne(any) int
+	}]("aa5", &B{}); e != nil {
+		panic(e)
+	}
+
+	if UnRegist("aa-5") != ErrNoFound {
+		t.Fatal()
+	}
+
+	if UnRegist("aa5") != nil {
+		t.Fatal()
+	}
+}
+
 func Test4(t *testing.T) {
 	t.Log(PkgId())
 }
