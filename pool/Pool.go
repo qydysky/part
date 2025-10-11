@@ -7,6 +7,7 @@ import (
 
 type Buf[T any] struct {
 	maxsize     int
+	allocs      int
 	pf          PoolFunc[T]
 	mbuf        map[*T]bool
 	getPerSec   float64
@@ -28,15 +29,15 @@ type PoolFunc[T any] struct {
 
 // 创建池
 //
-// NewF: func() *T 新值
+// New func() *T 新值 // 如果未设置，在未能从池中获取到空闲时，返回nil
 //
-// InUse func(*T) bool 是否在使用
+// InUse func(*T) bool 是否在使用 // 如果未设置，则归还时即认为是不再使用
 //
-// ReuseF func(*T) *T 重用前处理
+// Reuse func(*T) *T 重用前处理 // 如果未设置，则借出时不做处理
 //
-// PoolF func(*T) *T 入池前处理
+// Pool func(*T) *T 入池前处理 // 如果未设置，则归还时不做处理
 //
-// maxsize int 池最大数量
+// maxsize int 池最大数量 // 如果未设置=0，则归还时丢弃不入池
 func New[T any](poolFunc PoolFunc[T], maxsize int) *Buf[T] {
 	t := new(Buf[T])
 	t.pf = poolFunc
@@ -55,17 +56,18 @@ func (t *Buf[T]) PoolState() (states []any) {
 }
 
 type BufState struct {
-	Pooled, Nopooled, Inuse, Nouse, Sum int
-	GetPerSec                           float64
+	Pooled, Nopooled, Inuse, Nouse, Sum, Allos int
+	GetPerSec                                  float64
 }
 
 func (t *Buf[T]) State() BufState {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
-	var pooled, nopooled, inuse, nouse, sum int
+	var pooled, nopooled, inuse, nouse, sum, allocs int
 	var getPerSec float64
 
+	allocs = t.allocs
 	sum = len(t.mbuf)
 	for k, v := range t.mbuf {
 		if v {
@@ -73,7 +75,7 @@ func (t *Buf[T]) State() BufState {
 		} else {
 			nopooled++
 		}
-		if t.pf.InUse(k) {
+		if (t.pf.InUse == nil && v) || t.pf.InUse(k) {
 			inuse++
 		} else {
 			nouse++
@@ -85,7 +87,7 @@ func (t *Buf[T]) State() BufState {
 		getPerSec += t.getPerSec / diff
 	}
 
-	return BufState{pooled, nopooled, inuse, nouse, sum, getPerSec}
+	return BufState{pooled, nopooled, inuse, nouse, sum, allocs, getPerSec}
 }
 
 func (t *Buf[T]) Get() *T {
@@ -100,13 +102,22 @@ func (t *Buf[T]) Get() *T {
 	}
 
 	for k, v := range t.mbuf {
-		if v && !t.pf.InUse(k) {
+		if v && (t.pf.InUse == nil || !t.pf.InUse(k)) {
 			t.mbuf[k] = false
-			return t.pf.Reuse(k)
+			if t.pf.Reuse == nil {
+				return k
+			} else {
+				return t.pf.Reuse(k)
+			}
 		}
 	}
 
-	return t.pf.New()
+	if t.pf.New != nil {
+		t.allocs += 1
+		return t.pf.New()
+	} else {
+		return nil
+	}
 }
 
 func (t *Buf[T]) Put(item ...*T) {
@@ -119,10 +130,14 @@ func (t *Buf[T]) Put(item ...*T) {
 
 	for i := 0; i < len(item); i++ {
 		if _, ok := t.mbuf[item[i]]; ok {
-			t.pf.Pool(item[i])
+			if t.pf.Pool != nil {
+				t.pf.Pool(item[i])
+			}
 			t.mbuf[item[i]] = true
 		} else if t.maxsize > len(t.mbuf) {
-			t.pf.Pool(item[i])
+			if t.pf.Pool != nil {
+				t.pf.Pool(item[i])
+			}
 			t.mbuf[item[i]] = true
 		}
 	}
