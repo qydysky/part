@@ -13,6 +13,11 @@ type a struct {
 	v bool
 }
 
+func Test2(t *testing.T) {
+	p := New(PoolFunc[int]{}, 1)
+	t.Log(p.pf.InUse == nil)
+}
+
 func Test1(t *testing.T) {
 	var newf = func() *a {
 		return &a{v: true}
