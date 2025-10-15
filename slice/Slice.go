@@ -84,9 +84,21 @@ func (t *Buf[T]) ExpandCapTo(size int) {
 }
 
 func (t *Buf[T]) Append(data []T) error {
-	return t.Appends(func(ba *BufAppendsI[T]) {
-		ba.Append(data)
-	})
+	t.l.Lock()
+	defer t.l.Unlock()
+	return t.append(data)
+}
+
+func (t *Buf[T]) append(data []T) error {
+	if t.buf == nil {
+		t.buf = make([]T, len(data))
+	} else if t.maxsize != 0 && t.bufsize+len(data) > t.maxsize {
+		return ErrOverMax
+	}
+	t.buf = append(t.buf[:t.bufsize], data...)
+	t.bufsize += len(data)
+	t.modified.t += 1
+	return nil
 }
 
 type BufAppendsI[T any] struct {
@@ -98,15 +110,7 @@ func (t *BufAppendsI[T]) Append(data []T) *BufAppendsI[T] {
 	if t.e != nil || len(data) == 0 {
 		return t
 	}
-	if t.bufp.buf == nil {
-		t.bufp.buf = make([]T, len(data))
-	} else if t.bufp.maxsize != 0 && t.bufp.bufsize+len(data) > t.bufp.maxsize {
-		t.e = ErrOverMax
-		return t
-	}
-	t.bufp.buf = append(t.bufp.buf[:t.bufp.bufsize], data...)
-	t.bufp.bufsize += len(data)
-	t.bufp.modified.t += 1
+	t.e = t.bufp.append(data)
 	return t
 }
 
@@ -142,7 +146,10 @@ func (t *Buf[T]) RemoveFront(n int) error {
 
 	t.l.Lock()
 	defer t.l.Unlock()
+	return t.removeFront(n)
+}
 
+func (t *Buf[T]) removeFront(n int) error {
 	if t.bufsize < n {
 		return ErrOverLen
 	} else if t.bufsize == n {
@@ -162,7 +169,10 @@ func (t *Buf[T]) RemoveBack(n int) error {
 
 	t.l.Lock()
 	defer t.l.Unlock()
+	return t.removeBack(n)
+}
 
+func (t *Buf[T]) removeBack(n int) error {
 	if t.bufsize < n {
 		return ErrOverLen
 	} else if t.bufsize == n {
@@ -208,6 +218,9 @@ func (t *Buf[T]) GetPureBuf() (buf []T) {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
+	return t.getPureBuf()
+}
+func (t *Buf[T]) getPureBuf() (buf []T) {
 	return t.buf[:t.bufsize]
 }
 
@@ -230,6 +243,44 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	buf = make([]T, t.bufsize)
 	copy(buf, t.buf[:t.bufsize])
 	return
+}
+
+type BufLockM[T any] struct {
+	*Buf[T]
+}
+
+func (b *BufLockM[T]) GetPureBuf() (buf []T) {
+	return b.getPureBuf()
+}
+
+func (b *BufLockM[T]) RemoveBack(n int) error {
+	return b.removeBack(n)
+}
+
+func (b *BufLockM[T]) RemoveFront(n int) error {
+	return b.removeFront(n)
+}
+
+func (b *BufLockM[T]) Unlock() {
+	b.l.Unlock()
+}
+
+func (b *BufLockM[T]) Append(data []T) error {
+	return b.append(data)
+}
+
+type BufLockMI[T any] interface {
+	Unlock()
+	GetPureBuf() []T
+	RemoveFront(int) error
+	RemoveBack(int) error
+	Append(data []T) error
+}
+
+func (t *Buf[T]) GetLock() (i BufLockMI[T]) {
+	t.l.Lock()
+	i = &BufLockM[T]{t}
+	return i
 }
 
 func DelFront[S ~[]T, T any](s *S, beforeIndex int) {

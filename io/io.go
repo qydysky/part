@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pe "github.com/qydysky/part/errors"
+	pslice "github.com/qydysky/part/slice"
 )
 
 // no close rc any time
@@ -704,4 +705,47 @@ func (t *CacheWriter) Write(b []byte) (n int, e error) {
 		}
 	}()
 	return len(b), t.ctx.Err()
+}
+
+type BufReader struct {
+	buf *pslice.Buf[byte]
+	end atomic.Bool
+}
+
+var ErrBufReaderClose error = errors.New(`ErrBufReaderClose`)
+
+func NewBufReader() (t *BufReader) {
+	t = &BufReader{}
+	t.buf = pslice.New[byte]()
+	return
+}
+
+func (t *BufReader) Put(b []byte) (e error) {
+	if t.end.Load() {
+		return ErrBufReaderClose
+	}
+	e = t.buf.Append(b)
+	return
+}
+
+func (t *BufReader) Clear() {
+	t.buf.Clear()
+}
+
+func (t *BufReader) Close() {
+	t.end.Store(true)
+}
+
+func (t *BufReader) Read(b []byte) (n int, e error) {
+	for t.buf.Size() == 0 {
+		if t.end.Load() {
+			return 0, io.EOF
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+	method := t.buf.GetLock()
+	n = copy(b, method.GetPureBuf())
+	e = method.RemoveFront(n)
+	method.Unlock()
+	return
 }
