@@ -13,6 +13,13 @@ type a struct {
 	v bool
 }
 
+func Benchmark(b *testing.B) {
+	p := New(PoolFunc[int]{}, -1)
+	for b.Loop() {
+		p.Put(p.Get())
+	}
+}
+
 func Test2(t *testing.T) {
 	p := New(PoolFunc[int]{}, 1)
 	t.Log(p.pf.InUse == nil)

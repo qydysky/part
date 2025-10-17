@@ -1,7 +1,9 @@
 package part
 
 import (
+	"io"
 	"sync"
+	"time"
 	"unsafe"
 
 	perrors "github.com/qydysky/part/errors"
@@ -282,6 +284,23 @@ func (t *Buf[T]) GetLock() (i BufLockMI[T]) {
 	i = &BufLockM[T]{t}
 	return i
 }
+
+func (t *Buf[T]) Read(b []T) (n int, e error) {
+	for t.Size() == 0 {
+		time.Sleep(time.Millisecond * 100)
+	}
+	method := t.GetLock()
+	n = copy(b, method.GetPureBuf())
+	e = method.RemoveFront(n)
+	method.Unlock()
+	return
+}
+
+func (t *Buf[T]) Write(b []T) (n int, e error) {
+	return len(b), t.Append(b)
+}
+
+var _ io.ReadWriter = New[byte]()
 
 func DelFront[S ~[]T, T any](s *S, beforeIndex int) {
 	*s = (*s)[:copy(*s, (*s)[beforeIndex:])]
