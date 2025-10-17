@@ -37,7 +37,7 @@ type PoolFunc[T any] struct {
 //
 // Pool func(*T) *T 入池前处理 // 如果未设置，则归还时不做处理
 //
-// maxsize int 池最大数量 // 如果未设置=0，则归还时丢弃不入池
+// maxsize int 池最大数量 // 如果未设置=0，则归还时丢弃不入池。如-1,则不限制大小
 func New[T any](poolFunc PoolFunc[T], maxsize int) *Buf[T] {
 	t := new(Buf[T])
 	t.pf = poolFunc
@@ -134,7 +134,7 @@ func (t *Buf[T]) Put(item ...*T) {
 				t.pf.Pool(item[i])
 			}
 			t.mbuf[item[i]] = true
-		} else if t.maxsize > len(t.mbuf) {
+		} else if t.maxsize == -1 || t.maxsize > len(t.mbuf) {
 			if t.pf.Pool != nil {
 				t.pf.Pool(item[i])
 			}

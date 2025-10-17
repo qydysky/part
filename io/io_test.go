@@ -3,81 +3,11 @@ package part
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"sync"
 	"testing"
 	"time"
 )
-
-// 9053 ns/op               8 B/op          1 allocs/op
-func Benchmark_2(b *testing.B) {
-	type g struct {
-		A123 int
-		Asf  string
-	}
-	a := g{}
-
-	reader := NewBufReader()
-	decoder := json.NewDecoder(reader)
-	defer reader.Close()
-	data := []byte(`{"A123":123,"asf":"1"}`)
-
-	for b.Loop() {
-		reader.Put(data)
-		decoder.Decode(&a)
-	}
-}
-
-// 6388 ns/op             224 B/op          4 allocs/op
-func Benchmark_1(b *testing.B) {
-	type g struct {
-		A123 int
-		Asf  string
-	}
-	a := g{}
-	data := []byte(`{"A123":123,"asf":"1"}`)
-	for b.Loop() {
-		json.Unmarshal(data, &a)
-	}
-}
-
-func Test_NewBufReader(t *testing.T) {
-	type g struct {
-		A123 int
-		Asf  string
-	}
-	a := g{}
-
-	reader := NewBufReader()
-	defer reader.Close()
-
-	reader.Put([]byte(`{"A123":123,"asf":"1"}`))
-	decoder := json.NewDecoder(reader)
-	if e := decoder.Decode(&a); e != nil || a.A123 != 123 || a.Asf != "1" {
-		t.Fatal(e)
-	}
-
-	var wg sync.WaitGroup
-	var n1, n3 time.Time
-
-	wg.Go(func() {
-		time.Sleep(time.Millisecond * 200)
-		reader.Put([]byte(`{"A123":123,"asf":"1"}`))
-		n1 = time.Now()
-	})
-
-	if e := decoder.Decode(&a); e != nil || a.A123 != 123 || a.Asf != "1" {
-		t.Fatal(e)
-	}
-	n3 = time.Now()
-
-	wg.Wait()
-	if n3.Before(n1) {
-		t.Fatal()
-	}
-}
 
 func Test_iopipe(t *testing.T) {
 	pipe := NewPipe()
