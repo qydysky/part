@@ -36,6 +36,35 @@ func Benchmark1(b *testing.B) {
 		}
 	}
 }
+
+func Test3(t *testing.T) {
+	f := Open("./tmp/1.txt")
+	f.Write([]byte{'1'})
+	f.Close()
+
+	if f.SelfName() != "1.txt" {
+		t.Fatal()
+	}
+	f.Delete()
+}
+
+func Test2(t *testing.T) {
+	f := Open("1.txt")
+	f.Write([]byte{'1'})
+	f.Close()
+
+	if !IsExist("1.txt") {
+		t.Fatal()
+	}
+
+	f = Open("1.txt")
+	f.Delete()
+
+	if IsExist("1.txt") {
+		t.Fatal()
+	}
+}
+
 func Test1(t *testing.T) {
 	s := "sssa\n"
 	f := Open("rwd.txt")

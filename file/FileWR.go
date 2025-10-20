@@ -738,6 +738,11 @@ func (t *File) Delete() error {
 		return e
 	}
 
+	e = t.Close()
+	if e != nil {
+		return e
+	}
+
 	if t.IsDir() {
 		return fos.RemoveAll(t.Config.FilePath)
 	}
@@ -790,7 +795,8 @@ func (t *File) IsDir() bool {
 	return info.IsDir()
 }
 
-func (t *File) DirFiles() (files []string, err error) {
+// filiter return true will not append to dirFiles
+func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []string, err error) {
 	if !t.IsDir() {
 		err = ErrNoDir
 		return
@@ -802,10 +808,20 @@ func (t *File) DirFiles() (files []string, err error) {
 		return
 	} else {
 		for i := 0; i < len(fis); i++ {
-			files = append(files, path.Clean(f.Name())+string(os.PathSeparator)+fis[i].Name())
+			if len(dropFiliter) == 0 || !dropFiliter[0](fis[i]) {
+				dirFiles = append(dirFiles, path.Clean(f.Name())+string(os.PathSeparator)+fis[i].Name())
+			}
 		}
 	}
 	return
+}
+
+func (t *File) SelfName() string {
+	if e := t.getRWCloser(); e != nil {
+		panic(e)
+	}
+	ls := strings.Split(t.file.Name(), string(os.PathSeparator))
+	return ls[len(ls)-1]
 }
 
 func (t *File) File() *os.File {
