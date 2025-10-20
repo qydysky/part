@@ -795,8 +795,8 @@ func (t *File) IsDir() bool {
 	return info.IsDir()
 }
 
-// filiter return true will append to dirFiles
-func (t *File) DirFiles(filiter ...func(os.FileInfo) bool) (dirFiles []string, err error) {
+// filiter return true will not append to dirFiles
+func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []string, err error) {
 	if !t.IsDir() {
 		err = ErrNoDir
 		return
@@ -808,7 +808,7 @@ func (t *File) DirFiles(filiter ...func(os.FileInfo) bool) (dirFiles []string, e
 		return
 	} else {
 		for i := 0; i < len(fis); i++ {
-			if len(filiter) > 0 && filiter[0](fis[i]) {
+			if len(dropFiliter) == 0 || !dropFiliter[0](fis[i]) {
 				dirFiles = append(dirFiles, path.Clean(f.Name())+string(os.PathSeparator)+fis[i].Name())
 			}
 		}
