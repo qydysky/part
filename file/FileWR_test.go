@@ -37,6 +37,16 @@ func Benchmark1(b *testing.B) {
 	}
 }
 
+func Test4(t *testing.T) {
+	dir := Open("./tmp/")
+	f := dir.Open("1.txt")
+	f.Write([]byte{'1'})
+	if !IsExist("./tmp/1.txt") {
+		t.Fatal()
+	}
+	dir.Delete()
+}
+
 func Test3(t *testing.T) {
 	f := Open("./tmp/1.txt")
 	f.Write([]byte{'1'})

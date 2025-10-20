@@ -147,7 +147,7 @@ func DirFS(dir string) FS {
 }
 
 func Open(filePath string) *File {
-	return New(filePath, 0, false)
+	return NewNoClose(filePath)
 }
 
 func New(filePath string, curIndex int64, autoClose bool) *File {
@@ -162,6 +162,26 @@ func New(filePath string, curIndex int64, autoClose bool) *File {
 
 func NewNoClose(filePath string) *File {
 	return New(filePath, 0, false)
+}
+
+func (t *File) Open(childRefPath string) *File {
+	return t.NewNoClose(childRefPath)
+}
+
+func (t *File) New(childRefPath string, curIndex int64, autoClose bool) *File {
+	if filepath.IsAbs(childRefPath) {
+		return New(childRefPath, curIndex, autoClose)
+	} else {
+		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath), curIndex, autoClose)
+	}
+}
+
+func (t *File) NewNoClose(childRefPath string) *File {
+	if filepath.IsAbs(childRefPath) {
+		return New(childRefPath, 0, false)
+	} else {
+		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath), 0, false)
+	}
 }
 
 func (t *File) CheckRoot(root string) *File {
@@ -991,11 +1011,15 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 }
 
 func newPath(fos fosi, path string, mode fs.FileMode) {
+	isDir := path[len(path)-1] == '/' || path[len(path)-1] == '\\'
 	if !filepath.IsAbs(path) {
 		wd, _ := os.Getwd()
 		path = filepath.Join(wd, path)
 	}
 	_ = fos.Mkdir(filepath.Dir(filepath.Clean(path)), mode)
+	if isDir {
+		_ = fos.Mkdir(filepath.Clean(path)+string(os.PathSeparator), mode)
+	}
 }
 
 func (t *File) write() io.Writer {
