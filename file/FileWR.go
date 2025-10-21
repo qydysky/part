@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"os"
 	"path"
 	"path/filepath"
@@ -813,6 +814,21 @@ func (t *File) IsDir() bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+// filiter return true will not append to dirFiles
+func (t *File) DirFilesRange(dropFiliter ...func(os.FileInfo) bool) iter.Seq[*File] {
+	return func(yield func(*File) bool) {
+		if fis, e := t.File().Readdir(0); e == nil {
+			for i := 0; i < len(fis); i++ {
+				if len(dropFiliter) == 0 || !dropFiliter[0](fis[i]) {
+					if !yield(t.Open(fis[i].Name())) {
+						break
+					}
+				}
+			}
+		}
+	}
 }
 
 // filiter return true will not append to dirFiles
