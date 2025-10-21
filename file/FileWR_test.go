@@ -132,6 +132,14 @@ func TestMain(t *testing.T) {
 	}
 }
 
+func TestDirFs2(t *testing.T) {
+	for fs := range Open("./testdata").DirFilesRange() {
+		if fs.SelfName() != "1.txt" {
+			t.Fatal()
+		}
+	}
+}
+
 func TestDirFs(t *testing.T) {
 	f := New("./testdata", 0, true)
 	if fs, err := f.DirFiles(); err != nil {
