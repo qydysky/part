@@ -1,6 +1,9 @@
 package part
 
 import (
+	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -65,6 +68,112 @@ func TestMain2(t *testing.T) {
 	}
 }
 
+func TestMain3(t *testing.T) {
+	pob := NewServer("127.0.0.1:10903")
+	defer pob.Shutdown()
+
+	var fileLock sync.Map
+	if e := Register(pob, "/lock", func(i *string, o *bool) error {
+		if _, ok := fileLock.LoadOrStore(*i, nil); !ok {
+			*o = true
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e := Register(pob, "/unlock", func(i *string, o *bool) error {
+		_, *o = fileLock.LoadAndDelete(*i)
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+
+	lock := func(path string) (ok bool, e error) {
+		e = Call("127.0.0.1:10903", "/lock", &path, &ok)
+		return
+	}
+
+	unlock := func(path string) (ok bool, e error) {
+		e = Call("127.0.0.1:10903", "/unlock", &path, &ok)
+		return
+	}
+
+	if ok, e := lock("./a.exe"); e != nil {
+		t.Fatal(e)
+	} else if !ok {
+		t.Fatal()
+	}
+
+	if ok, e := lock("./a.exe"); e != nil {
+		t.Fatal(e)
+	} else if ok {
+		t.Fatal()
+	}
+
+	if ok, e := unlock("./a.exe"); e != nil {
+		t.Fatal(e)
+	} else if !ok {
+		t.Fatal()
+	}
+
+	if ok, e := unlock("./a.exe"); e != nil {
+		t.Fatal(e)
+	} else if ok {
+		t.Fatal()
+	}
+}
+
+func TestMain4(t *testing.T) {
+	pob := NewServer("127.0.0.1:10903")
+	defer pob.Shutdown()
+	if e := Register(pob, "/add", func(i *int, o *int) error {
+		*o = *i + 1
+		time.Sleep(time.Millisecond * 100)
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+
+	caller := CallReuse[int, int]("127.0.0.1:10903", "/add", 10)
+
+	call := func() error {
+		var in int = 1
+		var out int
+		if e := caller(&in, &out); e != nil {
+			return e
+		} else if out != 2 {
+			return errors.New("")
+		}
+		return nil
+	}
+
+	s := time.Now()
+	go func() {
+		if e := call(); e != nil {
+			t.Fatal(e)
+		}
+		fmt.Println(time.Since(s))
+	}()
+	go func() {
+		if e := call(); e != nil {
+			t.Fatal(e)
+		}
+		fmt.Println(time.Since(s))
+	}()
+	time.Sleep(time.Millisecond * 500)
+}
+
+func TestMain5(t *testing.T) {
+	var i int = 10222
+	var o int
+	g := &Gob{}
+	g.encode(&i)
+	g.decode(&o)
+	if i != o {
+		t.Fatal()
+	}
+}
+
 func Benchmark1(b *testing.B) {
 	pob := NewServer("127.0.0.1:10903")
 	defer pob.Shutdown()
@@ -75,12 +184,12 @@ func Benchmark1(b *testing.B) {
 		b.Fatal(e)
 	}
 
-	b.ResetTimer()
+	caller := CallReuse[int, int]("127.0.0.1:10903", "/add", 500)
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		var in int = 1
 		var out int
-		if e := Call("127.0.0.1:10903", "/add", &in, &out); e != nil || out != 2 {
+		if e := caller(&in, &out); e != nil || out != 2 {
 			b.Fatal(e)
 		}
 	}

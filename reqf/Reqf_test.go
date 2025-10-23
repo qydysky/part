@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"sync"
 	"testing"
@@ -120,6 +122,46 @@ func init() {
 	time.Sleep(time.Second)
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/no",
+	})
+}
+
+// https 10879 B/op        141 allocs/op
+// http  9560 B/op        106 allocs/op
+func Benchmark_1(b *testing.B) {
+	reuse.Reqf(Rval{
+		Url: "http://" + addr + "/reply",
+	})
+	for b.Loop() {
+		reuse.Reqf(Rval{
+			Url: "http://" + addr + "/reply",
+		})
+	}
+}
+
+func Test_10(t *testing.T) {
+	// client trace to log whether the request's underlying tcp connection was re-used
+	clientTrace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			log.Printf("conn was reused: %t", info.Reused)
+		},
+	}
+	traceCtx := httptrace.WithClientTrace(context.Background(), clientTrace)
+
+	reuse.Reqf(Rval{
+		Ctx: traceCtx,
+		Url: "https://www.baidu.com/1",
+	})
+	reuse.Reqf(Rval{
+		Ctx: traceCtx,
+		Url: "https://www.bilibili.com/",
+	})
+	reuse.Reqf(Rval{
+		Ctx: traceCtx,
+		Url: "https://www.baidu.com/3",
+	})
+	reuse.Reqf(Rval{
+		Ctx: traceCtx,
+		Url: "https://www.bilibili.com/",
 	})
 }
 

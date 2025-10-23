@@ -43,6 +43,7 @@ func (t *KeyFunc) Reg(key string, checkf func() bool, fs ...func() (misskey stri
 	return t
 }
 
+// Get 将调用key注册的fs方法，并通过checkf校验。返回值为Err
 func (t *KeyFunc) Get(key string) (err error) {
 	return t.GetTrace(key).Err
 }
@@ -116,6 +117,7 @@ func (t *Node) Desc() iter.Seq[*Node] {
 	}
 }
 
+// GetTrace 将调用key注册的fs方法，并通过checkf校验。返回值为调用的跟踪信息
 func (t *KeyFunc) GetTrace(key string) *Node {
 	return t.getTrace(key, nil)
 }
