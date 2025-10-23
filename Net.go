@@ -130,6 +130,7 @@ type ForwardMsgFunc interface {
 	ErrorMsg(targetaddr, listenaddr string, e error)
 	WarnMsg(targetaddr, listenaddr string, e error)
 	AcceptMsg(remote net.Addr, targetaddr string) (ConFinMsg func())
+	ConnMsg(proxyconn, targetconn net.Conn) (ConFinMsg func())
 	DenyMsg(remote net.Addr, targetaddr string)
 	LisnMsg(targetaddr, listenaddr string)
 	ClosMsg(targetaddr, listenaddr string)
@@ -242,6 +243,8 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string, callBack Forwa
 					callBack.WarnMsg(targetaddr, listenaddr, pe.Join(ErrForwardDail, err))
 					return
 				}
+
+				defer callBack.ConnMsg(proxyconn, targetconn)()
 
 				// if !lisIsUdp && !tarIsUdp {
 				// 	tcp2tcpConnBridge(proxyconn, targetconn, 65535)

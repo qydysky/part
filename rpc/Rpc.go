@@ -7,12 +7,15 @@ import (
 	"errors"
 	"net/http"
 	"net/rpc"
+	"sync"
+	"sync/atomic"
+	"time"
 
+	pp "github.com/qydysky/part/pool"
 	web "github.com/qydysky/part/web"
 )
 
 var (
-	ErrSerGob    = errors.New("ErrSerGob")
 	ErrSerDecode = errors.New("ErrSerDecode")
 	ErrCliDecode = errors.New("ErrCliDecode")
 	ErrSerDeal   = errors.New("ErrSerDeal")
@@ -25,7 +28,6 @@ var (
 
 type Gob struct {
 	Data []byte
-	Err  error
 }
 
 // func NewGob(ptr any) *Gob {
@@ -36,16 +38,89 @@ type Gob struct {
 // 	return t
 // }
 
-func (t *Gob) encode(ptr any) *Gob {
+func (t *Gob) encode(ptr any) (e error) {
 	var buf bytes.Buffer
-	t.Err = gob.NewEncoder(&buf).Encode(ptr)
+	e = gob.NewEncoder(&buf).Encode(ptr)
 	t.Data = buf.Bytes()
+	return
+}
+
+func (t *Gob) decode(ptr any) (e error) {
+	return gob.NewDecoder(bytes.NewReader(t.Data)).Decode(ptr)
+}
+
+type GobCoder struct {
+	g   *Gob
+	buf bytes.Buffer
+	enc *gob.Encoder
+	dnc *gob.Decoder
+	l   atomic.Uint32
+}
+
+var ErrGobCoderLockFail = errors.New(`ErrGobCoderLockFail`)
+
+func NewGobCoder(g *Gob) *GobCoder {
+	t := &GobCoder{g: g}
+	t.enc = gob.NewEncoder(&t.buf)
+	t.dnc = gob.NewDecoder(&t.buf)
 	return t
 }
 
-func (t *Gob) decode(ptr any) *Gob {
-	t.Err = gob.NewDecoder(bytes.NewReader(t.Data)).Decode(ptr)
+func (t *GobCoder) encode(ptr any) (e error) {
+	t.buf.Reset()
+	e = t.enc.Encode(ptr)
+	t.g.Data = t.buf.Bytes()
+	return
+}
+
+func (t *GobCoder) decode(ptr any) (e error) {
+	e = t.dnc.Decode(ptr)
+	t.buf.Reset()
+	return
+}
+
+func (t *GobCoder) InUse() bool {
+	return t.l.Load() == 1
+}
+
+func (t *GobCoder) Lock() *GobCoder {
+	for !t.l.CompareAndSwap(0, 1) {
+		time.Sleep(time.Millisecond * 100)
+	}
 	return t
+}
+
+func (t *GobCoder) UnLock() *GobCoder {
+	t.l.Store(0)
+	return t
+}
+
+func (t *GobCoder) LockArea(gcf func(Encode, Decode func(ptr any) error, g *Gob) error) (e error) {
+	if t.l.Load() == 1 {
+		return gcf(t.encode, t.decode, t.g)
+	}
+	return ErrGobCoderLockFail
+}
+
+type GobCoders struct {
+	gs sync.Map
+}
+
+func (t *GobCoders) New() *GobCoder {
+	return t.Get(&Gob{})
+}
+
+func (t *GobCoders) Get(g *Gob) *GobCoder {
+	if c, ok := t.gs.Load(g); ok {
+		return c.(*GobCoder)
+	} else {
+		c, _ = t.gs.LoadOrStore(g, NewGobCoder(g))
+		return c.(*GobCoder)
+	}
+}
+
+func (t *GobCoders) Del(g *Gob) {
+	t.gs.Delete(g)
 }
 
 // func (t *Gob) RpcDeal(host, path string) *Gob {
@@ -91,22 +166,18 @@ func NewServer(host string) *Server {
 func Register[T, E any](t *Server, path string, deal func(it *T, ot *E) error) error {
 	s := rpc.NewServer()
 	if e := s.Register(newDealGob(func(i, o *Gob) error {
-		if i.Err != nil {
-			return errors.Join(ErrSerGob, i.Err)
-		} else {
-			var it T
-			var ot E
-			if e := i.decode(&it).Err; e != nil {
-				return errors.Join(ErrSerDecode, e)
-			}
-			if e := deal(&it, &ot); e != nil {
-				return errors.Join(ErrSerDeal, e)
-			}
-			if e := o.encode(&ot).Err; e != nil {
-				return errors.Join(ErrSerEncode, e)
-			}
-			return nil
+		var it T
+		var ot E
+		if e := i.decode(&it); e != nil {
+			return errors.Join(ErrSerDecode, e)
 		}
+		if e := deal(&it, &ot); e != nil {
+			return errors.Join(ErrSerDeal, e)
+		}
+		if e := o.encode(&ot); e != nil {
+			return errors.Join(ErrSerEncode, e)
+		}
+		return nil
 	})); e != nil {
 		return errors.Join(ErrRegister, e)
 	}
@@ -122,7 +193,7 @@ func UnRegister(t *Server, path string) {
 
 func Call[T, E any](host, path string, it *T, ot *E) error {
 	t := &Gob{}
-	if e := t.encode(it).Err; e != nil {
+	if e := t.encode(it); e != nil {
 		return errors.Join(ErrCliEncode, e)
 	} else {
 		if c, e := rpc.DialHTTPPath("tcp", host, path); e != nil {
@@ -132,14 +203,52 @@ func Call[T, E any](host, path string, it *T, ot *E) error {
 			if call.Error != nil {
 				return errors.Join(ErrCliDeal, call.Error)
 			}
-			if t.Err != nil {
-				return errors.Join(ErrSerGob, t.Err)
-			}
-			if e := t.decode(ot).Err; e != nil {
+			if e := t.decode(ot); e != nil {
 				return errors.Join(ErrCliDecode, e)
 			}
 			return nil
 		}
+	}
+}
+
+func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) error {
+	var gobs = GobCoders{}
+	gobPool := pp.New(pp.PoolFunc[GobCoder]{
+		New: func() *GobCoder {
+			return gobs.New().Lock()
+		},
+		InUse: func(g *GobCoder) (yes bool) {
+			return g.InUse()
+		},
+		Reuse: func(g *GobCoder) *GobCoder {
+			return g.Lock()
+		},
+		Pool: func(g *GobCoder) *GobCoder {
+			return g.UnLock()
+		},
+	}, poolSize)
+	chanC := make(chan *rpc.Call, 1)
+	c, ce := rpc.DialHTTPPath("tcp", host, path)
+	return func(it *T, ot *E) (e error) {
+		if ce != nil {
+			return errors.Join(ErrDial, ce)
+		}
+		t := gobPool.Get()
+		defer gobPool.Put(t)
+		e = t.LockArea(func(Encode, Decode func(ptr any) error, Gob *Gob) error {
+			if e := Encode(it); e != nil {
+				return errors.Join(ErrCliEncode, e)
+			}
+			c.Go("DealGob.Deal", Gob, Gob, chanC)
+			if e := (<-chanC).Error; e != nil {
+				return errors.Join(ErrCliDeal, e)
+			}
+			if e := Decode(ot); e != nil {
+				return errors.Join(ErrCliDecode, e)
+			}
+			return nil
+		})
+		return
 	}
 }
 

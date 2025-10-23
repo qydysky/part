@@ -28,6 +28,10 @@ func Rand(typel RandType, leng int) string {
 		source += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	}
 
+	return Randv2(leng, source)
+}
+
+func Randv2(leng int, source string) string {
 	Letters := []rune(source)
 	LettersL := len(Letters)
 	var bb bytes.Buffer
