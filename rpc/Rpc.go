@@ -190,7 +190,6 @@ func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) err
 	gobPool := pp.New(pp.PoolFunc[GobCoder]{
 		New: gobs.New,
 	}, poolSize)
-	chanC := make(chan *rpc.Call, 1)
 	c, ce := rpc.DialHTTPPath("tcp", host, path)
 	return func(it *T, ot *E) (e error) {
 		if ce != nil {
@@ -201,8 +200,7 @@ func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) err
 		if e := t.encode(it); e != nil {
 			return errors.Join(ErrCliEncode, e)
 		}
-		c.Go("DealGob.Deal", t.g, t.g, chanC)
-		if e := (<-chanC).Error; e != nil {
+		if e := c.Call("DealGob.Deal", t.g, t.g); e != nil {
 			return errors.Join(ErrCliDeal, e)
 		}
 		if e := t.decode(ot); e != nil {
