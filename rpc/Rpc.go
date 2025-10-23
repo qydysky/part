@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/rpc"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	pp "github.com/qydysky/part/pool"
 	web "github.com/qydysky/part/web"
@@ -54,7 +52,6 @@ type GobCoder struct {
 	buf bytes.Buffer
 	enc *gob.Encoder
 	dnc *gob.Decoder
-	l   atomic.Uint32
 }
 
 var ErrGobCoderLockFail = errors.New(`ErrGobCoderLockFail`)
@@ -77,29 +74,6 @@ func (t *GobCoder) decode(ptr any) (e error) {
 	e = t.dnc.Decode(ptr)
 	t.buf.Reset()
 	return
-}
-
-func (t *GobCoder) InUse() bool {
-	return t.l.Load() == 1
-}
-
-func (t *GobCoder) Lock() *GobCoder {
-	for !t.l.CompareAndSwap(0, 1) {
-		time.Sleep(time.Millisecond * 100)
-	}
-	return t
-}
-
-func (t *GobCoder) UnLock() *GobCoder {
-	t.l.Store(0)
-	return t
-}
-
-func (t *GobCoder) LockArea(gcf func(Encode, Decode func(ptr any) error, g *Gob) error) (e error) {
-	if t.l.Load() == 1 {
-		return gcf(t.encode, t.decode, t.g)
-	}
-	return ErrGobCoderLockFail
 }
 
 type GobCoders struct {
@@ -214,18 +188,7 @@ func Call[T, E any](host, path string, it *T, ot *E) error {
 func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) error {
 	var gobs = GobCoders{}
 	gobPool := pp.New(pp.PoolFunc[GobCoder]{
-		New: func() *GobCoder {
-			return gobs.New().Lock()
-		},
-		InUse: func(g *GobCoder) (yes bool) {
-			return g.InUse()
-		},
-		Reuse: func(g *GobCoder) *GobCoder {
-			return g.Lock()
-		},
-		Pool: func(g *GobCoder) *GobCoder {
-			return g.UnLock()
-		},
+		New: gobs.New,
 	}, poolSize)
 	chanC := make(chan *rpc.Call, 1)
 	c, ce := rpc.DialHTTPPath("tcp", host, path)
@@ -235,20 +198,17 @@ func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) err
 		}
 		t := gobPool.Get()
 		defer gobPool.Put(t)
-		e = t.LockArea(func(Encode, Decode func(ptr any) error, Gob *Gob) error {
-			if e := Encode(it); e != nil {
-				return errors.Join(ErrCliEncode, e)
-			}
-			c.Go("DealGob.Deal", Gob, Gob, chanC)
-			if e := (<-chanC).Error; e != nil {
-				return errors.Join(ErrCliDeal, e)
-			}
-			if e := Decode(ot); e != nil {
-				return errors.Join(ErrCliDecode, e)
-			}
-			return nil
-		})
-		return
+		if e := t.encode(it); e != nil {
+			return errors.Join(ErrCliEncode, e)
+		}
+		c.Go("DealGob.Deal", t.g, t.g, chanC)
+		if e := (<-chanC).Error; e != nil {
+			return errors.Join(ErrCliDeal, e)
+		}
+		if e := t.decode(ot); e != nil {
+			return errors.Join(ErrCliDecode, e)
+		}
+		return nil
 	}
 }
 
