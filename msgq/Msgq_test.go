@@ -153,7 +153,7 @@ func Test2(t *testing.T) {
 	}
 	mg.Store("1", &f3)
 	m.Push_tag("1", "3")
-	if f,ok:=mg.Load("1");!ok || f!= &f2 {
+	if f, ok := mg.Load("1"); !ok || f != &f2 {
 		t.Fatal()
 	}
 }
@@ -327,7 +327,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 		mq.Push_tag(`a`, i)
 	}
 	if len(ch) != 1 {
-		t.Fatal()
+		t.Fatal(len(ch))
 	}
 	var o = 0
 	for s := true; s; {
