@@ -182,8 +182,9 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 }
 
 func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan any) {
-	var c = make(chan any, size)
-	return m.Register(func(data any) bool {
+	c := make(chan any, size)
+	ctx, cancelC := context.WithCancel(ctx)
+	unreg := m.Register(func(data any) bool {
 		if d, ok := data.(*Msgq_tag_data); ok && d.Tag == key {
 			select {
 			case <-ctx.Done():
@@ -202,7 +203,16 @@ func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel 
 			}
 		}
 		return false
-	}), c
+	})
+	return func() {
+		select {
+		case <-ctx.Done():
+		default:
+			cancelC()
+			unreg()
+			close(c)
+		}
+	}, c
 }
 
 func (m *Msgq) Pull_tag_only(key string, f func(any) (disable bool)) (cancel func()) {
@@ -288,8 +298,9 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 }
 
 func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan T) {
-	var c = make(chan T, size)
-	return m.m.Register(func(data any) bool {
+	c := make(chan T, size)
+	ctx, cancelC := context.WithCancel(ctx)
+	unreg := m.m.Register(func(data any) bool {
 		if data1, ok := data.(*MsgType_tag_data[T]); ok {
 			if data1.Tag == key {
 				select {
@@ -310,7 +321,16 @@ func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (c
 			}
 		}
 		return false
-	}), c
+	})
+	return func() {
+		select {
+		case <-ctx.Done():
+		default:
+			cancelC()
+			unreg()
+			close(c)
+		}
+	}, c
 }
 
 func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) (cancel func()) {

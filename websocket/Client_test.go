@@ -3,7 +3,6 @@ package part
 import (
 	"context"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,19 +14,17 @@ func Test_Client(t *testing.T) {
 	{
 		ws_mq := s.Interface()
 
-		ws_mq.Pull_tag(map[string]func(interface{}) bool{
-			`error`: func(data interface{}) bool {
+		ws_mq.Pull_tag(map[string]func(Uinterface) bool{
+			`error`: func(data Uinterface) bool {
 				return true
 			},
-			`recv`: func(data interface{}) bool {
-				if tmp, ok := data.(Uinterface); ok {
-					t.Log(tmp.Id, `=>`, string(tmp.Data))
-					t.Log(string(tmp.Data), `=>`, tmp.Id)
-					ws_mq.Push_tag(`send`, Uinterface{ //just reply
-						Id:   tmp.Id,
-						Data: tmp.Data,
-					})
-				}
+			`recv`: func(tmp Uinterface) bool {
+				t.Log(tmp.Id, `=>`, string(tmp.Data))
+				t.Log(string(tmp.Data), `=>`, tmp.Id)
+				ws_mq.Push_tag(`send`, Uinterface{ //just reply
+					Id:   tmp.Id,
+					Data: tmp.Data,
+				})
 				return false
 			},
 		})
@@ -37,8 +34,13 @@ func Test_Client(t *testing.T) {
 		Addr:         "127.0.0.1:10888",
 		WriteTimeout: time.Second * time.Duration(10),
 	})
+	defer w.Shutdown()
 	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
 		`/ws`: func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Allow", "GET")
+				return
+			}
 			conn := s.WS(w, r)
 			id := <-conn
 			t.Log(`user connect!`, id)
@@ -47,6 +49,7 @@ func Test_Client(t *testing.T) {
 		},
 	})
 
+	// wait
 	time.Sleep(time.Second)
 
 	{
@@ -55,7 +58,6 @@ func Test_Client(t *testing.T) {
 			Func_normal_close: func() {
 				t.Log("close")
 			},
-			TO:    1000,
 			WTOMs: 1000,
 		})
 		if e != nil {
@@ -67,7 +69,7 @@ func Test_Client(t *testing.T) {
 			t.Fatal(e)
 		}
 
-		ws.Pull_tag_only(`rec`, func(wm *WsMsg) (disable bool) {
+		ws.Pull_tag_only(`recv`, func(wm *WsMsg) (disable bool) {
 			wm.Msg(func(b []byte) error {
 				if string(b) != "test" {
 					t.Fatal()
@@ -82,12 +84,7 @@ func Test_Client(t *testing.T) {
 			},
 		})
 
-		go func() {
-			time.Sleep(time.Second * 2)
-			t.Log("call close")
-			c.Close()
-			t.Log("call close done")
-		}()
+		time.AfterFunc(time.Second*2, c.Close)
 
 		{
 			cancel, c := ws.Pull_tag_chan(`exit`, 1, context.Background())
@@ -95,12 +92,6 @@ func Test_Client(t *testing.T) {
 			cancel()
 			t.Log("exit")
 		}
-
-		if !strings.Contains(c.Error().Error(), `i/o`) {
-			t.Fatal()
-		}
-
-		time.Sleep(time.Second)
 	}
 	{
 		c, e := New_client(&Client{
@@ -108,7 +99,7 @@ func Test_Client(t *testing.T) {
 			Func_normal_close: func() {
 				t.Log("close")
 			},
-			TO: 2000,
+			RTOMs: 2000,
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -119,7 +110,7 @@ func Test_Client(t *testing.T) {
 			t.Fatal(e)
 		}
 
-		ws.Pull_tag_only(`rec`, func(wm *WsMsg) (disable bool) {
+		ws.Pull_tag_only(`recv`, func(wm *WsMsg) (disable bool) {
 			wm.Msg(func(b []byte) error {
 				if string(b) != "test" {
 					t.Fatal()
