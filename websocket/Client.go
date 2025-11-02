@@ -21,19 +21,18 @@ type Client struct {
 	// rec send close
 	msg *msgq.MsgType[*WsMsg]
 
-	TO      int // depercated: use RTOMs WTOMs instead
-	RTOMs   int
-	WTOMs   int
-	BufSize int // msg buf 1: always use single buf >1: use bufs cycle
-	Header  map[string]string
+	RTOMs   int               // default: 300s
+	WTOMs   int               // default: 300s
+	BufSize int               // msg buf 1: always use single buf >1: use bufs cycle. default:10
+	Header  map[string]string // default: map[string]string{}
 	Proxy   string
 
-	Ping  Ping
+	Ping  Ping // default: no ping
 	pingT int64
 
-	Msg_normal_close  string
-	Func_normal_close func()
-	Func_abort_close  func()
+	Msg_normal_close  string // default: ``
+	Func_normal_close func() // default: func(){}
+	Func_abort_close  func() // default: func(){}
 
 	close bool
 	err   error
@@ -42,8 +41,8 @@ type Client struct {
 }
 
 type WsMsg struct {
-	Type int
-	Msg  func(func([]byte) error) error
+	ty  int
+	Msg func(func([]byte) error) error
 }
 
 type Ping struct {
@@ -67,10 +66,6 @@ func New_client(config *Client) (*Client, error) {
 	}
 	if v := config.BufSize; v >= 1 {
 		tmp.BufSize = v
-	}
-	if v := config.TO; v != 0 {
-		tmp.RTOMs = v
-		tmp.WTOMs = v
 	}
 	if v := config.RTOMs; v != 0 {
 		tmp.RTOMs = v
@@ -97,16 +92,35 @@ func New_client(config *Client) (*Client, error) {
 
 // 处理
 //
-//	msg.PushLock_tag(`send`, &WsMsg{
+// // 发送数据到服务器
+//
+//	msg.Push_tag(`send`, &WsMsg{
 //		Msg:  []byte("message"),
 //	})
 //
-//	msg.Pull_tag_only(`rec`, func(wm *WsMsg) (disable bool) {
-//		fmt.Println(string(wm.Msg))
+// // 接收服务器的数据
+//
+//	msg.Pull_tag_only(`recv`, func(wm *WsMsg) (disable bool) {
+//		wm.Msg(func(b []byte) error {
+//			fmt.Println(string(b))
+//			return nil
+//		})
 //		return false
 //	})
 //
-// 事件 send rec close exit
+// // 主动断开连接
+//
+// (*Client).Close()
+//
+// or
+//
+// msg.Push_tag(`close`, nil)
+//
+// // 监听退出
+//
+//	msg.Pull_tag_only(`exit`, func(_ any) (disable bool) {
+//		return false
+//	})
 func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	tmp_Header := make(http.Header)
 	for k, v := range o.Header {
@@ -144,10 +158,10 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		return nil, errors.New(e)
 	}
 
-	// rec
+	// recv
 	go func() {
 		defer func() {
-			o.msg.PushLock_tag(`exit`, nil)
+			o.msg.Push_tag(`exit`, nil)
 			o.l.Lock()
 			o.close = true
 			o.l.Unlock()
@@ -169,8 +183,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 				tmpbuf = append(tmpbuf[:0], msg...)
 				switch msg_type {
 				case websocket.PingMessage:
-					o.msg.PushLock_tag(`send`, &WsMsg{
-						Type: websocket.PongMessage,
+					o.msg.Push_tag(`send`, &WsMsg{
+						ty: websocket.PongMessage,
 						Msg: func(f func([]byte) error) error {
 							f(tmpbuf)
 							putBack(tmpbuf)
@@ -180,8 +194,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 				case websocket.PongMessage:
 					o.pingT = time.Now().UnixMilli()
 					time.AfterFunc(time.Duration(o.Ping.Period*int(time.Millisecond)), func() {
-						o.msg.PushLock_tag(`send`, &WsMsg{
-							Type: websocket.PingMessage,
+						o.msg.Push_tag(`send`, &WsMsg{
+							ty: websocket.PingMessage,
 							Msg: func(f func([]byte) error) error {
 								f(o.Ping.Msg)
 								return nil
@@ -190,8 +204,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 					})
 					o.Ping.had_pong = true
 				default:
-					o.msg.PushLock_tag(`rec`, &WsMsg{
-						Type: websocket.TextMessage,
+					o.msg.Push_tag(`recv`, &WsMsg{
+						ty: websocket.TextMessage,
 						Msg: func(f func([]byte) error) error {
 							f(tmpbuf)
 							putBack(tmpbuf)
@@ -218,20 +232,20 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 
 	// send
 	o.msg.Pull_tag_only(`send`, func(wm *WsMsg) (disable bool) {
-		if wm.Type == 0 {
-			wm.Type = websocket.TextMessage
+		if wm.ty == 0 {
+			wm.ty = websocket.TextMessage
 		}
 		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
 			o.error(err)
 			return true
 		}
 		if err := wm.Msg(func(b []byte) error {
-			return c.WriteMessage(wm.Type, b)
+			return c.WriteMessage(wm.ty, b)
 		}); err != nil {
 			o.error(err)
 			return true
 		}
-		if wm.Type == websocket.PingMessage {
+		if wm.ty == websocket.PingMessage {
 			time.AfterFunc(time.Duration(o.RTOMs*int(time.Millisecond)), func() {
 				if time.Now().UnixMilli() > o.pingT+int64(o.RTOMs) {
 					o.error(errors.New("PongFail"))
@@ -257,8 +271,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 }
 
 func (o *Client) Heartbeat() (err error) {
-	o.msg.PushLock_tag(`send`, &WsMsg{
-		Type: websocket.PingMessage,
+	o.msg.Push_tag(`send`, &WsMsg{
+		ty: websocket.PingMessage,
 		Msg: func(f func([]byte) error) error {
 			f(o.Ping.Msg)
 			return nil
@@ -269,7 +283,7 @@ func (o *Client) Heartbeat() (err error) {
 }
 
 func (o *Client) Close() {
-	o.msg.PushLock_tag(`close`, nil)
+	o.msg.Push_tag(`close`, nil)
 }
 
 func (o *Client) Isclose() (isclose bool) {

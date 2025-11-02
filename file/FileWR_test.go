@@ -383,6 +383,107 @@ func TestReadUntil(t *testing.T) {
 	}
 }
 
+func TestReadUntil2(t *testing.T) {
+	f := New("s.txt", 0, false)
+	if i, e := f.WriteRaw([]byte("18u3y7\ns99s9\nuqienbs\n"), true); i == 0 || e != nil {
+		t.Fatal(e)
+	}
+
+	if e := f.Sync(); e != nil {
+		t.Fatal(e)
+	}
+
+	if e := f.SeekIndex(0, AtOrigin); e != nil {
+		t.Fatal(e)
+	}
+
+	var data []byte
+	if e := f.ReadUntilV2(&data, []byte{'\n'}, 5, 20); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("18u3y7")) {
+		t.Fatal(string(data))
+	}
+
+	if e := f.ReadUntilV2(&data, []byte{'\n'}, 5, 20); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("s99s9")) {
+		t.Fatal(string(data))
+	}
+
+	if e := f.ReadUntilV2(&data, []byte("s\n"), 5, 20); e != nil {
+		t.Fatal(e)
+	} else if !bytes.Equal(data, []byte("uqienb")) {
+		t.Fatal(string(data))
+	}
+
+	if e := f.ReadUntilV2(&data, []byte{'\n'}, 5, 20); e == nil || !errors.Is(e, io.EOF) || len(data) != 0 {
+		t.Fatal(e)
+	}
+
+	if e := f.Close(); e != nil {
+		t.Fatal(e)
+	}
+
+	if e := f.Delete(); e != nil {
+		t.Fatal(e)
+	}
+}
+
+// 5777 ns/op              32 B/op          2 allocs/op
+func Benchmark_readUntil(b *testing.B) {
+	f := New("s.txt", 0, false)
+	if i, e := f.WriteRaw([]byte("18u3y7\n"), true); i == 0 || e != nil {
+		b.Fatal(e)
+	}
+
+	if e := f.Sync(); e != nil {
+		b.Fatal(e)
+	}
+
+	for b.Loop() {
+		if e := f.SeekIndex(0, AtOrigin); e != nil {
+			b.Fatal(e)
+		}
+		if data, e := f.ReadUntil([]byte{'\n'}, 10, 100); e != nil {
+			if !errors.Is(e, io.EOF) {
+				b.Fatal(e)
+			} else {
+				break
+			}
+		} else if !bytes.Equal(data, []byte("18u3y7")) {
+			b.Fatal()
+		}
+	}
+}
+
+// 6132 ns/op              16 B/op          1 allocs/op
+func Benchmark_readUntil2(b *testing.B) {
+	f := New("s.txt", 0, false)
+	if i, e := f.WriteRaw([]byte("18u3y7\n"), true); i == 0 || e != nil {
+		b.Fatal(e)
+	}
+
+	if e := f.Sync(); e != nil {
+		b.Fatal(e)
+	}
+
+	var data []byte
+	for b.Loop() {
+		if e := f.SeekIndex(0, AtOrigin); e != nil {
+			b.Fatal(e)
+		}
+		if e := f.ReadUntilV2(&data, []byte{'\n'}, 10, 100); e != nil {
+			if !errors.Is(e, io.EOF) {
+				b.Fatal(e)
+			} else {
+				break
+			}
+		} else if !bytes.Equal(data, []byte("18u3y7")) {
+			b.Fatal()
+		}
+	}
+}
+
 func TestEncoderDecoder(t *testing.T) {
 	sf := New("GBK.txt", 0, true)
 	sf.Config.Coder = simplifiedchinese.GBK

@@ -104,6 +104,7 @@ func (t *BlockFuncN) BlockAll() (unBlock func()) {
 	}
 }
 
+// 在Range时，同时创建返回子上下文ctx
 type RangeSource[T any] iter.Seq[T]
 
 func (i RangeSource[T]) RangeCtx(pctx context.Context) iter.Seq2[context.Context, T] {

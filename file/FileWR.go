@@ -435,22 +435,37 @@ func (t *File) Seek(offset int64, whence int) (int64, error) {
 	return t.seek().Seek(offset, whence)
 }
 
+// Deprecated: use ReadUntilV2
+//
 // stop after untilBytes
 //
 // data not include untilBytes
+//
+// e 遇到结尾时会返回io.EOF
 func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (data []byte, e error) {
+	e = t.ReadUntilV2(&data, untilBytes, perReadSize, maxReadSize)
+	return
+}
+
+// stop after untilBytes
+//
+// data not include untilBytes
+//
+// e 遇到结尾时会返回io.EOF
+func (t *File) ReadUntilV2(data *[]byte, untilBytes []byte, perReadSize int, maxReadSize int) (e error) {
 	if e := t.getRWCloser(); e != nil {
-		return nil, e
+		return e
 	}
 	if t.Config.AutoClose {
 		defer t.Close()
 	}
 
 	if !t.l.TryRLock() {
-		return nil, ErrFailToLock
+		return ErrFailToLock
 	}
 	defer t.l.RUnlock()
 
+	*data = (*data)[:0]
 	var (
 		reserve = len(untilBytes) - 1
 		tmpArea = make([]byte, reserve+perReadSize)
@@ -478,11 +493,11 @@ func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (d
 				_, _ = t.file.Seek(-int64(n-i-len(untilBytes)), int(AtCurrent))
 			}
 			if i != 0 {
-				data = append(data, tmpArea[seekN:i]...)
+				*data = append(*data, tmpArea[seekN:i]...)
 			}
 			return
 		} else {
-			data = append(data, tmpArea[seekN:n]...)
+			*data = append(*data, tmpArea[seekN:n]...)
 		}
 	}
 
@@ -503,11 +518,11 @@ func (t *File) ReadUntil(untilBytes []byte, perReadSize int, maxReadSize int) (d
 				_, _ = t.file.Seek(-int64(reserve+n-i-len(untilBytes)), int(AtCurrent))
 			}
 			if i != 0 {
-				data = append(data, tmpArea[reserve:i]...)
+				*data = append(*data, tmpArea[reserve:i]...)
 			}
 			break
 		} else {
-			data = append(data, tmpArea[reserve:n]...)
+			*data = append(*data, tmpArea[reserve:n]...)
 		}
 	}
 

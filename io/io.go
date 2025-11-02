@@ -672,6 +672,7 @@ type cacheWriterItem struct {
 	l   atomic.Bool
 }
 
+// 为w写入增加一层cache,避免新分配
 func NewCacheWriter(ws io.Writer, max uint32) *CacheWriter {
 	t := CacheWriter{w: ws, cc: make(chan uint32, max), max: max, is: make([]cacheWriterItem, max)}
 	t.ctx, t.cancelCauseFunc = context.WithCancelCause(context.Background())

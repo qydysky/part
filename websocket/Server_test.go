@@ -1,83 +1,93 @@
 package part
 
 import (
+	"fmt"
 	"net/http"
-	"strconv"
 	"testing"
 	"time"
 
 	web "github.com/qydysky/part/web"
-	"github.com/skratchdot/open-golang/open"
 )
 
 func Test_Server(t *testing.T) {
+	t.Parallel()
+
 	s := New_server()
 	{
-		num := 5
-
 		ws_mq := s.Interface()
-
-		recoder := &Recorder{
-			Server: s,
-		}
-		recoder.Start("l.csv")
-		defer recoder.Stop()
-
-		ws_mq.Pull_tag(map[string]func(interface{}) bool{
-			`error`: func(data interface{}) bool {
-				t.Log(data)
+		// close all
+		defer ws_mq.Push_tag(`close`, Uinterface{
+			Id: 0,
+		})
+		ws_mq.Pull_tag(map[string]func(Uinterface) bool{
+			`init`: func(u Uinterface) bool {
+				fmt.Println(u.Id, "connected!")
 				return false
 			},
-			`recv`: func(data interface{}) bool {
-				if tmp, ok := data.(Uinterface); ok {
-					t.Log(tmp.Id, `=>`, string(tmp.Data))
-					t.Log(string(tmp.Data), `=>`, tmp.Id)
-					num -= 1
-					if num > 0 {
-						ws_mq.Push_tag(`send`, Uinterface{ //just reply
-							Id:   tmp.Id,
-							Data: append(tmp.Data, []byte(` get.server:close after `+strconv.Itoa(num)+` s`)...),
-						})
-					} else {
-						ws_mq.Push_tag(`close`, Uinterface{ //close
-							Id:   tmp.Id,
-							Data: []byte(`closeNormal`),
-						})
-					}
+			`error`: func(u Uinterface) bool {
+				fmt.Println(u.Id, u.Err)
+				ws_mq.Push_tag(`close`, Uinterface{
+					Id: u.Id,
+				})
+				return false
+			},
+			`recv`: func(u Uinterface) bool {
+				t.Log(u.Id, `=>`, string(u.Data))
+				if u.Data[0] != '1' {
+					t.Fatal()
 				}
+				ws_mq.Push_tag(`send`, Uinterface{
+					Id:   u.Id,
+					Data: []byte{'2'},
+				})
+				ws_mq.Push_tag(`close`, Uinterface{
+					Id: u.Id,
+				})
+				return false
+			},
+			`fin`: func(u Uinterface) bool {
+				fmt.Println(u.Id, "fin!")
 				return false
 			},
 		})
 	}
 
 	w := web.Easy_boot()
-	open.Run("http://" + w.Server.Addr)
+	defer w.Shutdown()
 	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
 		`/ws`: func(w http.ResponseWriter, r *http.Request) {
 			conn := s.WS(w, r)
-			id := <-conn
-			t.Log(`user connect!`, id)
 			<-conn
-			t.Log(`user disconnect!`, id)
+			<-conn
 		},
 	})
-	time.Sleep(time.Second * time.Duration(10))
-}
 
-func Test_Recoder(t *testing.T) {
-	s, cf := Play("l.csv")
-	defer cf()
+	time.Sleep(time.Second)
 
-	w := web.Easy_boot()
-	open.Run("http://" + w.Server.Addr)
-	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
-		`/ws`: func(w http.ResponseWriter, r *http.Request) {
-			conn := s.WS(w, r)
-			id := <-conn
-			t.Log(`user connect!`, id)
-			<-conn
-			t.Log(`user disconnect!`, id)
-		},
-	})
-	time.Sleep(time.Second * time.Duration(10))
+	if c, e := New_client(&Client{
+		Url: `ws://` + w.Server.Addr + `/ws`,
+	}); e != nil {
+		t.Fatal(e)
+	} else if handler, e := c.Handle(); e != nil {
+		t.Fatal(e)
+	} else {
+		handler.Pull_tag_only(`recv`, func(wm *WsMsg) (disable bool) {
+			wm.Msg(func(b []byte) error {
+				if b[0] != '2' {
+					t.Fatal()
+				}
+				t.Log("ser", string(b))
+				return nil
+			})
+			return false
+		})
+		handler.Push_tag(`send`, &WsMsg{
+			Msg: func(f func([]byte) error) error {
+				return f([]byte{'1'})
+			},
+		})
+		cancle, c := handler.Pull_tag_chan(`exit`, 1, t.Context())
+		<-c
+		cancle()
+	}
 }

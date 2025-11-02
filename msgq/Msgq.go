@@ -9,6 +9,7 @@ import (
 	"go/build"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -183,11 +184,12 @@ func (m *Msgq) PushLock_tag(Tag string, Data any) {
 
 func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan any) {
 	var c = make(chan any, size)
-	return m.Register(func(data any) bool {
+	unc := sync.OnceFunc(func() { close(c) })
+	unreg := m.Register(func(data any) bool {
 		if d, ok := data.(*Msgq_tag_data); ok && d.Tag == key {
 			select {
 			case <-ctx.Done():
-				close(c)
+				unc()
 				return true
 			default:
 				empty := false
@@ -202,7 +204,19 @@ func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel 
 			}
 		}
 		return false
-	}), c
+	})
+	go func() {
+		select {
+		case <-c:
+		case <-ctx.Done():
+		}
+		unreg()
+		unc()
+	}()
+	return func() {
+		unreg()
+		unc()
+	}, c
 }
 
 func (m *Msgq) Pull_tag_only(key string, f func(any) (disable bool)) (cancel func()) {
@@ -289,12 +303,13 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 
 func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan T) {
 	var c = make(chan T, size)
-	return m.m.Register(func(data any) bool {
+	unc := sync.OnceFunc(func() { close(c) })
+	unreg := m.m.Register(func(data any) bool {
 		if data1, ok := data.(*MsgType_tag_data[T]); ok {
 			if data1.Tag == key {
 				select {
 				case <-ctx.Done():
-					close(c)
+					unc()
 					return true
 				default:
 					empty := false
@@ -310,7 +325,19 @@ func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (c
 			}
 		}
 		return false
-	}), c
+	})
+	go func() {
+		select {
+		case <-c:
+		case <-ctx.Done():
+		}
+		unreg()
+		unc()
+	}()
+	return func() {
+		unreg()
+		unc()
+	}, c
 }
 
 func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) (cancel func()) {
