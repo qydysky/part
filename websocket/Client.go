@@ -14,6 +14,7 @@ import (
 	pio "github.com/qydysky/part/io"
 	msgq "github.com/qydysky/part/msgq"
 	pslice "github.com/qydysky/part/slice"
+	psync "github.com/qydysky/part/sync"
 )
 
 type Client struct {
@@ -230,8 +231,12 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}
 	}()
 
+	// websocket.Conn write not goroutine safe
+	var wlock psync.RWMutex
+
 	// send
 	o.msg.Pull_tag_only(`send`, func(wm *WsMsg) (disable bool) {
+		defer wlock.Lock()()
 		if wm.ty == 0 {
 			wm.ty = websocket.TextMessage
 		}
@@ -258,6 +263,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 
 	// close
 	o.msg.Pull_tag_only(`close`, func(_ *WsMsg) (disable bool) {
+		defer wlock.Lock()()
 		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
 			o.error(err)
 		}
