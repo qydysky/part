@@ -79,7 +79,7 @@ func Test_2(t *testing.T) {
 		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
 		tx = tx.SimpleDo("select p,base,msg as s from log")
 		tx.AfterQF(func(_ *any, rows *sql.Rows, e *error) {
-			if ls, err := psql.DealRows[logg](rows, func() logg { return logg{} }); err == nil {
+			if ls, err := psql.DealRows[logg](rows); err == nil {
 				if len(ls) != 1 {
 					*e = errors.New("num wrong")
 				}

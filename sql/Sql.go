@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"iter"
 	"reflect"
 	"strings"
 )
@@ -82,6 +83,11 @@ func (t *SqlTx[T]) SimplePlaceHolderB(sql string, ptr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderB)
 }
 
+// PlaceHolder will replaced by :%d
+func (t *SqlTx[T]) SimplePlaceHolderC(sql string, ptr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderC)
+}
+
 type ReplaceF func(index int, holder string) (replaceTo string)
 
 var (
@@ -92,6 +98,10 @@ var (
 	// "$%d"
 	PlaceHolderB ReplaceF = func(index int, holder string) (replaceTo string) {
 		return fmt.Sprintf("$%d", index+1)
+	}
+	// ":%d"
+	PlaceHolderC ReplaceF = func(index int, holder string) (replaceTo string) {
+		return fmt.Sprintf(":%d", index+1)
 	}
 )
 
@@ -221,7 +231,7 @@ func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
 }
 
-func DealRows[T any](rows *sql.Rows, newT func() T) ([]T, error) {
+func DealRows[T any](rows *sql.Rows) ([]T, error) {
 	rowNames, err := rows.Columns()
 	if err != nil {
 		return nil, err
@@ -240,7 +250,7 @@ func DealRows[T any](rows *sql.Rows, newT func() T) ([]T, error) {
 		}
 
 		var (
-			stu      = newT()
+			stu      = *new(T)
 			refV     = reflect.ValueOf(&stu).Elem()
 			refT     = reflect.TypeOf(&stu).Elem()
 			FieldMap = make(map[string]*reflect.Value)
@@ -280,4 +290,76 @@ func DealRows[T any](rows *sql.Rows, newT func() T) ([]T, error) {
 	}
 
 	return res, nil
+}
+
+func DealRowsIter[T any](rows *sql.Rows) iter.Seq2[*T, error] {
+	return func(yield func(*T, error) bool) {
+		rowNames, err := rows.Columns()
+		if err != nil {
+			if !yield(nil, err) {
+				return
+			}
+		}
+		for rows.Next() {
+			rowP := make([]any, len(rowNames))
+			for i := 0; i < len(rowNames); i++ {
+				rowP[i] = new(any)
+			}
+
+			err = rows.Scan(rowP...)
+			if err != nil {
+				if !yield(nil, err) {
+					break
+				}
+			}
+
+			var (
+				stu      = *new(T)
+				refV     = reflect.ValueOf(&stu).Elem()
+				refT     = reflect.TypeOf(&stu).Elem()
+				FieldMap = make(map[string]*reflect.Value)
+			)
+
+			for NumField := refV.NumField() - 1; NumField >= 0; NumField-- {
+				field := refV.Field(NumField)
+				fieldT := refT.Field(NumField)
+				fieldTName := fieldT.Name
+				if value, ok := fieldT.Tag.Lookup("sql"); ok {
+					fieldTName = value
+				}
+				if !field.IsValid() {
+					continue
+				}
+				if !field.CanSet() {
+					FieldMap[strings.ToUpper(fieldTName)] = nil
+					continue
+				}
+				FieldMap[strings.ToUpper(fieldTName)] = &field
+			}
+
+			for i := 0; i < len(rowNames); i++ {
+				if field, ok := FieldMap[strings.ToUpper(rowNames[i])]; ok {
+					if field == nil {
+						if !yield(nil, fmt.Errorf("DealRows:%s.%s CanSet:false", refT.Name(), rowNames[i])) {
+							return
+						}
+					}
+
+					val := reflect.ValueOf(*rowP[i].(*any))
+					if typ := reflect.TypeOf(*rowP[i].(*any)); typ == nil {
+						continue
+					} else if typ.ConvertibleTo(field.Type()) {
+						field.Set(val)
+					} else {
+						if !yield(nil, fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], field.Type())) {
+							return
+						}
+					}
+				}
+			}
+			if !yield(&stu, nil) {
+				return
+			}
+		}
+	}
 }

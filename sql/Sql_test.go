@@ -195,7 +195,7 @@ func TestMain3(t *testing.T) {
 		tx := BeginTx[[]logg](db, context.Background())
 		tx.DoPlaceHolder(selectLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
 		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows, txE *error) {
-			*ctxVP, *txE = DealRows(rows, func() logg { return logg{} })
+			*ctxVP, *txE = DealRows[logg](rows)
 		})
 		if v, e := tx.Fin(); e != nil {
 			t.Fatal(e)
@@ -209,7 +209,7 @@ func TestMain3(t *testing.T) {
 		tx1 := BeginTx[[]logg](db, context.Background()).
 			SimplePlaceHolderA("select msg as Msg, msg2 as Msg2 from log123 where msg2 = {Msg2}", &logg{Msg2: "b"}).
 			AfterQF(func(ctxVP *[]logg, rows *sql.Rows, e *error) {
-				*ctxVP, *e = DealRows[logg](rows, func() logg { return logg{} })
+				*ctxVP, *e = DealRows[logg](rows)
 			})
 		if v, err := tx1.Fin(); err != nil {
 			t.Fatal(err)
@@ -291,7 +291,7 @@ func Local_TestPostgresql(t *testing.T) {
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
 		Sql: "select created as sss from test",
 		afterQF: func(_ *any, rows *sql.Rows, txE *error) {
-			if rowsP, e := DealRows[test1](rows, func() test1 { return test1{} }); e != nil {
+			if rowsP, e := DealRows[test1](rows); e != nil {
 				*txE = e
 			} else {
 				if len(rowsP) != 1 {
