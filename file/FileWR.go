@@ -819,6 +819,7 @@ func (t *File) IsExist() bool {
 	return err == nil
 }
 
+// ./path =  .//path =  ././path = path
 func IsExist(path string) bool {
 	return Open(path).IsExist()
 }
