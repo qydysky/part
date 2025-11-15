@@ -555,9 +555,9 @@ func (t *limitItem) Request(matchf func(req *http.Request) (match bool)) *limitI
 	return t
 }
 
+// Deprecated: use NotModifiedDur
 type Cache struct {
-	g   psync.MapExceeded[string, *[]byte]
-	gcL atomic.Int64
+	g psync.MapExceeded[string, *[]byte]
 }
 
 type cacheRes struct {
@@ -576,10 +576,12 @@ func (t cacheRes) WriteHeader(statusCode int) {
 	t.writeHeaderf(statusCode)
 }
 
+// Deprecated: use NotModifiedDur
 func (t *Cache) IsCache(key string) (data *[]byte, isCache bool) {
 	return t.g.Load(key)
 }
 
+// Deprecated: use NotModifiedDur
 func (t *Cache) Cache(key string, aliveDur time.Duration, w http.ResponseWriter) http.ResponseWriter {
 	var (
 		res    cacheRes
@@ -596,10 +598,6 @@ func (t *Cache) Cache(key string, aliveDur time.Duration, w http.ResponseWriter)
 			panic("Cache Write called")
 		}
 		return w.Write(b)
-	}
-	if s := int64(t.g.Len()); s > 10 && t.gcL.Load() <= s {
-		t.gcL.Store(s * 2)
-		t.g.GC()
 	}
 	return res
 }
@@ -790,6 +788,32 @@ func IsMethod(r *http.Request, method ...string) bool {
 	return false
 }
 
+// 当请求时间戳在modDur之内时，返回304，true
+func NotModifiedDur(r *http.Request, w http.ResponseWriter, modDur time.Duration) (notMod bool) {
+
+	if inm := r.Header.Get(`If-None-Match`); inm != "" {
+		if reqT, e := time.Parse(time.RFC3339, inm); e == nil && time.Since(reqT) <= modDur {
+			w.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+	if ims := r.Header.Get(`If-Modified-Since`); ims != "" {
+		if reqT, e := time.Parse(time.RFC1123, ims); e == nil && time.Since(reqT) <= modDur {
+			w.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+
+	modTimeS := time.Now().Format(time.RFC1123)
+	modTimeE := time.Now().Format(time.RFC3339)
+
+	w.Header().Add(`ETag`, modTimeE)
+	w.Header().Add(`Last-Modified`, modTimeS)
+
+	return false
+}
+
+// 当请求时间戳与modTime相同时，返回304，true
 func NotModified(r *http.Request, w http.ResponseWriter, modTime time.Time) (notMod bool) {
 	modTimeS := modTime.Format(time.RFC1123)
 	modTimeE := modTime.Format(time.RFC3339)
