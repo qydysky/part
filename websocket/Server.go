@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	idpool "github.com/qydysky/part/idpool"
 	mq "github.com/qydysky/part/msgq"
+	psync "github.com/qydysky/part/sync"
 )
 
 type Server struct {
@@ -78,9 +79,13 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o <-chan uintptr) {
 			return
 		}
 
+		// websocket.Conn write not goroutine safe
+		var wlock psync.RWMutex
+
 		//发送
 		t.ws_mq.Pull_tag(map[string]func(Uinterface) bool{
 			`send`: func(u Uinterface) bool {
+				defer wlock.Lock()()
 				if u.Id == 0 || u.Id == User.Id {
 					if err := ws.WriteMessage(websocket.TextMessage, u.Data); err != nil {
 						t.ws_mq.Push_tag(`error`, Uinterface{
