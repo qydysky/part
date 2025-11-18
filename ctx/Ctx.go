@@ -173,3 +173,57 @@ func GenTOCtx(t time.Duration) context.Context {
 func GenDLCtx(t time.Time) context.Context {
 	return CarryCancel(context.WithDeadline(context.Background(), t))
 }
+
+type Mctx struct {
+	child  *Mctx
+	ctx    context.Context
+	cancle context.CancelFunc
+}
+
+// 新建ctx序列
+func NewMergeCtx() *Mctx {
+	return &Mctx{
+		ctx:    context.Background(),
+		cancle: func() {},
+	}
+}
+
+var _ context.Context = NewMergeCtx()
+
+// 将ctx连接到序列，当本cancle()或上级cancle()时，本ctx及后续的ctx将取消
+func (t *Mctx) MergeCtx(ctx context.Context, cancle context.CancelFunc) *Mctx {
+	t.child = &Mctx{
+		ctx:    ctx,
+		cancle: cancle,
+	}
+	go func() {
+		<-t.ctx.Done()
+		cancle()
+	}()
+	return t.child
+}
+
+func (t *Mctx) Deadline() (deadline time.Time, ok bool) {
+	return t.ctx.Deadline()
+}
+
+func (t *Mctx) Cancle() {
+	for tmp := t; tmp.cancle != nil; {
+		tmp.cancle()
+		if tmp.child != nil {
+			tmp = tmp.child
+		}
+	}
+}
+
+func (t *Mctx) Done() <-chan struct{} {
+	return t.ctx.Done()
+}
+
+func (t *Mctx) Err() error {
+	return t.ctx.Err()
+}
+
+func (t *Mctx) Value(key any) any {
+	return t.ctx.Value(key)
+}
