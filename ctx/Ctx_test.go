@@ -288,6 +288,31 @@ func TestMain16(t *testing.T) {
 	<-pctx2.Done()
 }
 
+func TestMain17(t *testing.T) {
+	t.Parallel()
+	pctx := NewMergeCtx()
+
+	ctx1, cancle1 := context.WithCancel(t.Context())
+	pctx1 := pctx.MergeCtx(ctx1, cancle1)
+
+	ctx2, _ := context.WithCancel(t.Context())
+	pctx2 := pctx1.MergeCtx(ctx2)
+
+	ctx3, cancle3 := context.WithCancel(t.Context())
+	pctx3 := pctx2.MergeCtx(ctx3, cancle3)
+
+	time.AfterFunc(time.Second, func() {
+		pctx1.Cancle()
+	})
+	<-pctx3.Done()
+
+	select {
+	case <-ctx2.Done():
+		t.Fatal()
+	default:
+	}
+}
+
 func TestMain14(t *testing.T) {
 	t.Parallel()
 	pctx := NewMergeCtx()

@@ -190,15 +190,22 @@ func NewMergeCtx() *Mctx {
 
 var _ context.Context = NewMergeCtx()
 
-// 将ctx连接到序列，当本cancle()或上级cancle()时，本ctx及后续的ctx将取消
-func (t *Mctx) MergeCtx(ctx context.Context, cancle context.CancelFunc) *Mctx {
+// 将ctx连接到序列，当本cancle(或者Done)或上级cancle(或者Done)时，本ctx及后续的ctx将取消
+//
+// 若未传入cancle，则上级cancle()时，本ctx不会取消，后续的ctx将取消。当本ctx.Done时，后续的ctx将取消。
+func (t *Mctx) MergeCtx(ctx context.Context, cancle ...context.CancelFunc) *Mctx {
 	t.child = &Mctx{
-		ctx:    ctx,
-		cancle: cancle,
+		ctx: ctx,
+	}
+	if len(cancle) > 0 {
+		t.child.cancle = cancle[0]
 	}
 	go func() {
-		<-t.ctx.Done()
-		cancle()
+		select {
+		case <-t.ctx.Done():
+		case <-ctx.Done():
+		}
+		t.Cancle()
 	}()
 	return t.child
 }
@@ -208,10 +215,14 @@ func (t *Mctx) Deadline() (deadline time.Time, ok bool) {
 }
 
 func (t *Mctx) Cancle() {
-	for tmp := t; tmp.cancle != nil; {
-		tmp.cancle()
+	for tmp := t; true; {
+		if tmp.cancle != nil {
+			tmp.cancle()
+		}
 		if tmp.child != nil {
 			tmp = tmp.child
+		} else {
+			break
 		}
 	}
 }
