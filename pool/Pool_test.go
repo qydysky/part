@@ -3,6 +3,7 @@ package part
 import (
 	"bytes"
 	"math"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -14,9 +15,24 @@ type a struct {
 }
 
 func Benchmark(b *testing.B) {
-	p := New(PoolFunc[int]{}, -1)
+	p := New(PoolFunc[[]int]{}, -1)
 	for b.Loop() {
-		p.Put(p.Get())
+		m := p.Get()
+		*m = append((*m)[:0], 0)
+		p.Put(m)
+	}
+}
+
+func Benchmark1(b *testing.B) {
+	p := sync.Pool{
+		New: func() any {
+			return &[]int{}
+		},
+	}
+	for b.Loop() {
+		m := p.Get().(*[]int)
+		*m = append((*m)[:0], 0)
+		p.Put(m)
 	}
 }
 

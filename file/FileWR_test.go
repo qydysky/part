@@ -44,7 +44,13 @@ func Test4(t *testing.T) {
 	if !IsExist("./tmp/1.txt") {
 		t.Fatal()
 	}
-	dir.Delete()
+	f.Close()
+	if e := dir.Delete(); e != nil {
+		t.Fatal(e)
+	}
+	if IsExist("./tmp/1.txt") {
+		t.Fatal()
+	}
 }
 
 func Test3(t *testing.T) {
@@ -52,8 +58,11 @@ func Test3(t *testing.T) {
 	f.Write([]byte{'1'})
 	f.Close()
 
-	if f.SelfName() != "1.txt" {
+	if !IsExist("./tmp/1.txt") {
 		t.Fatal()
+	}
+	if n := f.SelfName(); n != "1.txt" {
+		t.Fatal(n)
 	}
 	f.Delete()
 }
@@ -66,9 +75,14 @@ func Test2(t *testing.T) {
 	if !IsExist("1.txt") {
 		t.Fatal()
 	}
+	if !IsExist(".//1.txt") {
+		t.Fatal()
+	}
+	if !IsExist("././1.txt") {
+		t.Fatal()
+	}
 
-	f = Open("1.txt")
-	f.Delete()
+	Open("1.txt").Delete()
 
 	if IsExist("1.txt") {
 		t.Fatal()
@@ -542,4 +556,38 @@ func TestIsRoot(t *testing.T) {
 
 	sf = New("testdata/1.txt", 0, true).CheckRoot("testdata")
 	t.Log(sf.IsExist())
+}
+
+func Test5(t *testing.T) {
+	f := Open("./1.txt")
+	defer f.Delete()
+
+	f.Create()
+	t.Log(f.Name(), f.SelfName())
+}
+
+func Test6(t *testing.T) {
+	f := Open("./1/")
+	defer f.Delete()
+	f2 := f.Open("./1/")
+	defer f2.Delete()
+
+	f2.Create()
+	t.Log(f2.IsDir())
+}
+
+func Test7(t *testing.T) {
+	f := Open("./1/")
+	defer f.Delete()
+	f2 := f.Open("./1/")
+	defer f2.Delete()
+	f2.Create()
+	d := Open("./2/")
+	defer d.Delete()
+
+	if e := f.CopyTo(d, part.CopyConfig{}, false); e != nil {
+		t.Fatal(e)
+	} else if d := Open("./2/1/"); !d.IsExist() || !d.IsDir() {
+		t.Fatal()
+	}
 }

@@ -22,6 +22,7 @@ import (
 var (
 	ErrPathEscapes      = errors.New("ErrPathEscapes")
 	ErrCopy             = errors.New("ErrCopy")
+	ErrCopyFileDir      = errors.New("ErrCopyFileDir")
 	ErrGetRW            = errors.New("ErrGetRW")
 	ErrFilePathTooLong  = errors.New("ErrFilePathTooLong")
 	ErrNewFileCantSeed  = errors.New("ErrNewFileCantSeed")
@@ -169,19 +170,17 @@ func (t *File) Open(childRefPath string) *File {
 	return t.NewNoClose(childRefPath)
 }
 
-func (t *File) New(childRefPath string, curIndex int64, autoClose bool) *File {
-	if filepath.IsAbs(childRefPath) {
-		return New(childRefPath, curIndex, autoClose)
-	} else {
-		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath), curIndex, autoClose)
-	}
+func (t *File) NewNoClose(childRefPath string) *File {
+	return t.New(childRefPath, 0, false)
 }
 
-func (t *File) NewNoClose(childRefPath string) *File {
+func (t *File) New(childRefPath string, curIndex int64, autoClose bool) (c *File) {
 	if filepath.IsAbs(childRefPath) {
-		return New(childRefPath, 0, false)
+		return New(childRefPath, curIndex, autoClose)
+	} else if end := childRefPath[len(childRefPath)-1]; end > 0 && (end == '/' || end == '\\') {
+		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath)+string(os.PathSeparator), curIndex, autoClose)
 	} else {
-		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath), 0, false)
+		return New(filepath.Clean(t.File().Name()+string(os.PathSeparator)+childRefPath), curIndex, autoClose)
 	}
 }
 
@@ -209,9 +208,7 @@ func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error
 	if e := t.getRWCloser(); e != nil {
 		return pe.Join(ErrGetRW, e)
 	}
-	if t.Config.AutoClose {
-		defer t.Close()
-	}
+	defer t.Close()
 
 	if !t.l.TryRLock() {
 		return ErrFailToLock
@@ -221,9 +218,7 @@ func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error
 	if e := to.getRWCloser(); e != nil {
 		return pe.Join(ErrGetRW, e)
 	}
-	if t.Config.AutoClose {
-		defer to.Close()
-	}
+	defer to.Close()
 
 	if tryLock {
 		if !to.l.TryLock() {
@@ -234,7 +229,23 @@ func (t *File) CopyTo(to *File, copyIOConfig pio.CopyConfig, tryLock bool) error
 	}
 	defer to.l.Unlock()
 
-	if e := pio.Copy(t.read(), to.write(), copyIOConfig); e != nil {
+	if d1, d2 := t.IsDir(), to.IsDir(); (d1 && !d2) || (!d1 && d2) {
+		return ErrCopyFileDir
+	} else if d1 && d2 {
+		base := t.Name()
+		for v := range t.DirFilesRange() {
+			if rel, err := filepath.Rel(base, v.Name()); err != nil {
+				return pe.Join(ErrCopy, err)
+			} else {
+				if v.IsDir() {
+					rel += "/"
+				}
+				if err := v.CopyTo(to.Open(rel), copyIOConfig, tryLock); err != nil {
+					return pe.Join(ErrCopy, err)
+				}
+			}
+		}
+	} else if e := pio.Copy(t.read(), to.write(), copyIOConfig); e != nil {
 		return pe.Join(ErrCopy, e)
 	}
 	return nil
@@ -796,15 +807,9 @@ func (t *File) CloseErr(err ...*error) {
 	}
 }
 
-func (t *File) Close() error {
-	if t.file != nil {
-		if e := t.file.Close(); e != nil {
-			return e
-		} else {
-			t.file = nil
-		}
-	}
-	return nil
+func (t *File) Close() (e error) {
+	t.CloseErr(&e)
+	return
 }
 
 func (t *File) IsExist() bool {
@@ -868,12 +873,13 @@ func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []strin
 	return
 }
 
+func (t *File) Name() (s string) {
+	defer t.Close()
+	return t.File().Name()
+}
+
 func (t *File) SelfName() string {
-	if e := t.getRWCloser(); e != nil {
-		panic(e)
-	}
-	ls := strings.Split(t.file.Name(), string(os.PathSeparator))
-	return ls[len(ls)-1]
+	return filepath.Base(t.Name())
 }
 
 func (t *File) File() *os.File {

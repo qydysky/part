@@ -29,7 +29,7 @@ type PoolFunc[T any] struct {
 
 // 创建池
 //
-// New func() *T 新值 // 如果未设置，在未能从池中获取到空闲时，返回nil
+// New func() *T 新值 // 如果未设置，在未能从池中获取到空闲时，返回new(T)
 //
 // InUse func(*T) bool 是否在使用 // 如果未设置，则归还时即认为是不再使用
 //
@@ -116,7 +116,7 @@ func (t *Buf[T]) Get() *T {
 		t.allocs += 1
 		return t.pf.New()
 	} else {
-		return nil
+		return new(T)
 	}
 }
 
