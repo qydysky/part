@@ -256,55 +256,31 @@ func TestMain4(t *testing.T) {
 
 func TestMain8(t *testing.T) {
 	t.Parallel()
-	pctx := NewMergeCtx()
 
 	ctx1, cancle1 := context.WithCancel(t.Context())
-	pctx1 := pctx.MergeCtx(ctx1, cancle1)
 
 	ctx2, cancle2 := context.WithCancel(t.Context())
-	pctx2 := pctx1.MergeCtx(ctx2, cancle2)
+	NewMergeCtx().MergeCtx(ctx1, cancle1).MergeCtx(ctx2, cancle2)
 
 	time.AfterFunc(time.Second, func() {
 		cancle1()
 	})
 
-	<-pctx2.Done()
-}
-
-func TestMain16(t *testing.T) {
-	t.Parallel()
-	pctx := NewMergeCtx()
-
-	ctx1, cancle1 := context.WithCancel(t.Context())
-	pctx1 := pctx.MergeCtx(ctx1, cancle1)
-
-	ctx2, cancle2 := context.WithCancel(t.Context())
-	pctx2 := pctx1.MergeCtx(ctx2, cancle2)
-
-	time.AfterFunc(time.Second, func() {
-		pctx1.Cancle()
-	})
-
-	<-pctx2.Done()
+	<-ctx2.Done()
 }
 
 func TestMain17(t *testing.T) {
 	t.Parallel()
-	pctx := NewMergeCtx()
 
 	ctx1, cancle1 := context.WithCancel(t.Context())
-	pctx1 := pctx.MergeCtx(ctx1, cancle1)
-
 	ctx2, _ := context.WithCancel(t.Context())
-	pctx2 := pctx1.MergeCtx(ctx2)
-
 	ctx3, cancle3 := context.WithCancel(t.Context())
-	pctx3 := pctx2.MergeCtx(ctx3, cancle3)
+	NewMergeCtx().MergeCtx(ctx1, cancle1).MergeCtx(ctx2).MergeCtx(ctx3, cancle3)
 
 	time.AfterFunc(time.Second, func() {
-		pctx1.Cancle()
+		cancle1()
 	})
-	<-pctx3.Done()
+	<-ctx3.Done()
 
 	select {
 	case <-ctx2.Done():
@@ -315,46 +291,19 @@ func TestMain17(t *testing.T) {
 
 func TestMain14(t *testing.T) {
 	t.Parallel()
-	pctx := NewMergeCtx()
 
 	ctx1, cancle1 := context.WithCancel(t.Context())
-	pctx1 := pctx.MergeCtx(ctx1, cancle1)
-
 	ctx2, cancle2 := context.WithCancel(t.Context())
-	pctx2 := pctx1.MergeCtx(ctx2, cancle2)
+	NewMergeCtx().MergeCtx(ctx1, cancle1).MergeCtx(ctx2, cancle2)
 
 	time.AfterFunc(time.Second, func() {
 		cancle2()
 	})
 
-	<-pctx2.Done()
+	<-ctx2.Done()
 	select {
-	case <-pctx1.Done():
+	case <-ctx1.Done():
 		t.Fatal()
 	default:
 	}
-
-}
-
-func TestMain15(t *testing.T) {
-	t.Parallel()
-	pctx := NewMergeCtx()
-
-	ctx1, cancle1 := context.WithCancel(t.Context())
-	pctx1 := pctx.MergeCtx(ctx1, cancle1)
-
-	ctx2, cancle2 := context.WithCancel(t.Context())
-	pctx2 := pctx1.MergeCtx(ctx2, cancle2)
-
-	time.AfterFunc(time.Second, func() {
-		pctx2.Cancle()
-	})
-
-	<-pctx2.Done()
-	select {
-	case <-pctx1.Done():
-		t.Fatal()
-	default:
-	}
-
 }
