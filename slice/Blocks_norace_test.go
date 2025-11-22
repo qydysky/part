@@ -13,7 +13,7 @@ func TestMain3(t *testing.T) {
 	if tmpbuf, putBack, e := buf.Get(); e == nil {
 		tmpbuf = append(tmpbuf[:0], []byte("123")...)
 		// do something with tmpbuf
-		putBack(tmpbuf)
+		putBack()
 	} else {
 		t.Fail()
 	}
@@ -23,7 +23,7 @@ func TestMain3(t *testing.T) {
 		}
 		tmpbuf = append(tmpbuf[:0], []byte("123")...)
 		// do something with tmpbuf
-		putBack(tmpbuf)
+		putBack()
 	} else {
 		t.Fail()
 	}
