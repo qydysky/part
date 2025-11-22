@@ -308,3 +308,83 @@ func Local_TestPostgresql(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func Test1(t *testing.T) {
+	if ToCamel("A_c") != "aC" {
+		t.Fatal()
+	}
+	if ToCamel("A_C") != "aC" {
+		t.Fatal()
+	}
+	if ToCamel("a_C") != "aC" {
+		t.Fatal()
+	}
+	if ToCamel("a_") != "a" {
+		t.Fatal()
+	}
+	if ToCamel("A_") != "a" {
+		t.Fatal()
+	}
+	if ToCamel("_a") != "A" {
+		t.Fatal()
+	}
+	if ToCamel("_A") != "A" {
+		t.Fatal()
+	}
+	if ToCamel("_Aa") != "Aa" {
+		t.Fatal()
+	}
+	if ToCamel("_aA") != "Aa" {
+		t.Fatal()
+	}
+	if ToCamel("A好a") != "a好a" {
+		t.Fatal()
+	}
+	if ToCamel("A好_a") != "a好A" {
+		t.Fatal()
+	}
+}
+
+func Test2(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	defer db.Close()
+
+	conn, _ := db.Conn(context.Background())
+	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:  Execf,
+		Sql: "create table log123 (msg_w text)",
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+	conn.Close()
+
+	m := make(map[string]string)
+	m["id"] = "123"
+
+	x := BeginTx[any](db, context.Background(), &sql.TxOptions{})
+	x.SimplePlaceHolderA("insert into log123 values ({id})", &m)
+	if _, e := x.Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	{
+		if _, err := BeginTx[any](db, context.Background()).
+			SimplePlaceHolderA("select msg_w from log123", nil).
+			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+				for v := range DealRowsMapIter(rows, ToCamel) {
+					if v.Err != nil {
+						t.Fatal(v.Err)
+					} else if v.Raw["msgW"] != "123" {
+						t.Fatal()
+					}
+				}
+			}).Fin(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
