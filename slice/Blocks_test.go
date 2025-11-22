@@ -63,6 +63,35 @@ func TestMain2(t *testing.T) {
 	}
 }
 
+// 664.0 ns/op            40 B/op          1 allocs/op
+func Benchmark5(b *testing.B) {
+	type ie struct {
+		a int
+		b byte
+		c string
+	}
+	buf := NewPoolBlock[ie]()
+	for b.Loop() {
+		if _, f, e := buf.Get(); e != nil {
+			b.Fatal(e)
+		} else {
+			f()
+		}
+	}
+}
+
+// 642.0 ns/op            38 B/op          1 allocs/op
+func Benchmark4(b *testing.B) {
+	buf := NewPoolBlocks[byte]()
+	for b.Loop() {
+		if _, f, e := buf.Get(); e != nil {
+			b.Fatal(e)
+		} else {
+			f()
+		}
+	}
+}
+
 // 374.4 ns/op            32 B/op          1 allocs/op
 func Benchmark(b *testing.B) {
 	buf := NewBlocks[byte](1024, 1)

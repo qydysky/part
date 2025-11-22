@@ -121,9 +121,9 @@ type PoolBlocksI[T any] interface {
 	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
 	// 		tmpbuf = append(tmpbuf[:0], b...)
 	//		// do something with tmpbuf
-	//		putBack(tmpbuf)
+	//		putBack()
 	//	}
-	Get() ([]T, func([]T), error)
+	Get() ([]T, func(), error)
 }
 
 type poolBlocks[T any] struct {
@@ -133,13 +133,44 @@ type poolBlocks[T any] struct {
 func NewPoolBlocks[T any]() PoolBlocksI[T] {
 	t := &poolBlocks[T]{}
 	t.pool.New = func() any {
-		return []T{}
+		return new([]T)
 	}
 	return t
 }
 
-func (t *poolBlocks[T]) Get() ([]T, func([]T), error) {
-	return t.pool.Get().([]T), func(ts []T) {
-		t.pool.Put(ts)
+func (t *poolBlocks[T]) Get() (i []T, putBack func(), e error) {
+	p := t.pool.Get().(*[]T)
+	return *p, func() {
+		t.pool.Put(p)
+	}, nil
+}
+
+type PoolBlockI[T any] interface {
+	// // eg
+	//
+	//	if tmpbuf, putBack, e := buf.Get(); e == nil {
+	// 		tmpbuf = append(tmpbuf[:0], b...)
+	//		// do something with tmpbuf
+	//		putBack()
+	//	}
+	Get() (T, func(), error)
+}
+
+type poolBlock[T any] struct {
+	pool sync.Pool
+}
+
+func NewPoolBlock[T any]() PoolBlockI[T] {
+	t := &poolBlock[T]{}
+	t.pool.New = func() any {
+		return new(T)
+	}
+	return t
+}
+
+func (t *poolBlock[T]) Get() (i T, putBack func(), e error) {
+	p := t.pool.Get().(*T)
+	return *p, func() {
+		t.pool.Put(p)
 	}, nil
 }
