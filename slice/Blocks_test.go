@@ -1,6 +1,7 @@
 package part
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -63,7 +64,7 @@ func TestMain2(t *testing.T) {
 	}
 }
 
-// 664.0 ns/op            40 B/op          1 allocs/op
+// 575.2 ns/op             7 B/op          0 allocs/op
 func Benchmark5(b *testing.B) {
 	type ie struct {
 		a int
@@ -72,22 +73,20 @@ func Benchmark5(b *testing.B) {
 	}
 	buf := NewPoolBlock[ie]()
 	for b.Loop() {
-		if _, f, e := buf.Get(); e != nil {
-			b.Fatal(e)
-		} else {
-			f()
+		{
+			d := buf.Get()
+			buf.Put(d)
 		}
 	}
 }
 
-// 642.0 ns/op            38 B/op          1 allocs/op
+// 567.2 ns/op             6 B/op          0 allocs/op
 func Benchmark4(b *testing.B) {
 	buf := NewPoolBlocks[byte]()
 	for b.Loop() {
-		if _, f, e := buf.Get(); e != nil {
-			b.Fatal(e)
-		} else {
-			f()
+		{
+			d := (buf.Get())
+			buf.Put(d)
 		}
 	}
 }
@@ -113,5 +112,23 @@ func Benchmark2(b *testing.B) {
 		if _, e := buf.GetAuto(); e != nil {
 			b.Fatal(e)
 		}
+	}
+}
+
+func TestMain5(t *testing.T) {
+	runtime.GOMAXPROCS(1)
+	buf := NewPoolBlocks[byte]()
+
+	tmpbuf := *(buf.Get())
+	tmpbuf = append(tmpbuf[:0], []byte("123")...)
+	buf.Put(&tmpbuf)
+
+	{
+		tmpbuf := *(buf.Get())
+		if cap(tmpbuf) != 8 {
+			t.Fatal(cap(tmpbuf))
+		}
+		tmpbuf = append(tmpbuf[:0], []byte("123")...)
+		buf.Put(&tmpbuf)
 	}
 }
