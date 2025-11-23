@@ -14,7 +14,7 @@ type a struct {
 	v bool
 }
 
-func Benchmark(b *testing.B) {
+func Benchmark3(b *testing.B) {
 	p := New(PoolFunc[[]int]{}, -1)
 	for b.Loop() {
 		m := p.Get()

@@ -28,6 +28,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v github.com/qydysky/part/pool
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/funcCtrl
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
@@ -40,7 +41,6 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/slice
-        go test -count 1 -timeout 10s -v github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto/...
@@ -69,6 +69,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v github.com/qydysky/part/pool
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/funcCtrl
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
@@ -81,7 +82,6 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/slice
-        go test -count 1 -timeout 10s -v github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto/...
@@ -110,6 +110,7 @@ jobs:
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v github.com/qydysky/part/pool
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/funcCtrl
         go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
         go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
@@ -122,7 +123,6 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/ctx
         go test -count 1 -timeout 10s -v -race github.com/qydysky/part/slice
-        go test -count 1 -timeout 10s -v github.com/qydysky/part/slice
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto/...
