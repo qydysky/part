@@ -8,6 +8,7 @@ import (
 	"iter"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -74,18 +75,30 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 }
 
 // PlaceHolder will replaced by ?
-func (t *SqlTx[T]) SimplePlaceHolderA(sql string, ptr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderA)
+//
+// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
+//
+// 如果 query 是 struct, 占位符必须与属性的key完全一致
+func (t *SqlTx[T]) SimplePlaceHolderA(sql string, queryPtr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderA)
 }
 
 // PlaceHolder will replaced by $%d
-func (t *SqlTx[T]) SimplePlaceHolderB(sql string, ptr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderB)
+//
+// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
+//
+// 如果 query 是 struct, 占位符必须与属性的key完全一致
+func (t *SqlTx[T]) SimplePlaceHolderB(sql string, queryPtr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderB)
 }
 
 // PlaceHolder will replaced by :%d
-func (t *SqlTx[T]) SimplePlaceHolderC(sql string, ptr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, ptr, PlaceHolderC)
+//
+// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
+//
+// 如果 query 是 struct, 占位符必须与属性的key完全一致
+func (t *SqlTx[T]) SimplePlaceHolderC(sql string, queryPtr any) *SqlTx[T] {
+	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderC)
 }
 
 type ReplaceF func(index int, holder string) (replaceTo string)
@@ -105,17 +118,34 @@ var (
 	}
 )
 
-func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], ptr any, replaceF ReplaceF) *SqlTx[T] {
-	dataR := reflect.ValueOf(ptr).Elem()
+// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
+//
+// 如果 query 是 struct, 占位符必须与属性的key完全一致
+func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF ReplaceF) *SqlTx[T] {
+	if queryPtr == nil {
+		return t.Do(sqlf)
+	}
+	dataR := reflect.ValueOf(queryPtr).Elem()
 	index := 0
-	for i := 0; i < dataR.NumField(); i++ {
-		field := dataR.Field(i)
-		if field.IsValid() && field.CanSet() {
-			replaceS := "{" + dataR.Type().Field(i).Name + "}"
+	if dataR.Kind() == reflect.Map {
+		for it := dataR.MapRange(); it.Next(); {
+			replaceS := "{" + it.Key().String() + "}"
 			if strings.Contains(sqlf.Sql, replaceS) {
 				sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF(index, replaceS))
 				index += 1
-				sqlf.Args = append(sqlf.Args, field.Interface())
+				sqlf.Args = append(sqlf.Args, it.Value().Interface())
+			}
+		}
+	} else {
+		for i := 0; i < dataR.NumField(); i++ {
+			field := dataR.Field(i)
+			if field.IsValid() && field.CanSet() {
+				replaceS := "{" + dataR.Type().Field(i).Name + "}"
+				if strings.Contains(sqlf.Sql, replaceS) {
+					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF(index, replaceS))
+					index += 1
+					sqlf.Args = append(sqlf.Args, field.Interface())
+				}
 			}
 		}
 	}
@@ -231,6 +261,13 @@ func IsFin[T any](t *SqlTx[T]) bool {
 	return t == nil || t.fin
 }
 
+// 复用结构，当前值只能在迭代中使用
+type Row[T any] struct {
+	Index int
+	Raw   T
+	Err   error
+}
+
 func DealRows[T any](rows *sql.Rows) ([]T, error) {
 	rowNames, err := rows.Columns()
 	if err != nil {
@@ -292,14 +329,20 @@ func DealRows[T any](rows *sql.Rows) ([]T, error) {
 	return res, nil
 }
 
-func DealRowsIter[T any](rows *sql.Rows) iter.Seq2[*T, error] {
-	return func(yield func(*T, error) bool) {
+func DealRowsIter[T any](rows *sql.Rows) iter.Seq[*Row[T]] {
+	var (
+		index = 0
+		r     = &Row[T]{}
+	)
+	return func(yield func(*Row[T]) bool) {
 		rowNames, err := rows.Columns()
 		if err != nil {
-			if !yield(nil, err) {
+			r.Err = err
+			if !yield(r) {
 				return
 			}
 		}
+
 		for rows.Next() {
 			rowP := make([]any, len(rowNames))
 			for i := 0; i < len(rowNames); i++ {
@@ -308,7 +351,8 @@ func DealRowsIter[T any](rows *sql.Rows) iter.Seq2[*T, error] {
 
 			err = rows.Scan(rowP...)
 			if err != nil {
-				if !yield(nil, err) {
+				r.Err = err
+				if !yield(r) {
 					break
 				}
 			}
@@ -340,7 +384,8 @@ func DealRowsIter[T any](rows *sql.Rows) iter.Seq2[*T, error] {
 			for i := 0; i < len(rowNames); i++ {
 				if field, ok := FieldMap[strings.ToUpper(rowNames[i])]; ok {
 					if field == nil {
-						if !yield(nil, fmt.Errorf("DealRows:%s.%s CanSet:false", refT.Name(), rowNames[i])) {
+						r.Err = fmt.Errorf("DealRows:%s.%s CanSet:false", refT.Name(), rowNames[i])
+						if !yield(r) {
 							return
 						}
 					}
@@ -351,15 +396,108 @@ func DealRowsIter[T any](rows *sql.Rows) iter.Seq2[*T, error] {
 					} else if typ.ConvertibleTo(field.Type()) {
 						field.Set(val)
 					} else {
-						if !yield(nil, fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], field.Type())) {
+						r.Err = fmt.Errorf("DealRows:KindNotMatch:[sql] %v !> [%s.%s] %v", val.Kind(), refT.Name(), rowNames[i], field.Type())
+						if !yield(r) {
 							return
 						}
 					}
 				}
 			}
-			if !yield(&stu, nil) {
+
+			index += 1
+			r.Index = index
+			r.Err = nil
+			r.Raw = stu
+
+			if !yield(r) {
 				return
 			}
 		}
 	}
+}
+
+func DealRowsMapIter(rows *sql.Rows, caseSwitchF ...CaseSwitchF) iter.Seq[*Row[map[string]any]] {
+	var (
+		index = 0
+		r     = &Row[map[string]any]{}
+	)
+	return func(yield func(*Row[map[string]any]) bool) {
+		rowM := make(map[string]any)
+
+		rowNames, err := rows.Columns()
+		if err != nil {
+			r.Err = err
+			if !yield(r) {
+				return
+			}
+		}
+
+		for rows.Next() {
+			clear(rowM)
+
+			rowP := make([]any, len(rowNames))
+			for i := 0; i < len(rowNames); i++ {
+				rowP[i] = new(any)
+			}
+
+			err = rows.Scan(rowP...)
+			if err != nil {
+				r.Err = err
+				if !yield(r) {
+					return
+				}
+			}
+
+			for i := 0; i < len(rowNames); i++ {
+				if len(caseSwitchF) > 0 {
+					rowM[caseSwitchF[0](rowNames[i])] = reflect.ValueOf(*rowP[i].(*any)).Interface()
+				} else {
+					rowM[rowNames[i]] = reflect.ValueOf(*rowP[i].(*any)).Interface()
+				}
+			}
+			index += 1
+			r.Index = index
+			r.Err = nil
+			r.Raw = rowM
+			if !yield(r) {
+				return
+			}
+		}
+	}
+}
+
+type CaseSwitchF func(string) string
+
+var ToCamel CaseSwitchF = func(s string) string {
+	_count := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '_' {
+			_count += 1
+		}
+	}
+
+	var (
+		b    strings.Builder
+		has_ bool
+	)
+	b.Grow(len(s) - _count)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '_' {
+			has_ = true
+		} else {
+			if c >= utf8.RuneSelf {
+				// noASCII
+			} else if 'a' <= c && c <= 'z' && has_ {
+				// a->A
+				c -= 'a' - 'A'
+			} else if 'A' <= c && c <= 'Z' && !has_ {
+				// A->a
+				c += 'a' - 'A'
+			}
+			b.WriteByte(c)
+			has_ = false
+		}
+	}
+	return b.String()
 }

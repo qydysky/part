@@ -3,28 +3,24 @@
 package part
 
 import (
-	"runtime/debug"
+	"runtime"
 	"testing"
 )
 
 func TestMain3(t *testing.T) {
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	runtime.GOMAXPROCS(1)
 	buf := NewPoolBlocks[byte]()
-	if tmpbuf, putBack, e := buf.Get(); e == nil {
-		tmpbuf = append(tmpbuf[:0], []byte("123")...)
-		// do something with tmpbuf
-		putBack(tmpbuf)
-	} else {
-		t.Fail()
-	}
-	if tmpbuf, putBack, e := buf.Get(); e == nil {
+
+	tmpbuf := *(buf.Get())
+	tmpbuf = append(tmpbuf[:0], []byte("123")...)
+	buf.Put(&tmpbuf)
+
+	{
+		tmpbuf := *(buf.Get())
 		if cap(tmpbuf) != 8 {
-			t.Fatal()
+			t.Fatal(cap(tmpbuf))
 		}
 		tmpbuf = append(tmpbuf[:0], []byte("123")...)
-		// do something with tmpbuf
-		putBack(tmpbuf)
-	} else {
-		t.Fail()
+		buf.Put(&tmpbuf)
 	}
 }
