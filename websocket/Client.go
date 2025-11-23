@@ -13,7 +13,7 @@ import (
 
 	pio "github.com/qydysky/part/io"
 	msgq "github.com/qydysky/part/msgq"
-	pslice "github.com/qydysky/part/slice"
+	pool "github.com/qydysky/part/pool"
 	psync "github.com/qydysky/part/sync"
 )
 
@@ -169,7 +169,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		buf := make([]byte, humanize.KByte)
-		var msgs = pslice.NewFlexBlocks[byte](o.BufSize)
+		var msgs = pool.NewFlexBlocks[byte](o.BufSize)
 		var err error
 		for err == nil {
 			if e := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); e != nil {
