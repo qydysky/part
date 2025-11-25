@@ -415,7 +415,7 @@ func Test3(t *testing.T) {
 
 	{
 		if _, err := BeginTx[any](db, context.Background()).
-			SimplePlaceHolderA("select a,b from log123 where c = {c}", map[string]any{"c": "3"}).
+			SimplePlaceHolderA("select a,b from log123 where c = {c}", &map[string]any{"c": "3"}).
 			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
 				for v := range DealRowsMapIter(rows, ToCamel) {
 					if v.Err != nil {

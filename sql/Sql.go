@@ -126,7 +126,7 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 	indexM := *(queryPool.Get())
 	defer queryPool.Put(&indexM)
 
-	if dataR := reflect.ValueOf(queryPtr); dataR.Kind() == reflect.Map {
+	if dataR := reflect.ValueOf(queryPtr).Elem(); dataR.Kind() == reflect.Map {
 		for it := dataR.MapRange(); it.Next(); {
 			replaceS := "{" + it.Key().String() + "}"
 			if i := strings.Index(sqlf.Sql, replaceS); i != -1 {
@@ -138,7 +138,6 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 			}
 		}
 	} else {
-		dataR = dataR.Elem()
 		for i := 0; i < dataR.NumField(); i++ {
 			field := dataR.Field(i)
 			if field.IsValid() && field.CanSet() {
