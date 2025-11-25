@@ -251,3 +251,38 @@ func Benchmark3(b *testing.B) {
 		LoopAddFront(&buf, &t)
 	}
 }
+
+func Benchmark(b *testing.B) {
+	// var buf []ie = []ie{{make([]byte, 50002)}, {make([]byte, 50001)}, {make([]byte, 50000)}}
+	var buf1 = make([]byte, 50002)
+	var f = func(a []byte) byte {
+		a[0] = '1'
+		return a[0]
+	}
+	for b.Loop() {
+		_ = f(buf1)
+		// slices.SortFunc(buf, func(a, b ie) int { return len(a.key) - len(b.key) })
+	}
+}
+
+type ie struct {
+	key []byte
+}
+
+func Benchmark2(b *testing.B) {
+	data := make([]byte, 50000)
+	var buf = []ie{{data}}
+	for b.Loop() {
+		buf = buf[:0]
+		Append(&buf, func(t *ie) {
+			t.key = append(t.key[:0], data...)
+		})
+	}
+}
+
+func Test2(t *testing.T) {
+	b2 := testing.Benchmark(Benchmark2)
+	if a := b2.AllocedBytesPerOp(); a > 0 {
+		t.Fatal(a)
+	}
+}

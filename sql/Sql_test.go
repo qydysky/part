@@ -154,15 +154,16 @@ func TestMain2(t *testing.T) {
 }
 
 func TestMain3(t *testing.T) {
+	// _ = file.Open("test.sqlite3").Delete()
 	// connect
-	db, err := sql.Open("sqlite", "test.sqlite3")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	defer func() {
-		_ = file.New("test.sqlite3", 0, true).Delete()
-	}()
+	// defer func() {
+	// 	_ = file.Open("test.sqlite3").Delete()
+	// }()
 
 	{
 		tx := BeginTx[any](db, context.Background())
@@ -201,7 +202,7 @@ func TestMain3(t *testing.T) {
 			t.Fatal(e)
 		} else {
 			if v[0].Msg2 != "b" || v[0].Msg != 2 {
-				t.Fatal()
+				t.Fatal(v[0])
 			}
 		}
 	}
@@ -381,6 +382,49 @@ func Test2(t *testing.T) {
 						t.Fatal(v.Err)
 					} else if v.Raw["msgW"] != "123" {
 						t.Fatal()
+					}
+				}
+			}).Fin(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func Test3(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	defer db.Close()
+
+	conn, _ := db.Conn(context.Background())
+	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(SqlFunc[any]{
+		Ty:  Execf,
+		Sql: "create table log123 (a INTEGER,b DATE,c text)",
+	}).Fin(); e != nil {
+		t.Fatal(e)
+	}
+	conn.Close()
+
+	x := BeginTx[any](db, context.Background(), &sql.TxOptions{})
+	x.SimplePlaceHolderA("insert into log123 values (1,'2025-01-01',3)", nil)
+	if _, e := x.Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	{
+		if _, err := BeginTx[any](db, context.Background()).
+			SimplePlaceHolderA("select a,b from log123 where c = {c}", &map[string]any{"c": "3"}).
+			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+				for v := range DealRowsMapIter(rows, ToCamel) {
+					if v.Err != nil {
+						t.Fatal(v.Err)
+					} else if v.Raw["a"] != int64(1) {
+						t.Fatal(v.Raw["a"])
+					} else if t1, e := time.Parse("2006-01-02", "2025-01-01"); e != nil || !t1.Equal(v.Raw["b"].(time.Time)) {
+						t.Fatal(v.Raw["b"])
 					}
 				}
 			}).Fin(); err != nil {
