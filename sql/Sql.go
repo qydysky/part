@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode/utf8"
+
+	pool "github.com/qydysky/part/pool"
+	ps "github.com/qydysky/part/slice"
 )
 
 const (
@@ -75,28 +79,16 @@ func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
 }
 
 // PlaceHolder will replaced by ?
-//
-// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
-//
-// 如果 query 是 struct, 占位符必须与属性的key完全一致
 func (t *SqlTx[T]) SimplePlaceHolderA(sql string, queryPtr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderA)
 }
 
 // PlaceHolder will replaced by $%d
-//
-// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
-//
-// 如果 query 是 struct, 占位符必须与属性的key完全一致
 func (t *SqlTx[T]) SimplePlaceHolderB(sql string, queryPtr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderB)
 }
 
 // PlaceHolder will replaced by :%d
-//
-// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
-//
-// 如果 query 是 struct, 占位符必须与属性的key完全一致
 func (t *SqlTx[T]) SimplePlaceHolderC(sql string, queryPtr any) *SqlTx[T] {
 	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderC)
 }
@@ -118,22 +110,32 @@ var (
 	}
 )
 
-// 如果 query 是 map[string]any, 占位符必须与map的key完全一致
-//
-// 如果 query 是 struct, 占位符必须与属性的key完全一致
+type paraSort struct {
+	key   string
+	val   any
+	index int
+}
+
+var queryPool = pool.NewPoolBlocks[paraSort]()
+
 func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF ReplaceF) *SqlTx[T] {
 	if queryPtr == nil {
 		return t.Do(sqlf)
 	}
-	dataR := reflect.ValueOf(queryPtr).Elem()
-	index := 0
+	dataR := reflect.ValueOf(queryPtr)
+
+	indexM := *(queryPool.Get())
+	defer queryPool.Put(&indexM)
+
 	if dataR.Kind() == reflect.Map {
 		for it := dataR.MapRange(); it.Next(); {
 			replaceS := "{" + it.Key().String() + "}"
-			if strings.Contains(sqlf.Sql, replaceS) {
-				sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF(index, replaceS))
-				index += 1
-				sqlf.Args = append(sqlf.Args, it.Value().Interface())
+			if i := strings.Index(sqlf.Sql, replaceS); i != -1 {
+				ps.Append(&indexM, func(t *paraSort) {
+					t.key = replaceS
+					t.val = it.Value().Interface()
+					t.index = i
+				})
 			}
 		}
 	} else {
@@ -142,12 +144,22 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 			if field.IsValid() && field.CanSet() {
 				replaceS := "{" + dataR.Type().Field(i).Name + "}"
 				if strings.Contains(sqlf.Sql, replaceS) {
-					sqlf.Sql = strings.ReplaceAll(sqlf.Sql, replaceS, replaceF(index, replaceS))
-					index += 1
-					sqlf.Args = append(sqlf.Args, field.Interface())
+					ps.Append(&indexM, func(t *paraSort) {
+						t.key = replaceS
+						t.val = field.Interface()
+						t.index = i
+					})
 				}
 			}
 		}
+	}
+	slices.SortFunc(indexM, func(a, b paraSort) int {
+		return a.index - b.index
+	})
+	sqlf.Args = sqlf.Args[:0]
+	for k, v := range ps.Range(indexM) {
+		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
+		sqlf.Args = append(sqlf.Args, v.val)
 	}
 	return t.Do(sqlf)
 }
@@ -432,13 +444,13 @@ func DealRowsMapIter(rows *sql.Rows, caseSwitchF ...CaseSwitchF) iter.Seq[*Row[m
 			}
 		}
 
+		rowP := make([]any, len(rowNames))
+		for i := 0; i < len(rowNames); i++ {
+			rowP[i] = new(any)
+		}
+
 		for rows.Next() {
 			clear(rowM)
-
-			rowP := make([]any, len(rowNames))
-			for i := 0; i < len(rowNames); i++ {
-				rowP[i] = new(any)
-			}
 
 			err = rows.Scan(rowP...)
 			if err != nil {
@@ -449,16 +461,19 @@ func DealRowsMapIter(rows *sql.Rows, caseSwitchF ...CaseSwitchF) iter.Seq[*Row[m
 			}
 
 			for i := 0; i < len(rowNames); i++ {
-				if len(caseSwitchF) > 0 {
-					rowM[caseSwitchF[0](rowNames[i])] = reflect.ValueOf(*rowP[i].(*any)).Interface()
-				} else {
-					rowM[rowNames[i]] = reflect.ValueOf(*rowP[i].(*any)).Interface()
+				if typ := reflect.TypeOf(*rowP[i].(*any)); typ == nil {
+					continue
 				}
+				key := rowNames[i]
+				if len(caseSwitchF) > 0 {
+					key = caseSwitchF[0](key)
+				}
+				rowM[key] = reflect.ValueOf(*rowP[i].(*any)).Interface()
 			}
-			index += 1
 			r.Index = index
 			r.Err = nil
 			r.Raw = rowM
+			index += 1
 			if !yield(r) {
 				return
 			}
