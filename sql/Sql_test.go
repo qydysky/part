@@ -154,15 +154,16 @@ func TestMain2(t *testing.T) {
 }
 
 func TestMain3(t *testing.T) {
+	// _ = file.Open("test.sqlite3").Delete()
 	// connect
-	db, err := sql.Open("sqlite", "test.sqlite3")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	defer func() {
-		_ = file.New("test.sqlite3", 0, true).Delete()
-	}()
+	// defer func() {
+	// 	_ = file.Open("test.sqlite3").Delete()
+	// }()
 
 	{
 		tx := BeginTx[any](db, context.Background())
@@ -201,7 +202,7 @@ func TestMain3(t *testing.T) {
 			t.Fatal(e)
 		} else {
 			if v[0].Msg2 != "b" || v[0].Msg != 2 {
-				t.Fatal()
+				t.Fatal(v[0])
 			}
 		}
 	}

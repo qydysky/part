@@ -123,7 +123,7 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 		return t.Do(sqlf)
 	}
 
-	indexM := *(queryPool.Get())
+	indexM := (*queryPool.Get())[:0]
 	defer queryPool.Put(&indexM)
 
 	if dataR := reflect.ValueOf(queryPtr).Elem(); dataR.Kind() == reflect.Map {
@@ -142,7 +142,7 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 			field := dataR.Field(i)
 			if field.IsValid() && field.CanSet() {
 				replaceS := "{" + dataR.Type().Field(i).Name + "}"
-				if strings.Contains(sqlf.Sql, replaceS) {
+				if i := strings.Index(sqlf.Sql, replaceS); i != -1 {
 					ps.Append(&indexM, func(t *paraSort) {
 						t.key = replaceS
 						t.val = field.Interface()
@@ -152,9 +152,11 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 			}
 		}
 	}
-	slices.SortFunc(indexM, func(a, b paraSort) int {
-		return a.index - b.index
-	})
+	if len(indexM) > 1 {
+		slices.SortFunc(indexM, func(a, b paraSort) int {
+			return a.index - b.index
+		})
+	}
 	sqlf.Args = sqlf.Args[:0]
 	for k, v := range ps.Range(indexM) {
 		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
