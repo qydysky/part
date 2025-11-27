@@ -50,7 +50,7 @@ func Test_2(t *testing.T) {
 
 	{
 		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
-		tx = tx.Do(psql.SqlFunc[any]{
+		tx = tx.Do(&psql.SqlFunc[any]{
 			Sql:        "create table log (p test,base text,msg text)",
 			SkipSqlErr: true,
 		})

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+	"weak"
 
 	pool "github.com/qydysky/part/pool"
 	ps "github.com/qydysky/part/slice"
@@ -39,6 +40,7 @@ type SqlTx[T any] struct {
 	opts     *sql.TxOptions
 	sqlFuncs []*SqlFunc[T]
 	fin      bool
+	pool     weak.Pointer[TxPool[T]]
 }
 
 type SqlFunc[T any] struct {
@@ -49,9 +51,54 @@ type SqlFunc[T any] struct {
 	Sql        string
 	Args       []any
 	SkipSqlErr bool
-	beforeF    BeforeF[T]
-	afterEF    AfterEF[T]
-	afterQF    AfterQF[T]
+	BeforeF    BeforeF[T]
+	AfterEF    AfterEF[T]
+	AfterQF    AfterQF[T]
+}
+
+func (t *SqlFunc[T]) Clear() {
+	t.Ty = null
+	t.Ctx = context.Background()
+	t.Sql = ""
+	t.Args = t.Args[:0]
+	t.SkipSqlErr = false
+	t.BeforeF = nil
+	t.AfterEF = nil
+	t.AfterQF = nil
+}
+
+func (t *SqlFunc[T]) Copy(dest *SqlFunc[T]) {
+	dest.Ty = t.Ty
+	dest.Ctx = t.Ctx
+	dest.Sql = t.Sql
+	dest.Args = append(dest.Args[:0], t.Args...)
+	dest.SkipSqlErr = t.SkipSqlErr
+	dest.BeforeF = t.BeforeF
+	dest.AfterEF = t.AfterEF
+	dest.AfterQF = t.AfterQF
+}
+
+type TxPool[T any] struct {
+	p  pool.PoolBlockI[SqlTx[T]]
+	db *sql.DB
+}
+
+func NewTxPool[T any](db *sql.DB) *TxPool[T] {
+	return &TxPool[T]{pool.NewPoolBlock[SqlTx[T]](), db}
+}
+
+func (t *TxPool[T]) BeginTx(ctx context.Context, opts ...*sql.TxOptions) *SqlTx[T] {
+	var tx = t.p.Get()
+	tx.canTx = t.db
+	tx.ctx = ctx
+	tx.opts = nil
+	tx.sqlFuncs = tx.sqlFuncs[:0]
+	tx.fin = false
+	tx.pool = weak.Make(t)
+	if len(opts) > 0 {
+		tx.opts = opts[0]
+	}
+	return tx
 }
 
 func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *SqlTx[T] {
@@ -66,31 +113,43 @@ func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *S
 }
 
 func (t *SqlTx[T]) SimpleDo(sql string, args ...any) *SqlTx[T] {
-	t.sqlFuncs = append(t.sqlFuncs, &SqlFunc[T]{
+	return t.Do(&SqlFunc[T]{
 		Sql:  sql,
 		Args: args,
+	})
+}
+
+func (t *SqlTx[T]) Do(sqlf *SqlFunc[T]) *SqlTx[T] {
+	if strings.TrimSpace(sqlf.Sql) == "" {
+		return t
+	}
+	t.RawDo(func(dsqlf *SqlFunc[T]) {
+		sqlf.Copy(dsqlf)
 	})
 	return t
 }
 
-func (t *SqlTx[T]) Do(sqlf SqlFunc[T]) *SqlTx[T] {
-	t.sqlFuncs = append(t.sqlFuncs, &sqlf)
+func (t *SqlTx[T]) RawDo(sqlF func(sqlf *SqlFunc[T])) *SqlTx[T] {
+	ps.AppendPtr(&t.sqlFuncs, func(sqlfP *SqlFunc[T]) {
+		sqlfP.Clear()
+		sqlF(sqlfP)
+	})
 	return t
 }
 
 // PlaceHolder will replaced by ?
 func (t *SqlTx[T]) SimplePlaceHolderA(sql string, queryPtr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderA)
+	return t.DoPlaceHolder(&SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderA)
 }
 
 // PlaceHolder will replaced by $%d
 func (t *SqlTx[T]) SimplePlaceHolderB(sql string, queryPtr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderB)
+	return t.DoPlaceHolder(&SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderB)
 }
 
 // PlaceHolder will replaced by :%d
 func (t *SqlTx[T]) SimplePlaceHolderC(sql string, queryPtr any) *SqlTx[T] {
-	return t.DoPlaceHolder(SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderC)
+	return t.DoPlaceHolder(&SqlFunc[T]{Sql: sql}, queryPtr, PlaceHolderC)
 }
 
 type ReplaceF func(index int, holder string) (replaceTo string)
@@ -118,7 +177,7 @@ type paraSort struct {
 
 var queryPool = pool.NewPoolBlocks[paraSort]()
 
-func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF ReplaceF) *SqlTx[T] {
+func (t *SqlTx[T]) DoPlaceHolder(sqlf *SqlFunc[T], queryPtr any, replaceF ReplaceF) *SqlTx[T] {
 	if queryPtr == nil {
 		return t.Do(sqlf)
 	}
@@ -167,51 +226,116 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf SqlFunc[T], queryPtr any, replaceF Replace
 
 func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
-		t.sqlFuncs[len(t.sqlFuncs)-1].beforeF = f
+		t.sqlFuncs[len(t.sqlFuncs)-1].BeforeF = f
 	}
 	return t
 }
 
 func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
-		t.sqlFuncs[len(t.sqlFuncs)-1].afterEF = f
+		t.sqlFuncs[len(t.sqlFuncs)-1].AfterEF = f
 	}
 	return t
 }
 
 func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
-		t.sqlFuncs[len(t.sqlFuncs)-1].afterQF = f
+		t.sqlFuncs[len(t.sqlFuncs)-1].AfterQF = f
 	}
 	return t
 }
 
-func (t *SqlTx[T]) Fin() (ctxVP T, e error) {
+var (
+	ErrTypNil      = errors.New("ErrTypNil")
+	ErrBeginTx     = errors.New("ErrBeginTx")
+	ErrBeforeF     = errors.New("ErrBeforeF")
+	ErrExec        = errors.New("ErrExec")
+	ErrAfterExec   = errors.New("ErrAfterExec")
+	ErrQuery       = errors.New("ErrQuery")
+	ErrAfterQuery  = errors.New("ErrAfterQuery")
+	ErrRollback    = errors.New("ErrRollback")
+	ErrCommit      = errors.New("ErrCommit")
+	ErrHadFin      = errors.New("ErrHadFin")
+	ErrUndefinedTy = errors.New("ErrUndefinedTy")
+)
+
+type ErrTx[T any] struct {
+	Raw    *SqlFunc[T]
+	prePtr any
+	Typ    error
+	Err    error
+}
+
+var _ error = &ErrTx[any]{}
+
+// Typ must not nil
+func NewErrTx[T any](preErrTx error, Raw *SqlFunc[T], Typ, Err error) (n *ErrTx[T]) {
+	if Typ == nil {
+		panic(ErrTypNil)
+	} else {
+		n = &ErrTx[T]{
+			Raw: Raw,
+			Typ: Typ,
+			Err: Err,
+		}
+		if pre, ok := preErrTx.(*ErrTx[T]); ok && pre != nil {
+			n.prePtr = pre
+		}
+	}
+	return
+}
+func ParseErrTx[T any](err error) *SqlFunc[T] {
+	if e, ok := err.(*ErrTx[T]); ok && e != nil {
+		return e.Raw
+	} else {
+		return nil
+	}
+}
+func (t *ErrTx[T]) Is(e error) bool {
+	return t.Typ == e || t.Err == e
+}
+func (t *ErrTx[T]) Error() (s string) {
+	var buf strings.Builder
+	if t.prePtr != nil {
+		buf.WriteString(t.prePtr.(*ErrTx[T]).Error() + "\n")
+	}
+	if t.Raw != nil {
+		buf.WriteString(t.Raw.Sql + "\n")
+	}
+	if t.Typ != nil {
+		buf.WriteString(t.Typ.Error())
+	}
+	if t.Err != nil {
+		buf.WriteString(" > " + t.Err.Error())
+	}
+	return buf.String()
+}
+
+func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
+	defer func() {
+		if txp := t.pool.Value(); txp != nil {
+			txp.p.Put(t)
+		}
+	}()
+
 	if t.fin {
-		e = fmt.Errorf("BeginTx; [] >> fin")
+		errTx = NewErrTx[T](errTx, nil, ErrHadFin, nil)
 		return
 	}
 
-	var hasErr bool
-
 	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
 	if err != nil {
-		e = fmt.Errorf("BeginTx; [] >> %s", err)
-		hasErr = true
+		errTx = NewErrTx[T](errTx, nil, ErrBeginTx, err)
+		return
 	} else {
-		for i := 0; i < len(t.sqlFuncs); i++ {
-			sqlf := t.sqlFuncs[i]
-
-			if sqlf.beforeF != nil {
-				sqlf.beforeF(&ctxVP, sqlf, &e)
-				if e != nil {
-					e = errors.Join(e, fmt.Errorf("%s; >> %s", sqlf.Sql, err))
-					hasErr = true
+		var err error
+		for _, sqlf := range t.sqlFuncs {
+			if sqlf.BeforeF != nil {
+				sqlf.BeforeF(&ctxVP, sqlf, &err)
+				if err != nil {
+					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
+					break
 				}
-			}
-
-			if strings.TrimSpace(sqlf.Sql) == "" {
-				continue
 			}
 
 			if sqlf.Ctx == nil {
@@ -225,45 +349,49 @@ func (t *SqlTx[T]) Fin() (ctxVP T, e error) {
 				}
 			}
 
-			switch sqlf.Ty {
-			case Execf:
+			if sqlf.Ty == Execf {
 				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					hasErr = true
 					if !sqlf.SkipSqlErr {
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
+						errTx = NewErrTx(errTx, sqlf, ErrExec, err)
+						break
 					}
-				} else if sqlf.afterEF != nil {
-					sqlf.afterEF(&ctxVP, res, &e)
-					if e != nil {
-						hasErr = true
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
+				} else if sqlf.AfterEF != nil {
+					sqlf.AfterEF(&ctxVP, res, &err)
+					if err != nil {
+						errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
+						break
 					}
 				}
-			case Queryf:
+			} else if sqlf.Ty == Queryf {
 				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					hasErr = true
 					if !sqlf.SkipSqlErr {
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
+						errTx = NewErrTx(errTx, sqlf, ErrQuery, err)
+						break
 					}
-				} else if sqlf.afterQF != nil {
-					sqlf.afterQF(&ctxVP, res, &e)
-					if e != nil {
-						hasErr = true
-						e = errors.Join(e, fmt.Errorf("%s; %s >> %s", sqlf.Sql, sqlf.Args, err))
+				} else if sqlf.AfterQF != nil {
+					sqlf.AfterQF(&ctxVP, res, &err)
+					if err != nil {
+						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
+						break
 					}
 				}
+			} else {
+				errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil)
+				break
 			}
 		}
 	}
-	if hasErr {
+	if errTx != nil {
 		if tx != nil {
 			if err := tx.Rollback(); err != nil {
-				e = errors.Join(e, fmt.Errorf("Rollback; [] >> %s", err))
+				errTx = NewErrTx[T](errTx, nil, ErrRollback, err)
+				return
 			}
 		}
 	} else {
 		if err := tx.Commit(); err != nil {
-			e = errors.Join(e, fmt.Errorf("Commit; [] >> %s", err))
+			errTx = NewErrTx[T](errTx, nil, ErrCommit, err)
+			return
 		}
 	}
 	t.fin = true

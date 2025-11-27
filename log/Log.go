@@ -100,7 +100,7 @@ func New(c Config) (o *Log_interface) {
 				replaceF = psql.PlaceHolderA
 			}
 
-			sqlTx.DoPlaceHolder(psql.SqlFunc[any]{Sql: msg.DBInsert}, &LogI{
+			sqlTx.DoPlaceHolder(&psql.SqlFunc[any]{Sql: msg.DBInsert}, &LogI{
 				Date:   time.Now().Format(time.DateTime),
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(msg.Prefix),
