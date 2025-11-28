@@ -378,12 +378,12 @@ func Append[T any](s *[]T, i func(*T)) {
 	i(&(*s)[l])
 }
 
-func AppendPtr[T *B, B any](s *[]T, i func(*B)) {
+func AppendPtr[T any](s *[]*T, i func(*T)) {
 	c, l := cap(*s), len(*s)
 	if c > l {
 		*s = (*s)[:l+1]
 	} else {
-		*s = append(*s, new(B))
+		*s = append(*s, new(T))
 	}
 	i((*s)[l])
 }
