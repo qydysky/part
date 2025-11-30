@@ -76,11 +76,10 @@ func TestMain(t *testing.T) {
 		*dataP = names
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
-		Ty:  Execf,
-		Ctx: ctx,
-	}).BeforeF(func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
-		sqlf.Sql = "insert into log2 values (?)"
-		sqlf.Args = append(sqlf.Args, (*dataP)[0])
+		BeforeF: func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
+			sqlf.Sql = "insert into log2 values (?)"
+			sqlf.Args = append(sqlf.Args, (*dataP)[0])
+		},
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
 		Ty:  Queryf,

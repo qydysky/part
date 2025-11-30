@@ -382,6 +382,9 @@ func AppendPtr[T any](s *[]*T, i func(*T)) {
 	c, l := cap(*s), len(*s)
 	if c > l {
 		*s = (*s)[:l+1]
+		if (*s)[l] == nil {
+			(*s)[l] = new(T)
+		}
 	} else {
 		*s = append(*s, new(T))
 	}

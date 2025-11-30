@@ -120,9 +120,7 @@ func (t *SqlTx[T]) SimpleDo(sql string, args ...any) *SqlTx[T] {
 }
 
 func (t *SqlTx[T]) Do(sqlf *SqlFunc[T]) *SqlTx[T] {
-	if strings.TrimSpace(sqlf.Sql) == "" {
-		return t
-	}
+	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	t.RawDo(func(dsqlf *SqlFunc[T]) {
 		sqlf.Copy(dsqlf)
 	})
@@ -224,6 +222,7 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf *SqlFunc[T], queryPtr any, replaceF Replac
 	return t.Do(sqlf)
 }
 
+// Deprecated: use sqlFuncs.BeforeF
 func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].BeforeF = f
@@ -231,15 +230,17 @@ func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 	return t
 }
 
+// Deprecated: use sqlFuncs.AfterEF
 func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
-	if len(t.sqlFuncs) > 0 {
+	if len(t.sqlFuncs) > 0 && t.sqlFuncs[len(t.sqlFuncs)-1].Ty == Execf {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterEF = f
 	}
 	return t
 }
 
+// Deprecated: use sqlFuncs.AfterQF
 func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
-	if len(t.sqlFuncs) > 0 {
+	if len(t.sqlFuncs) > 0 && t.sqlFuncs[len(t.sqlFuncs)-1].Ty == Queryf {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterQF = f
 	}
 	return t
@@ -336,6 +337,10 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
 					break
 				}
+			}
+
+			if sqlf.Sql == "" {
+				continue
 			}
 
 			if sqlf.Ctx == nil {

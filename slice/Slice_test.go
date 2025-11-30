@@ -286,3 +286,16 @@ func Test2(t *testing.T) {
 		t.Fatal(a)
 	}
 }
+
+func Test5(t *testing.T) {
+	type L int
+	var p []*L
+
+	for i := 0; i < 10; i++ {
+		AppendPtr(&p, func(ts *L) {
+			if ts == nil {
+				t.Fatal()
+			}
+		})
+	}
+}
