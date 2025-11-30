@@ -139,9 +139,11 @@ func TestMain5(t *testing.T) {
 	runtime.GOMAXPROCS(1)
 	buf := NewPoolBlocks[byte]()
 
-	tmpbuf := buf.Get()
-	*tmpbuf = append((*tmpbuf)[:0], []byte("123")...)
-	buf.Put(tmpbuf)
+	for i := 0; i < 100; i++ {
+		tmpbuf := buf.Get()
+		*tmpbuf = append((*tmpbuf)[:0], []byte("123")...)
+		buf.Put(tmpbuf)
+	}
 
 	{
 		tmpbuf := buf.Get()
