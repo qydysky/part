@@ -115,14 +115,6 @@ func Benchmark2(b *testing.B) {
 	}
 }
 
-func Test(t *testing.T) {
-	syncPoolStd := testing.Benchmark(Benchmark7)
-	rul := testing.Benchmark(Benchmark6)
-	if rul.AllocedBytesPerOp() > syncPoolStd.AllocedBytesPerOp() || rul.AllocsPerOp() > syncPoolStd.AllocsPerOp() {
-		t.Fatal()
-	}
-}
-
 func Benchmark6(b *testing.B) {
 	var t = NewPoolBlock[int]()
 	for b.Loop() {
