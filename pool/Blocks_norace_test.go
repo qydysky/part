@@ -3,12 +3,10 @@
 package part
 
 import (
-	"runtime"
 	"testing"
 )
 
 func TestMain3(t *testing.T) {
-	runtime.GOMAXPROCS(1)
 	buf := NewPoolBlocks[byte]()
 
 	tmpbuf := *(buf.Get())

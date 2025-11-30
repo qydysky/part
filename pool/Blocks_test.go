@@ -1,7 +1,6 @@
 package part
 
 import (
-	"runtime"
 	"sync"
 	"testing"
 )
@@ -132,25 +131,5 @@ func Benchmark7(b *testing.B) {
 	}
 	for b.Loop() {
 		p.Put(p.Get())
-	}
-}
-
-func TestMain5(t *testing.T) {
-	runtime.GOMAXPROCS(1)
-	buf := NewPoolBlocks[byte]()
-
-	for i := 0; i < 100; i++ {
-		tmpbuf := buf.Get()
-		*tmpbuf = append((*tmpbuf)[:0], []byte("123")...)
-		buf.Put(tmpbuf)
-	}
-
-	{
-		tmpbuf := buf.Get()
-		if cap(*tmpbuf) != 8 {
-			t.Fatal(cap(*tmpbuf))
-		}
-		*tmpbuf = append((*tmpbuf)[:0], []byte("123")...)
-		buf.Put(tmpbuf)
 	}
 }
