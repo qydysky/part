@@ -1,6 +1,7 @@
 package part
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -135,6 +136,7 @@ func Benchmark7(b *testing.B) {
 }
 
 func TestMain5(t *testing.T) {
+	runtime.GOMAXPROCS(1)
 	buf := NewPoolBlocks[byte]()
 
 	tmpbuf := buf.Get()
