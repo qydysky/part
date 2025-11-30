@@ -110,15 +110,32 @@ func (m *RWMutex) addcl(s *string) *string {
 	return s
 }
 
+func (m *RWMutex) genWaitTo(e error, to ...time.Duration) (inTimeCall func() (called bool)) {
+	if len(to) > 0 {
+		return m.tof(to[0], e)
+	} else if len(m.to) > 0 {
+		return m.tof(m.to[0], e)
+	}
+	return nil
+}
+
+func (m *RWMutex) genRunTo(e error, to ...time.Duration) (inTimeCall func() (called bool)) {
+	if len(to) > 1 {
+		return m.tof(to[1], e)
+	} else if len(m.to) > 1 {
+		return m.tof(m.to[1], e)
+	}
+	return func() (called bool) { return true }
+}
+
 // to[0]: wait lock timeout
 //
 // to[1]: wait ulock timeout
 //
 // 不要在Rlock内设置变量，有DATA RACE风险
 func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
-	to = append(to, m.to...)
-	if len(to) > 0 {
-		defer m.tof(to[0], ErrTimeoutToRLock)()
+	if c := m.genWaitTo(ErrTimeoutToRLock, to...); c != nil {
+		defer c()
 	}
 
 	m.rlc.RLock()
@@ -128,12 +145,9 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulock
 	}
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
-		inTimeCall := func() (called bool) { return true }
-		if len(to) > 1 {
-			inTimeCall = m.tof(to[1], ErrTimeoutToURLock)
-		}
+		inTimeCall := m.genRunTo(ErrTimeoutToURLock, to...)
 		ul := false
-		for i := 0; i < len(ulockfs); i++ {
+		for i := range ulockfs {
 			if ulockfs[i](ul) && !ul {
 				m.rlc.RUnlock()
 				inTimeCall()
@@ -152,9 +166,8 @@ func (m *RWMutex) RLock(to ...time.Duration) (unlockf func(ulockfs ...func(ulock
 //
 // to[1]: wait ulock timeout
 func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocked bool) (doUlock bool))) {
-	to = append(to, m.to...)
-	if len(to) > 0 {
-		defer m.tof(to[0], ErrTimeoutToLock)()
+	if c := m.genWaitTo(ErrTimeoutToLock, to...); c != nil {
+		defer c()
 	}
 
 	m.rlc.Lock()
@@ -164,12 +177,9 @@ func (m *RWMutex) Lock(to ...time.Duration) (unlockf func(ulockfs ...func(ulocke
 	}
 
 	return func(ulockfs ...func(ulocked bool) (doUlock bool)) {
-		inTimeCall := func() (called bool) { return true }
-		if len(to) > 1 {
-			inTimeCall = m.tof(to[1], ErrTimeoutToULock)
-		}
+		inTimeCall := m.genRunTo(ErrTimeoutToULock, to...)
 		ul := false
-		for i := 0; i < len(ulockfs); i++ {
+		for i := range ulockfs {
 			if ulockfs[i](ul) && !ul {
 				m.rlc.Unlock()
 				inTimeCall()

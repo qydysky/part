@@ -124,10 +124,14 @@ type poolBlocks[T any] struct {
 	pool sync.Pool
 }
 
-func NewPoolBlocks[T any]() PoolBlocksI[T] {
+func NewPoolBlocks[T any](initf ...func() *[]T) PoolBlocksI[T] {
 	t := &poolBlocks[T]{}
 	t.pool.New = func() any {
-		return new([]T)
+		if len(initf) > 0 {
+			return initf[0]()
+		} else {
+			return new([]T)
+		}
 	}
 	return t
 }
@@ -149,10 +153,14 @@ type poolBlock[T any] struct {
 	pool sync.Pool
 }
 
-func NewPoolBlock[T any]() PoolBlockI[T] {
+func NewPoolBlock[T any](initf ...func() *T) PoolBlockI[T] {
 	t := &poolBlock[T]{}
 	t.pool.New = func() any {
-		return new(T)
+		if len(initf) > 0 {
+			return initf[0]()
+		} else {
+			return new(T)
+		}
 	}
 	return t
 }

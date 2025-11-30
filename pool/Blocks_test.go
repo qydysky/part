@@ -2,6 +2,7 @@ package part
 
 import (
 	"runtime"
+	"sync"
 	"testing"
 )
 
@@ -112,6 +113,33 @@ func Benchmark2(b *testing.B) {
 		if _, e := buf.GetAuto(); e != nil {
 			b.Fatal(e)
 		}
+	}
+}
+
+func Test(t *testing.T) {
+	syncPoolStd := testing.Benchmark(Benchmark7)
+	rul := testing.Benchmark(Benchmark6)
+	if rul.AllocedBytesPerOp() > syncPoolStd.AllocedBytesPerOp() || rul.AllocsPerOp() > syncPoolStd.AllocsPerOp() {
+		t.Fatal()
+	}
+}
+
+func Benchmark6(b *testing.B) {
+	var t = NewPoolBlock[int]()
+	for b.Loop() {
+		t.Put(t.Get())
+	}
+}
+
+func Benchmark7(b *testing.B) {
+	var p = sync.Pool{
+		New: func() any {
+			i := 1
+			return &i
+		},
+	}
+	for b.Loop() {
+		p.Put(p.Get())
 	}
 }
 

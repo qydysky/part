@@ -6,26 +6,19 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
-	pctx "github.com/qydysky/part/ctx"
 	f "github.com/qydysky/part/file"
-	m "github.com/qydysky/part/msgq"
 	pool "github.com/qydysky/part/pool"
 	psql "github.com/qydysky/part/sql"
 	psys "github.com/qydysky/part/sys"
 )
 
-type LogI struct {
-	MQ *m.MsgType[*MsgItem]
-	Config
-}
-
-type Config struct {
-	To time.Duration
-
+type Log struct {
 	File string
 
 	// type LogDb struct {
@@ -49,7 +42,7 @@ type Config struct {
 	logger *log.Logger
 }
 
-func (o *Config) reloadLogger() {
+func (o *Log) reloadLogger() {
 	// logger
 	var showObj = []io.Writer{}
 	if !o.NoStdout {
@@ -65,13 +58,6 @@ func (o *Config) reloadLogger() {
 		}
 	}
 	o.logger = log.New(io.MultiWriter(showObj...), "", log.Ldate|log.Ltime)
-}
-
-type MsgItem struct {
-	prefix Level
-	format string
-	msgs   []any
-	Config
 }
 
 type LogDb struct {
@@ -92,17 +78,10 @@ const (
 )
 
 // New 初始化
-func New(c Config) (o *LogI) {
-	o = &LogI{
-		Config: c,
-	}
+func New(c *Log) (o *Log) {
+	o = c
 	if c.File != `` {
 		f.New(c.File, 0, true).Create()
-	}
-	if o.To != 0 {
-		o.MQ = m.NewType[*MsgItem](o.To)
-	} else {
-		o.MQ = m.NewType[*MsgItem]()
 	}
 	if o.DBConn != nil && o.DBInsert != `` && o.DBHolder != nil {
 		o.dbPool = psql.NewTxPool[any](o.DBConn)
@@ -113,70 +92,27 @@ func New(c Config) (o *LogI) {
 	}
 
 	o.reloadLogger()
-
-	formatPool := pool.NewPoolBlocks[byte]()
-	valPool := pool.NewPoolBlocks[any]()
-
-	o.MQ.Pull_tag_only(`L`, func(msg *MsgItem) bool {
-		if msg.dbPool != nil {
-			var sqlTx *psql.SqlTx[any]
-			if o.To == 0 {
-				sqlTx = msg.dbPool.BeginTx(context.Background())
-			} else {
-				sqlTx = msg.dbPool.BeginTx(pctx.GenTOCtx(o.To))
-			}
-			sqlTx.DoPlaceHolder(msg.dbInsert, &LogDb{
-				Date:   time.Now().Format(time.DateTime),
-				Unix:   time.Now().Unix(),
-				Prefix: strings.TrimSpace(msg.PrefixS[msg.prefix]),
-				Base:   strings.TrimSpace(fmt.Sprintln(msg.BaseS...)),
-				Msgs:   strings.TrimSpace(fmt.Sprintln(msg.msgs...)),
-			}, msg.DBHolder)
-			if _, err := sqlTx.Fin(); err != nil {
-				log.Println(err)
-			}
-		}
-
-		format := formatPool.Get()
-		defer formatPool.Put(format)
-
-		*format = (*format)[:0]
-		for range msg.BaseS {
-			*format = append(*format, '%', 'v', ' ')
-		}
-		if msg.format == "" {
-			*format = append(*format, '%', 'v')
-		} else {
-			*format = append(*format, []byte(msg.format)...)
-		}
-		*format = append(*format, []byte(psys.EOL)...)
-
-		val := valPool.Get()
-		defer valPool.Put(val)
-		*val = append((*val)[:0], msg.BaseS...)
-		*val = append(*val, msg.msgs...)
-
-		if prefix := msg.PrefixS[msg.prefix]; prefix != msg.logger.Prefix() {
-			msg.logger.SetPrefix(prefix)
-		}
-		msg.logger.Printf(string(*format), *val...)
-		return false
-	})
-	//启动阻塞
-	o.MQ.PushLock_tag(`block`, &MsgItem{})
 	return
 }
 
-func Copy(i *LogI) (o *LogI) {
-	o = &LogI{
-		Config: (*i).Config,
-		MQ:     (*i).MQ,
+func Copy(i *Log) (o *Log) {
+	o = &Log{
+		File:     i.File,
+		DBInsert: i.DBInsert,
+		DBHolder: i.DBHolder,
+		DBConn:   i.DBConn,
+		dbPool:   i.dbPool,
+		dbInsert: i.dbInsert,
+		NoStdout: i.NoStdout,
+		PrefixS:  maps.Clone(i.PrefixS),
+		BaseS:    slices.Clone(i.BaseS),
+		logger:   i.logger,
 	}
 	return
 }
 
 // Level 设置之后日志等级
-func (I *LogI) Level(log map[Level]string) (O *LogI) {
+func (I *Log) Level(log map[Level]string) (O *Log) {
 	O = Copy(I)
 	for k, v := range log {
 		if _, ok := O.PrefixS[k]; !ok {
@@ -187,7 +123,7 @@ func (I *LogI) Level(log map[Level]string) (O *LogI) {
 	return
 }
 
-func (I *LogI) LShow(show bool) (O *LogI) {
+func (I *Log) LShow(show bool) (O *Log) {
 	O = Copy(I)
 	O.NoStdout = !show
 	O.reloadLogger()
@@ -195,7 +131,7 @@ func (I *LogI) LShow(show bool) (O *LogI) {
 }
 
 // Open 日志输出至DB
-func (I *LogI) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *LogI) {
+func (I *Log) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *Log) {
 	O = Copy(I)
 	if db != nil && insert != `` && dBHolder != nil {
 		O.DBInsert = insert
@@ -208,7 +144,7 @@ func (I *LogI) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *LogI) 
 	return
 }
 
-func (I *LogI) LFile(fileP string) (O *LogI) {
+func (I *Log) LFile(fileP string) (O *Log) {
 	O = Copy(I)
 	if O.File != `` && fileP != `` {
 		O.File = fileP
@@ -220,8 +156,7 @@ func (I *LogI) LFile(fileP string) (O *LogI) {
 	return
 }
 
-func (I *LogI) Close() {
-	I.MQ.ClearAll()
+func (I *Log) Close() {
 	if I.DBConn != nil {
 		(*I.DBConn).Close()
 	}
@@ -229,62 +164,98 @@ func (I *LogI) Close() {
 
 // 日志等级
 // Base 追加到后续输出
-func (I *LogI) Base(i ...any) (O *LogI) {
+func (I *Log) Base(i ...any) (O *Log) {
 	O = Copy(I)
 	O.BaseS = i
 	return
 }
-func (I *LogI) BaseAdd(i ...any) (O *LogI) {
+func (I *Log) BaseAdd(i ...any) (O *Log) {
 	O = Copy(I)
 	O.BaseS = append(O.BaseS, i...)
 	return
 }
 
-var msgItemPool = pool.NewPoolBlock[MsgItem]()
+var (
+	formatPool = pool.NewPoolBlocks(func() *[]byte {
+		return &[]byte{'%', 'v', ' ', '%', 'v', ' '}
+	})
+	valPool = pool.NewPoolBlocks[any]()
+)
 
-func (I *LogI) LF(prefix Level, format string, i ...any) (O *LogI) {
+func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 	O = I
 	if _, ok := O.PrefixS[prefix]; !ok {
 		return
 	}
 
-	item := msgItemPool.Get()
-	defer msgItemPool.Put(item)
+	{
+		if O.dbPool != nil {
+			var sqlTx = O.dbPool.BeginTx(context.Background())
+			sqlTx.DoPlaceHolder(O.dbInsert, &LogDb{
+				Date:   time.Now().Format(time.DateTime),
+				Unix:   time.Now().Unix(),
+				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
+				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
+				Msgs:   strings.TrimSpace(fmt.Sprintln(i...)),
+			}, O.DBHolder)
+			if _, err := sqlTx.Fin(); err != nil {
+				log.Println(err)
+			}
+		}
 
-	item.prefix = prefix
-	item.format = format
-	item.msgs = i
-	item.Config = O.Config
+		format := formatPool.Get()
+		defer formatPool.Put(format)
 
-	O.MQ.Push_tag(`L`, item)
+		*format = (*format)[:0]
+		for range O.BaseS {
+			*format = append(*format, '%', 'v', ' ')
+		}
+		if formatS == "" {
+			*format = append(*format, '%', 'v')
+		} else {
+			*format = append(*format, []byte(formatS)...)
+		}
+		*format = append(*format, []byte(psys.EOL)...)
+
+		val := valPool.Get()
+		defer valPool.Put(val)
+
+		*val = append((*val)[:0], O.BaseS...)
+		*val = append(*val, i...)
+
+		if prefix := O.PrefixS[prefix]; prefix != O.logger.Prefix() {
+			O.logger.SetPrefix(prefix)
+		}
+		O.logger.Printf(string(*format), *val...)
+	}
 	return
 }
-func (I *LogI) L(prefix Level, i ...any) (O *LogI) {
+func (I *Log) L(prefix Level, i ...any) (O *Log) {
 	return I.LF(prefix, "", i...)
 }
 
-func (Il *LogI) T(i ...any) (O *LogI) {
+func (Il *Log) T(i ...any) (O *Log) {
 	return Il.L(T, i...)
 }
-func (Il *LogI) I(i ...any) (O *LogI) {
+func (Il *Log) I(i ...any) (O *Log) {
 	return Il.L(I, i...)
 }
-func (Il *LogI) W(i ...any) (O *LogI) {
+func (Il *Log) W(i ...any) (O *Log) {
 	return Il.L(W, i...)
 }
-func (Il *LogI) E(i ...any) (O *LogI) {
+func (Il *Log) E(i ...any) (O *Log) {
 	return Il.L(E, i...)
 }
 
-func (Il *LogI) TF(format string, i ...any) (O *LogI) {
+func (Il *Log) TF(format string, i ...any) (O *Log) {
 	return Il.LF(T, format, i...)
 }
-func (Il *LogI) IF(format string, i ...any) (O *LogI) {
+func (Il *Log) IF(format string, i ...any) (O *Log) {
 	return Il.LF(I, format, i...)
 }
-func (Il *LogI) WF(format string, i ...any) (O *LogI) {
+func (Il *Log) WF(format string, i ...any) (O *Log) {
 	return Il.LF(W, format, i...)
 }
-func (Il *LogI) EF(format string, i ...any) (O *LogI) {
+func (Il *Log) EF(format string, i ...any) (O *Log) {
 	return Il.LF(E, format, i...)
 }
