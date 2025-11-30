@@ -870,3 +870,23 @@ func Test_msgq8(t *testing.T) {
 // 	}
 // 	t.Log(`fin`)
 // }
+
+func Benchmark(b *testing.B) {
+	mq := NewType[*[]byte]()
+	mq.Pull_tag_only(`L`, func(b *[]byte) (disable bool) {
+		_ = b
+		return false
+	})
+
+	data := make([]byte, 50000)
+	for b.Loop() {
+		mq.Push_tag(`L`, &data)
+	}
+}
+
+func Test(t *testing.T) {
+	rul := testing.Benchmark(Benchmark)
+	if rul.AllocedBytesPerOp() > 80 || rul.AllocsPerOp() > 3 {
+		t.Fatal()
+	}
+}

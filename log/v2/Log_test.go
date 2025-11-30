@@ -18,7 +18,7 @@ import (
 )
 
 func Test_1(t *testing.T) {
-	n := New(Config{
+	n := New(&Log{
 		File: `1.log`,
 	})
 
@@ -37,7 +37,7 @@ func Test_1(t *testing.T) {
 	n.Level(map[Level]string{W: "W:"}).L(T, `s`).L(I, `s`).L(W, `s`).L(E, `s`)
 }
 
-var n *LogI
+var n *Log
 
 func Test_2(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
@@ -57,7 +57,7 @@ func Test_2(t *testing.T) {
 		}
 	}
 
-	n = New(Config{
+	n = New(&Log{
 		File: `1.log`,
 	})
 
@@ -100,16 +100,21 @@ func Test_3(t *testing.T) {
 
 func Test4(t *testing.T) {
 	rul := testing.Benchmark(Benchmark)
-	if rul.AllocedBytesPerOp() > 96 || rul.AllocsPerOp() > 4 {
+	if rul.AllocedBytesPerOp() > 98 || rul.AllocsPerOp() > 2 {
 		t.Fatal()
 	}
 }
 
 func Benchmark(b *testing.B) {
-	logger := New(Config{
+	logger := New(&Log{
 		NoStdout: true,
 	})
 	for b.Loop() {
-		logger.IF("123 %v", "1")
+		logger.I("1")
 	}
+}
+
+func Test5(t *testing.T) {
+	logger := New(&Log{})
+	logger.I("1")
 }

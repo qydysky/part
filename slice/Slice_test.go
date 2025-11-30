@@ -274,9 +274,8 @@ func Benchmark2(b *testing.B) {
 	var buf = []ie{{data}}
 	for b.Loop() {
 		buf = buf[:0]
-		Append(&buf, func(t *ie) {
-			t.key = append(t.key[:0], data...)
-		})
+		t := Append(&buf)
+		t.key = append(t.key[:0], data...)
 	}
 }
 
@@ -284,5 +283,16 @@ func Test2(t *testing.T) {
 	b2 := testing.Benchmark(Benchmark2)
 	if a := b2.AllocedBytesPerOp(); a > 0 {
 		t.Fatal(a)
+	}
+}
+
+func Test5(t *testing.T) {
+	type L int
+	var p []*L
+
+	for i := 0; i < 10; i++ {
+		if AppendPtr(&p) == nil {
+			t.Fatal()
+		}
 	}
 }

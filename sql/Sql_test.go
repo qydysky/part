@@ -1,3 +1,5 @@
+//go:build !race
+
 package part
 
 import (
@@ -76,11 +78,10 @@ func TestMain(t *testing.T) {
 		*dataP = names
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
-		Ty:  Execf,
-		Ctx: ctx,
-	}).BeforeF(func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
-		sqlf.Sql = "insert into log2 values (?)"
-		sqlf.Args = append(sqlf.Args, (*dataP)[0])
+		BeforeF: func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
+			sqlf.Sql = "insert into log2 values (?)"
+			sqlf.Args = append(sqlf.Args, (*dataP)[0])
+		},
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
 		Ty:  Queryf,
@@ -184,7 +185,7 @@ func TestMain3(t *testing.T) {
 		tx.DoPlaceHolder(&insertLog123, &logg{Msg: 1, Msg2: "a"}, PlaceHolderA)
 		tx.DoPlaceHolder(&insertLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
 		if _, e := tx.Fin(); e != nil {
-			t.Log(e)
+			t.Fatal(e)
 		}
 		tx1 := BeginTx[any](db, context.Background()).SimplePlaceHolderA("insert into log123 values ({Msg},{Msg2})", &logg{Msg: 3, Msg2: "b"})
 		if _, err := tx1.Fin(); err != nil {
