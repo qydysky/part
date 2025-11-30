@@ -368,17 +368,17 @@ func Search[T any](s []T, okf func(*T) bool) (k int, t *T) {
 }
 
 // T是ptr时，使用AppendPtr
-func Append[T any](s *[]T, i func(*T)) {
+func Append[T any](s *[]T) *T {
 	c, l := cap(*s), len(*s)
 	if c > l {
 		*s = (*s)[:l+1]
 	} else {
 		*s = append(*s, *new(T))
 	}
-	i(&(*s)[l])
+	return &(*s)[l]
 }
 
-func AppendPtr[T any](s *[]*T, i func(*T)) {
+func AppendPtr[T any](s *[]*T) *T {
 	c, l := cap(*s), len(*s)
 	if c > l {
 		*s = (*s)[:l+1]
@@ -388,5 +388,5 @@ func AppendPtr[T any](s *[]*T, i func(*T)) {
 	} else {
 		*s = append(*s, new(T))
 	}
-	i((*s)[l])
+	return (*s)[l]
 }

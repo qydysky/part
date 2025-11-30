@@ -56,7 +56,7 @@ type SqlFunc[T any] struct {
 	AfterQF    AfterQF[T]
 }
 
-func (t *SqlFunc[T]) Clear() {
+func (t *SqlFunc[T]) Clear() *SqlFunc[T] {
 	t.Ty = null
 	t.Ctx = context.Background()
 	t.Sql = ""
@@ -65,9 +65,10 @@ func (t *SqlFunc[T]) Clear() {
 	t.BeforeF = nil
 	t.AfterEF = nil
 	t.AfterQF = nil
+	return t
 }
 
-func (t *SqlFunc[T]) Copy(dest *SqlFunc[T]) {
+func (t *SqlFunc[T]) Copy(dest *SqlFunc[T]) *SqlFunc[T] {
 	dest.Ty = t.Ty
 	dest.Ctx = t.Ctx
 	dest.Sql = t.Sql
@@ -76,6 +77,7 @@ func (t *SqlFunc[T]) Copy(dest *SqlFunc[T]) {
 	dest.BeforeF = t.BeforeF
 	dest.AfterEF = t.AfterEF
 	dest.AfterQF = t.AfterQF
+	return dest
 }
 
 type TxPool[T any] struct {
@@ -113,27 +115,24 @@ func BeginTx[T any](canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *S
 }
 
 func (t *SqlTx[T]) SimpleDo(sql string, args ...any) *SqlTx[T] {
-	return t.Do(&SqlFunc[T]{
-		Sql:  sql,
-		Args: args,
-	})
+	dsqlf := ps.AppendPtr(&t.sqlFuncs).Clear()
+	dsqlf.Sql = strings.TrimSpace(sql)
+	dsqlf.Args = args
+	return t
 }
 
 func (t *SqlTx[T]) Do(sqlf *SqlFunc[T]) *SqlTx[T] {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
-	t.RawDo(func(dsqlf *SqlFunc[T]) {
-		sqlf.Copy(dsqlf)
-	})
+	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
 	return t
 }
 
-func (t *SqlTx[T]) RawDo(sqlF func(sqlf *SqlFunc[T])) *SqlTx[T] {
-	ps.AppendPtr(&t.sqlFuncs, func(sqlfP *SqlFunc[T]) {
-		sqlfP.Clear()
-		sqlF(sqlfP)
-	})
-	return t
-}
+// func (t *SqlTx[T]) RawDo(sqlF func(sqlf *SqlFunc[T])) *SqlTx[T] {
+// 	sqlfP := ps.AppendPtr(&t.sqlFuncs)
+// 	sqlfP.Clear()
+// 	sqlF(sqlfP)
+// 	return t
+// }
 
 // PlaceHolder will replaced by ?
 func (t *SqlTx[T]) SimplePlaceHolderA(sql string, queryPtr any) *SqlTx[T] {
@@ -176,22 +175,26 @@ type paraSort struct {
 var queryPool = pool.NewPoolBlocks[paraSort]()
 
 func (t *SqlTx[T]) DoPlaceHolder(sqlf *SqlFunc[T], queryPtr any, replaceF ReplaceF) *SqlTx[T] {
+	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
+	sqlf = sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
+
 	if queryPtr == nil {
-		return t.Do(sqlf)
+		return t
 	}
 
-	indexM := (*queryPool.Get())[:0]
-	defer queryPool.Put(&indexM)
+	indexM := queryPool.Get()
+	defer queryPool.Put(indexM)
+
+	*indexM = (*indexM)[:0]
 
 	if dataR := reflect.ValueOf(queryPtr).Elem(); dataR.Kind() == reflect.Map {
 		for it := dataR.MapRange(); it.Next(); {
 			replaceS := "{" + it.Key().String() + "}"
 			if i := strings.Index(sqlf.Sql, replaceS); i != -1 {
-				ps.Append(&indexM, func(t *paraSort) {
-					t.key = replaceS
-					t.val = it.Value().Interface()
-					t.index = i
-				})
+				t := ps.Append(indexM)
+				t.key = replaceS
+				t.val = it.Value().Interface()
+				t.index = i
 			}
 		}
 	} else {
@@ -200,26 +203,25 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf *SqlFunc[T], queryPtr any, replaceF Replac
 			if field.IsValid() && field.CanSet() {
 				replaceS := "{" + dataR.Type().Field(i).Name + "}"
 				if i := strings.Index(sqlf.Sql, replaceS); i != -1 {
-					ps.Append(&indexM, func(t *paraSort) {
-						t.key = replaceS
-						t.val = field.Interface()
-						t.index = i
-					})
+					t := ps.Append(indexM)
+					t.key = replaceS
+					t.val = field.Interface()
+					t.index = i
 				}
 			}
 		}
 	}
-	if len(indexM) > 1 {
-		slices.SortFunc(indexM, func(a, b paraSort) int {
+	if len(*indexM) > 1 {
+		slices.SortFunc(*indexM, func(a, b paraSort) int {
 			return a.index - b.index
 		})
 	}
 	sqlf.Args = sqlf.Args[:0]
-	for k, v := range ps.Range(indexM) {
+	for k, v := range ps.Range(*indexM) {
 		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
 		sqlf.Args = append(sqlf.Args, v.val)
 	}
-	return t.Do(sqlf)
+	return t
 }
 
 // Deprecated: use sqlFuncs.BeforeF
@@ -232,7 +234,7 @@ func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 
 // Deprecated: use sqlFuncs.AfterEF
 func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
-	if len(t.sqlFuncs) > 0 && t.sqlFuncs[len(t.sqlFuncs)-1].Ty == Execf {
+	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterEF = f
 	}
 	return t
@@ -240,7 +242,7 @@ func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
 
 // Deprecated: use sqlFuncs.AfterQF
 func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
-	if len(t.sqlFuncs) > 0 && t.sqlFuncs[len(t.sqlFuncs)-1].Ty == Queryf {
+	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterQF = f
 	}
 	return t

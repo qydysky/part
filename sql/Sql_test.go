@@ -183,7 +183,7 @@ func TestMain3(t *testing.T) {
 		tx.DoPlaceHolder(&insertLog123, &logg{Msg: 1, Msg2: "a"}, PlaceHolderA)
 		tx.DoPlaceHolder(&insertLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
 		if _, e := tx.Fin(); e != nil {
-			t.Log(e)
+			t.Fatal(e)
 		}
 		tx1 := BeginTx[any](db, context.Background()).SimplePlaceHolderA("insert into log123 values ({Msg},{Msg2})", &logg{Msg: 3, Msg2: "b"})
 		if _, err := tx1.Fin(); err != nil {

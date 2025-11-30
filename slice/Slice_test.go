@@ -274,9 +274,8 @@ func Benchmark2(b *testing.B) {
 	var buf = []ie{{data}}
 	for b.Loop() {
 		buf = buf[:0]
-		Append(&buf, func(t *ie) {
-			t.key = append(t.key[:0], data...)
-		})
+		t := Append(&buf)
+		t.key = append(t.key[:0], data...)
 	}
 }
 
@@ -292,10 +291,8 @@ func Test5(t *testing.T) {
 	var p []*L
 
 	for i := 0; i < 10; i++ {
-		AppendPtr(&p, func(ts *L) {
-			if ts == nil {
-				t.Fatal()
-			}
-		})
+		if AppendPtr(&p) == nil {
+			t.Fatal()
+		}
 	}
 }
