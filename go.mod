@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/miekg/dns v1.1.68
 	github.com/qydysky/brotli v0.0.0-20250531004300-54adcf96cc4a
 	github.com/shirou/gopsutil v3.21.11+incompatible
