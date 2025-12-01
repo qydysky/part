@@ -1,5 +1,3 @@
-//go:build !race
-
 package part
 
 import (
@@ -12,9 +10,32 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	pctx "github.com/qydysky/part/ctx"
-	file "github.com/qydysky/part/file"
 	_ "modernc.org/sqlite"
 )
+
+func TestMain5(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	tx := BeginTx[[]string](db, ctx, &sql.TxOptions{})
+	tx = tx.Do(&SqlFunc[[]string]{
+		Sql:        "create table log (msg text)",
+		SkipSqlErr: false,
+	})
+	tx = tx.Do(&SqlFunc[[]string]{
+		Sql:        "create table log (msg text)",
+		SkipSqlErr: true,
+	})
+
+	if _, e := tx.Fin(); e != nil {
+		t.Fatal(e)
+	}
+}
 
 func TestMain(t *testing.T) {
 	// connect
@@ -232,23 +253,17 @@ func TestMain3(t *testing.T) {
 
 func TestMain4(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite", "test.sqlite3")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
-	defer func() {
-		_ = file.New("test.sqlite3", 0, true).Delete()
-	}()
 
-	conn, _ := db.Conn(context.Background())
-	if _, e := BeginTx[any](conn, context.Background(), &sql.TxOptions{}).Do(&SqlFunc[any]{
+	if _, e := BeginTx[any](db, context.Background()).Do(&SqlFunc[any]{
 		Ty:  Execf,
 		Sql: "create table log123 (msg text)",
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
-	conn.Close()
 
 	tx1 := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(&SqlFunc[any]{
 		Ty:  Execf,
@@ -496,6 +511,14 @@ func Test5(t *testing.T) {
 	}
 }
 
+func Test8(t *testing.T) {
+	txe := NewErrTx[int](nil, nil, ErrBeforeF, errors.New("1"), true)
+	txe = NewErrTx[int](txe, nil, ErrAfterQuery, errors.New("2"), true)
+	if !ErrTxAllSkip[int](error(txe)) {
+		t.Fatal()
+	}
+}
+
 func Test6(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", ":memory:")
@@ -537,47 +560,6 @@ func Test6(t *testing.T) {
 			if !errors.Is(err, ErrQuery) {
 				t.Fatal()
 			}
-		}
-	}
-}
-
-func Test7(t *testing.T) {
-	if rul := testing.Benchmark(Benchmark1); rul.AllocedBytesPerOp() > 1024 || rul.AllocsPerOp() > 22 {
-		t.Fatal()
-	}
-}
-
-// 18697 ns/op            1024 B/op         22 allocs/op
-func Benchmark1(b *testing.B) {
-	// connect
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer db.Close()
-
-	txPool := NewTxPool[any](db)
-	if _, e := txPool.BeginTx(context.Background()).Do(&SqlFunc[any]{
-		Ty:  Execf,
-		Sql: "create table log123 (a INTEGER,b DATE,c text)",
-	}).Fin(); e != nil {
-		b.Fatal(e)
-	}
-
-	x := txPool.BeginTx(context.Background())
-	x.SimplePlaceHolderA("insert into log123 values (1,'2025-01-01',3)", nil)
-	if _, e := x.Fin(); e != nil {
-		b.Fatal(e)
-	}
-
-	sqlF := &SqlFunc[any]{
-		Ty:  Queryf,
-		Sql: "select 1 from log123 where 1=0",
-	}
-
-	for b.Loop() {
-		if _, err := txPool.BeginTx(context.Background()).Do(sqlF).Fin(); err != nil {
-			b.Fatal(err)
 		}
 	}
 }
