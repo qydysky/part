@@ -211,7 +211,9 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 			*format = append(*format, '%', 'v', ' ')
 		}
 		if formatS == "" {
-			*format = append(*format, '%', 'v')
+			for range i {
+				*format = append(*format, '%', 'v', ' ')
+			}
 		} else {
 			*format = append(*format, []byte(formatS)...)
 		}
