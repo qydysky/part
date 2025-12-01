@@ -49,13 +49,14 @@ func (o *Log) reloadLogger() {
 		showObj = append(showObj, os.Stdout)
 	}
 	if o.File != `` {
-		file, err := os.OpenFile(o.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			showObj = append(showObj, file)
-			defer file.Close()
-		} else {
-			log.Println(err)
-		}
+		file := f.New(o.File, -1, true)
+		// file, err := os.OpenFile(o.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		// if err == nil {
+		showObj = append(showObj, file)
+		// defer file.Close()
+		// } else {
+		// log.Println(err)
+		// }
 	}
 	o.logger = log.New(io.MultiWriter(showObj...), "", log.Ldate|log.Ltime)
 }

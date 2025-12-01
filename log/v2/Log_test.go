@@ -3,8 +3,10 @@ package part
 import (
 	// "fmt"
 
+	"bytes"
 	"database/sql"
 	"errors"
+	"io"
 	"log/slog"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	pctx "github.com/qydysky/part/ctx"
+	pf "github.com/qydysky/part/file"
 	psql "github.com/qydysky/part/sql"
 )
 
@@ -118,4 +121,21 @@ func Benchmark(b *testing.B) {
 func Test5(t *testing.T) {
 	logger := New(&Log{})
 	logger.I("1")
+}
+
+func Test6(t *testing.T) {
+	lf := pf.Open("1.log")
+	lf.Delete()
+	defer lf.Delete()
+
+	logger := New(&Log{
+		File: `1.log`,
+	})
+	logger.I("1", "2")
+	logger.I("1", "3")
+	if data, e := lf.ReadAll(10, 100); e != nil && !errors.Is(e, io.EOF) {
+		t.Fatal(e)
+	} else if bytes.Contains(data, []byte("%!(EXTRA")) {
+		t.Fatal()
+	}
 }
