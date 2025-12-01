@@ -59,11 +59,11 @@ func TestMain(t *testing.T) {
 		Ty:  Queryf,
 		Ctx: ctx,
 		Sql: "select msg from log",
-	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
+	}).AfterQF(func(dataP *[]string, rows *sql.Rows) (err error) {
 		names := make([]string, 0)
 		for rows.Next() {
 			var name string
-			if *err = rows.Scan(&name); *err != nil {
+			if err = rows.Scan(&name); err != nil {
 				return
 			}
 			names = append(names, name)
@@ -71,27 +71,29 @@ func TestMain(t *testing.T) {
 		rows.Close()
 
 		if len(names) != 1 || dateTime != names[0] {
-			*err = errors.New("no")
+			err = errors.New("no")
 			return
 		}
 
 		*dataP = names
+		return nil
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
-		BeforeF: func(dataP *[]string, sqlf *SqlFunc[[]string], txE *error) {
+		BeforeF: func(dataP *[]string, sqlf *SqlFunc[[]string]) error {
 			sqlf.Sql = "insert into log2 values (?)"
 			sqlf.Args = append(sqlf.Args, (*dataP)[0])
+			return nil
 		},
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
 		Ty:  Queryf,
 		Ctx: ctx,
 		Sql: "select msg from log2",
-	}).AfterQF(func(dataP *[]string, rows *sql.Rows, err *error) {
+	}).AfterQF(func(dataP *[]string, rows *sql.Rows) (err error) {
 		names := make([]string, 0)
 		for rows.Next() {
 			var name string
-			if *err = rows.Scan(&name); *err != nil {
+			if err = rows.Scan(&name); err != nil {
 				return
 			}
 			names = append(names, name)
@@ -99,11 +101,11 @@ func TestMain(t *testing.T) {
 		rows.Close()
 
 		if len(names) != 1 || dateTime != names[0] {
-			*err = errors.New("no2")
-			return
+			return errors.New("no2")
 		}
 
 		*dataP = names
+		return nil
 	})
 
 	if _, e := tx.Fin(); e != nil {
@@ -196,8 +198,9 @@ func TestMain3(t *testing.T) {
 		selectLog123 := SqlFunc[[]logg]{Sql: "select msg as Msg, msg2 as Msg2 from log123 where msg = {Msg}"}
 		tx := BeginTx[[]logg](db, context.Background())
 		tx.DoPlaceHolder(&selectLog123, &logg{Msg: 2, Msg2: "b"}, PlaceHolderA)
-		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows, txE *error) {
-			*ctxVP, *txE = DealRows[logg](rows)
+		tx.AfterQF(func(ctxVP *[]logg, rows *sql.Rows) (e error) {
+			*ctxVP, e = DealRows[logg](rows)
+			return
 		})
 		if v, e := tx.Fin(); e != nil {
 			t.Fatal(e)
@@ -210,8 +213,9 @@ func TestMain3(t *testing.T) {
 	{
 		tx1 := BeginTx[[]logg](db, context.Background()).
 			SimplePlaceHolderA("select msg as Msg, msg2 as Msg2 from log123 where msg2 = {Msg2}", &logg{Msg2: "b"}).
-			AfterQF(func(ctxVP *[]logg, rows *sql.Rows, e *error) {
-				*ctxVP, *e = DealRows[logg](rows)
+			AfterQF(func(ctxVP *[]logg, rows *sql.Rows) (e error) {
+				*ctxVP, e = DealRows[logg](rows)
+				return
 			})
 		if v, err := tx1.Fin(); err != nil {
 			t.Fatal(err)
@@ -292,19 +296,20 @@ func Local_TestPostgresql(t *testing.T) {
 
 	if _, e := BeginTx[any](db, context.Background(), &sql.TxOptions{}).Do(&SqlFunc[any]{
 		Sql: "select created as sss from test",
-		AfterQF: func(_ *any, rows *sql.Rows, txE *error) {
+		AfterQF: func(_ *any, rows *sql.Rows) (txE error) {
 			if rowsP, e := DealRows[test1](rows); e != nil {
-				*txE = e
+				txE = e
 			} else {
 				if len(rowsP) != 1 {
-					*txE = errors.New("no match")
+					txE = errors.New("no match")
 					return
 				}
 				if rowsP[0].Created != "1" {
-					*txE = errors.New("no match")
+					txE = errors.New("no match")
 					return
 				}
 			}
+			return
 		},
 	}).Fin(); e != nil {
 		t.Fatal(e)
@@ -377,7 +382,7 @@ func Test2(t *testing.T) {
 	{
 		if _, err := BeginTx[any](db, context.Background()).
 			SimplePlaceHolderA("select msg_w from log123", nil).
-			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+			AfterQF(func(ctxVP *any, rows *sql.Rows) (e error) {
 				for v := range DealRowsMapIter(rows, ToCamel) {
 					if v.Err != nil {
 						t.Fatal(v.Err)
@@ -385,6 +390,7 @@ func Test2(t *testing.T) {
 						t.Fatal()
 					}
 				}
+				return
 			}).Fin(); err != nil {
 			t.Fatal(err)
 		}
@@ -418,7 +424,7 @@ func Test3(t *testing.T) {
 	{
 		if _, err := BeginTx[any](db, context.Background()).
 			SimplePlaceHolderA("select a,b from log123 where c = {c}", &map[string]any{"c": "3"}).
-			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+			AfterQF(func(ctxVP *any, rows *sql.Rows) (e error) {
 				for v := range DealRowsMapIter(rows, ToCamel) {
 					if v.Err != nil {
 						t.Fatal(v.Err)
@@ -428,6 +434,7 @@ func Test3(t *testing.T) {
 						t.Fatal(v.Raw["b"])
 					}
 				}
+				return
 			}).Fin(); err != nil {
 			t.Fatal(err)
 		}
@@ -461,7 +468,7 @@ func Test4(t *testing.T) {
 	{
 		if _, err := BeginTx[any](db, context.Background()).
 			SimplePlaceHolderA("select a,d from log123 where c = {c}", &map[string]any{"c": "3"}).
-			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+			AfterQF(func(ctxVP *any, rows *sql.Rows) (e error) {
 				for v := range DealRowsMapIter(rows, ToCamel) {
 					if v.Err != nil {
 						t.Fatal(v.Err)
@@ -471,6 +478,7 @@ func Test4(t *testing.T) {
 						t.Fatal(v.Raw["b"])
 					}
 				}
+				return
 			}).Fin(); err != nil {
 			if !errors.Is(err, ErrQuery) {
 				t.Fatal()
@@ -514,7 +522,7 @@ func Test6(t *testing.T) {
 	{
 		if _, err := txPool.BeginTx(t.Context()).
 			SimplePlaceHolderA("select a,d from log123 where c = {c}", &map[string]any{"c": "3"}).
-			AfterQF(func(ctxVP *any, rows *sql.Rows, e *error) {
+			AfterQF(func(ctxVP *any, rows *sql.Rows) (e error) {
 				for v := range DealRowsMapIter(rows, ToCamel) {
 					if v.Err != nil {
 						t.Fatal(v.Err)
@@ -524,6 +532,7 @@ func Test6(t *testing.T) {
 						t.Fatal(v.Raw["b"])
 					}
 				}
+				return
 			}).Fin(); err != nil {
 			if !errors.Is(err, ErrQuery) {
 				t.Fatal()
