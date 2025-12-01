@@ -28,11 +28,9 @@ type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
-type BeforeF[T any] func(ctxVP *T, sqlf *SqlFunc[T], e *error)
-type AfterEF[T any] func(ctxVP *T, result sql.Result, e *error)
-
-// func(ctxVP *T, rows *sql.Rows, e *error)
-type AfterQF[T any] func(ctxVP *T, rows *sql.Rows, e *error)
+type BeforeF[T any] func(ctxVP *T, sqlf *SqlFunc[T]) error
+type AfterEF[T any] func(ctxVP *T, result sql.Result) error
+type AfterQF[T any] func(ctxVP *T, rows *sql.Rows) error
 
 type SqlTx[T any] struct {
 	canTx    CanTx
@@ -224,7 +222,6 @@ func (t *SqlTx[T]) DoPlaceHolder(sqlf *SqlFunc[T], queryPtr any, replaceF Replac
 	return t
 }
 
-// Deprecated: use sqlFuncs.BeforeF
 func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].BeforeF = f
@@ -232,7 +229,6 @@ func (t *SqlTx[T]) BeforeF(f BeforeF[T]) *SqlTx[T] {
 	return t
 }
 
-// Deprecated: use sqlFuncs.AfterEF
 func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterEF = f
@@ -240,7 +236,6 @@ func (t *SqlTx[T]) AfterEF(f AfterEF[T]) *SqlTx[T] {
 	return t
 }
 
-// Deprecated: use sqlFuncs.AfterQF
 func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
 	if len(t.sqlFuncs) > 0 {
 		t.sqlFuncs[len(t.sqlFuncs)-1].AfterQF = f
@@ -331,11 +326,9 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 		errTx = NewErrTx[T](errTx, nil, ErrBeginTx, err)
 		return
 	} else {
-		var err error
 		for _, sqlf := range t.sqlFuncs {
 			if sqlf.BeforeF != nil {
-				sqlf.BeforeF(&ctxVP, sqlf, &err)
-				if err != nil {
+				if err := sqlf.BeforeF(&ctxVP, sqlf); err != nil {
 					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
 					break
 				}
@@ -363,8 +356,7 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 						break
 					}
 				} else if sqlf.AfterEF != nil {
-					sqlf.AfterEF(&ctxVP, res, &err)
-					if err != nil {
+					if err := sqlf.AfterEF(&ctxVP, res); err != nil {
 						errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
 						break
 					}
@@ -376,8 +368,7 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 						break
 					}
 				} else if sqlf.AfterQF != nil {
-					sqlf.AfterQF(&ctxVP, res, &err)
-					if err != nil {
+					if err := sqlf.AfterQF(&ctxVP, res); err != nil {
 						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
 						break
 					}

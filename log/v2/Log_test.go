@@ -74,17 +74,18 @@ func Test_2(t *testing.T) {
 		}
 		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
 		tx = tx.SimpleDo("select p,base,msg as s from log")
-		tx.AfterQF(func(_ *any, rows *sql.Rows, e *error) {
+		tx.AfterQF(func(_ *any, rows *sql.Rows) (e error) {
 			if ls, err := psql.DealRows[logg](rows); err == nil {
 				if len(ls) != 1 {
-					*e = errors.New("num wrong")
+					return errors.New("num wrong")
 				}
 				if ls[0].Msg != "s" {
-					*e = errors.New("msg wrong")
+					return errors.New("msg wrong")
 				}
 			} else {
-				*e = err
+				return err
 			}
+			return nil
 		})
 		if _, err := tx.Fin(); err != nil {
 			t.Fatal(err)

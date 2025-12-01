@@ -87,6 +87,7 @@ func Test_Plays(t *testing.T) {
 	defer close()
 
 	w := web.Easy_boot()
+	defer w.Shutdown()
 	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
 		`/ws`: func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodOptions {
@@ -170,6 +171,7 @@ func Test_PlaysSeed(t *testing.T) {
 	defer close()
 
 	w := web.Easy_boot()
+	defer w.Shutdown()
 	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
 		`/ws`: func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodOptions {
@@ -260,6 +262,7 @@ func Test_PlaysStart(t *testing.T) {
 	defer close()
 
 	w := web.Easy_boot()
+	defer w.Shutdown()
 	w.Handle(map[string]func(http.ResponseWriter, *http.Request){
 		`/ws`: func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodOptions {
