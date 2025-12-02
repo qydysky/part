@@ -139,3 +139,14 @@ func Test6(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func Test7(t *testing.T) {
+	l0 := New(&Log{})
+	l1 := l0.Level(map[Level]string{})
+	if _, ok := l1.PrefixS[I]; ok {
+		t.Fatal()
+	}
+	if _, ok := l0.PrefixS[I]; !ok {
+		t.Fatal()
+	}
+}
