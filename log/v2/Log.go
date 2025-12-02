@@ -115,12 +115,7 @@ func Copy(i *Log) (o *Log) {
 // Level 设置之后日志等级
 func (I *Log) Level(log map[Level]string) (O *Log) {
 	O = Copy(I)
-	for k, v := range log {
-		if _, ok := O.PrefixS[k]; !ok {
-			delete(O.PrefixS, k)
-		}
-		O.PrefixS[k] = v
-	}
+	O.PrefixS = log
 	return
 }
 
