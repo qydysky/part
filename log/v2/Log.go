@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	f "github.com/qydysky/part/file"
@@ -19,7 +20,8 @@ import (
 )
 
 type Log struct {
-	File string
+	Output io.Writer
+	File   string
 
 	// type LogDb struct {
 	// 	Date   string
@@ -40,11 +42,16 @@ type Log struct {
 	BaseS   []any
 
 	logger *log.Logger
+
+	startLog atomic.Bool
 }
 
 func (o *Log) reloadLogger() {
 	// logger
 	var showObj = []io.Writer{}
+	if o.Output != nil {
+		showObj = append(showObj, o.Output)
+	}
 	if !o.NoStdout {
 		showObj = append(showObj, os.Stdout)
 	}
@@ -114,13 +121,31 @@ func Copy(i *Log) (o *Log) {
 
 // Level 设置之后日志等级
 func (I *Log) Level(log map[Level]string) (O *Log) {
-	O = Copy(I)
+	if I.startLog.Load() {
+		O = Copy(I)
+	} else {
+		O = I
+	}
 	O.PrefixS = log
 	return
 }
 
+func (I *Log) LOutput(o io.Writer) (O *Log) {
+	if I.startLog.Load() {
+		O = Copy(I)
+	} else {
+		O = I
+	}
+	O.Output = o
+	return
+}
+
 func (I *Log) LShow(show bool) (O *Log) {
-	O = Copy(I)
+	if I.startLog.Load() {
+		O = Copy(I)
+	} else {
+		O = I
+	}
 	O.NoStdout = !show
 	O.reloadLogger()
 	return
@@ -128,7 +153,11 @@ func (I *Log) LShow(show bool) (O *Log) {
 
 // Open 日志输出至DB
 func (I *Log) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *Log) {
-	O = Copy(I)
+	if I.startLog.Load() {
+		O = Copy(I)
+	} else {
+		O = I
+	}
 	if db != nil && insert != `` && dBHolder != nil {
 		O.DBInsert = insert
 		O.DBHolder = dBHolder
@@ -141,7 +170,11 @@ func (I *Log) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *Log) {
 }
 
 func (I *Log) LFile(fileP string) (O *Log) {
-	O = Copy(I)
+	if I.startLog.Load() {
+		O = Copy(I)
+	} else {
+		O = I
+	}
 	if O.File != `` && fileP != `` {
 		O.File = fileP
 		f.New(O.File, 0, true).Create()
@@ -183,6 +216,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 	if _, ok := O.PrefixS[prefix]; !ok {
 		return
 	}
+	_ = O.startLog.CompareAndSwap(false, true)
 
 	{
 		if O.dbPool != nil {
