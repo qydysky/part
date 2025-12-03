@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +148,15 @@ func Test7(t *testing.T) {
 		t.Fatal()
 	}
 	if _, ok := l0.PrefixS[I]; !ok {
+		t.Fatal()
+	}
+}
+
+func Test8(t *testing.T) {
+	var buf strings.Builder
+	l0 := New(&Log{NoStdout: true})
+	l1 := l0.LShow(true).LOutput(&buf)
+	if l1 != l0 {
 		t.Fatal()
 	}
 }
