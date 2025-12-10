@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,17 +23,17 @@ func TestMain5(t *testing.T) {
 	defer db.Close()
 
 	ctx := context.Background()
-	tx := BeginTx[[]string](db, ctx, &sql.TxOptions{})
+	tx := BeginTx[[]string](db, ctx)
 	tx = tx.Do(&SqlFunc[[]string]{
-		Sql:        "create table log (msg text)",
-		SkipSqlErr: false,
+		Sql: "create table log (msg text)",
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
-		Sql:        "create table log (msg text)",
-		SkipSqlErr: true,
+		Sql: "create table log (msg text)",
 	})
-
-	if _, e := tx.Fin(); e != nil {
+	if _, e := tx.Fin(); !strings.Contains(e.Error(), "table log already exists") {
+		t.Fatal(e)
+	}
+	if _, e := BeginTx[any](db, ctx).SimpleDo("create table log (msg text)").Fin(); e != nil {
 		t.Fatal(e)
 	}
 }
@@ -49,16 +50,14 @@ func TestMain(t *testing.T) {
 	dateTime := time.Now().Format(time.DateTime)
 	tx := BeginTx[[]string](db, ctx, &sql.TxOptions{})
 	tx = tx.Do(&SqlFunc[[]string]{
-		Ty:         Execf,
-		Ctx:        ctx,
-		Sql:        "create table log (msg text)",
-		SkipSqlErr: true,
+		Ty:  Execf,
+		Ctx: ctx,
+		Sql: "create table log (msg text)",
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
-		Ty:         Execf,
-		Ctx:        ctx,
-		Sql:        "create table log2 (msg text)",
-		SkipSqlErr: true,
+		Ty:  Execf,
+		Ctx: ctx,
+		Sql: "create table log2 (msg text)",
 	})
 	tx = tx.Do(&SqlFunc[[]string]{
 		Ty:  Execf,
@@ -297,8 +296,7 @@ func Local_TestPostgresql(t *testing.T) {
 	}
 
 	if _, e := BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{}).Do(&SqlFunc[any]{
-		Sql:        "create table test (created varchar(20))",
-		SkipSqlErr: true,
+		Sql: "create table test (created varchar(20))",
 	}).Fin(); e != nil {
 		t.Fatal(e)
 	}
@@ -412,6 +410,60 @@ func Test2(t *testing.T) {
 	}
 }
 
+func Test9(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	conn, _ := db.Conn(context.Background())
+	defer conn.Close()
+
+	tx := BeginTx[any](conn, context.Background())
+	tx.SimpleDo("create table log123 (msg_w text)")
+	if _, e := tx.Fin(); e != nil {
+		t.Fatal(e)
+	}
+
+	tx = BeginTx[any](conn, context.Background())
+	tx.SimpleDo("insert into log123 values ('1')")
+	tx.Do(&SqlFunc[any]{
+		Sql: "select count(*) c from log123",
+		AfterQF: func(ctxVP *any, rows *sql.Rows) error {
+			for v := range DealRowsMapIter(rows) {
+				if v.Raw["c"].(int64) != 1 {
+					return errors.New("1")
+				}
+				break
+			}
+			return nil
+		},
+	})
+	tx.StopWithErr(errors.New("a"))
+	if _, e := tx.Fin(); e != nil {
+		t.Log(e)
+	}
+
+	tx = BeginTx[any](conn, context.Background())
+	tx.Do(&SqlFunc[any]{
+		Sql: "select count(*) c from log123",
+		AfterQF: func(ctxVP *any, rows *sql.Rows) error {
+			for v := range DealRowsMapIter(rows) {
+				if v.Raw["c"].(int64) != 0 {
+					return errors.New("1")
+				}
+				break
+			}
+			return nil
+		},
+	})
+	if _, e := tx.Fin(); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func Test3(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", ":memory:")
@@ -512,11 +564,8 @@ func Test5(t *testing.T) {
 }
 
 func Test8(t *testing.T) {
-	txe := NewErrTx[int](nil, nil, ErrBeforeF, errors.New("1"), true)
-	txe = NewErrTx[int](txe, nil, ErrAfterQuery, errors.New("2"), true)
-	if !ErrTxAllSkip[int](error(txe)) {
-		t.Fatal()
-	}
+	txe := NewErrTx[int](nil, nil, ErrBeforeF, errors.New("1"))
+	txe = NewErrTx[int](txe, nil, ErrAfterQuery, errors.New("2"))
 	if !errors.Is(txe, ErrBeforeF) {
 		t.Fatal()
 	}
