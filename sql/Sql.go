@@ -42,16 +42,13 @@ type SqlTx[T any] struct {
 }
 
 type SqlFunc[T any] struct {
-	// 	Execf or Queryf, default: auto detection
-	Ty Type
-	// default: use transaction Ctx
-	Ctx        context.Context
-	Sql        string
-	Args       []any
-	SkipSqlErr bool
-	BeforeF    BeforeF[T]
-	AfterEF    AfterEF[T]
-	AfterQF    AfterQF[T]
+	Ty      Type            // 	Execf or Queryf, default: auto detection
+	Ctx     context.Context // default: use transaction Ctx
+	Sql     string
+	Args    []any
+	BeforeF BeforeF[T]
+	AfterEF AfterEF[T]
+	AfterQF AfterQF[T]
 }
 
 func (t *SqlFunc[T]) Clear() *SqlFunc[T] {
@@ -59,7 +56,6 @@ func (t *SqlFunc[T]) Clear() *SqlFunc[T] {
 	t.Ctx = context.Background()
 	t.Sql = ""
 	t.Args = t.Args[:0]
-	t.SkipSqlErr = false
 	t.BeforeF = nil
 	t.AfterEF = nil
 	t.AfterQF = nil
@@ -71,7 +67,6 @@ func (t *SqlFunc[T]) Copy(dest *SqlFunc[T]) *SqlFunc[T] {
 	dest.Ctx = t.Ctx
 	dest.Sql = t.Sql
 	dest.Args = append(dest.Args[:0], t.Args...)
-	dest.SkipSqlErr = t.SkipSqlErr
 	dest.BeforeF = t.BeforeF
 	dest.AfterEF = t.AfterEF
 	dest.AfterQF = t.AfterQF
@@ -122,6 +117,13 @@ func (t *SqlTx[T]) SimpleDo(sql string, args ...any) *SqlTx[T] {
 func (t *SqlTx[T]) Do(sqlf *SqlFunc[T]) *SqlTx[T] {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
+	return t
+}
+
+func (t *SqlTx[T]) StopWithErr(e error) *SqlTx[T] {
+	ps.AppendPtr(&t.sqlFuncs).Clear().BeforeF = func(ctxVP *T, sqlf *SqlFunc[T]) error {
+		return e
+	}
 	return t
 }
 
@@ -244,8 +246,8 @@ func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
 }
 
 var (
-	ErrTypNil      = errors.New("ErrTypNil")
-	ErrPreErrWrong = errors.New("ErrPreErrWrong")
+	ErrTypNil      = errors.New("ErrTypNil")      // panic error
+	ErrPreErrWrong = errors.New("ErrPreErrWrong") // panic error
 	ErrBeginTx     = errors.New("ErrBeginTx")
 	ErrBeforeF     = errors.New("ErrBeforeF")
 	ErrExec        = errors.New("ErrExec")
@@ -254,30 +256,28 @@ var (
 	ErrAfterQuery  = errors.New("ErrAfterQuery")
 	ErrRollback    = errors.New("ErrRollback")
 	ErrCommit      = errors.New("ErrCommit")
-	ErrHadFin      = errors.New("ErrHadFin")
+	ErrHadFin      = errors.New("ErrHadFin") // panic error
 	ErrUndefinedTy = errors.New("ErrUndefinedTy")
 )
 
 type ErrTx[T any] struct {
-	Raw     *SqlFunc[T]
-	prePtr  any
-	Typ     error
-	Err     error
-	SkipSet bool
+	Raw    *SqlFunc[T]
+	prePtr any
+	Typ    error
+	Err    error
 }
 
 var _ error = &ErrTx[any]{}
 
 // Typ must not nil
-func NewErrTx[T any](preErrTx error, Raw *SqlFunc[T], Typ, Err error, SkipSet bool) (n *ErrTx[T]) {
+func NewErrTx[T any](preErrTx error, Raw *SqlFunc[T], Typ, Err error) (n *ErrTx[T]) {
 	if Typ == nil {
 		panic(ErrTypNil)
 	} else {
 		n = &ErrTx[T]{
-			Raw:     Raw,
-			Typ:     Typ,
-			Err:     Err,
-			SkipSet: SkipSet,
+			Raw: Raw,
+			Typ: Typ,
+			Err: Err,
 		}
 		if preErrTx != nil {
 			if pre, ok := preErrTx.(*ErrTx[T]); ok && pre != nil {
@@ -296,17 +296,40 @@ func ParseErrTx[T any](err error) *ErrTx[T] {
 		return nil
 	}
 }
-func ErrTxAllSkip[T any](err any) (allskip bool) {
+func HasErrTx[T any](err any, errs ...error) bool {
 	if err == nil {
-		return true
+		return false
 	} else if e, ok := err.(*ErrTx[T]); ok && e != nil {
-		return e.SkipSet && ErrTxAllSkip[T](e.prePtr)
+		for v := range e.ForwardRange() {
+			for _, v1 := range errs {
+				if errors.Is(v, v1) {
+					return true
+				}
+			}
+		}
+		return false
+	} else if e, ok := err.(error); ok && e != nil {
+		for _, v1 := range errs {
+			if errors.Is(e, v1) {
+				return true
+			}
+		}
+		return false
 	} else {
 		return false
 	}
 }
+func (t *ErrTx[T]) ForwardRange() iter.Seq[*ErrTx[T]] {
+	return func(yield func(*ErrTx[T]) bool) {
+		for tmp := t; tmp != nil; tmp, _ = tmp.prePtr.(*ErrTx[T]) {
+			if !yield(tmp) {
+				return
+			}
+		}
+	}
+}
 func (t *ErrTx[T]) Is(e error) bool {
-	for tmp := t; tmp != nil; tmp, _ = tmp.prePtr.(*ErrTx[T]) {
+	for tmp := range t.ForwardRange() {
 		if tmp.Typ == e || tmp.Err == e {
 			return true
 		}
@@ -339,19 +362,18 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 	}()
 
 	if t.fin {
-		errTx = NewErrTx[T](errTx, nil, ErrHadFin, nil, false)
-		return
+		panic(ErrHadFin)
 	}
 
 	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
 	if err != nil {
-		errTx = NewErrTx[T](errTx, nil, ErrBeginTx, err, false)
+		errTx = NewErrTx[T](errTx, nil, ErrBeginTx, err)
 		return
 	} else {
 		for _, sqlf := range t.sqlFuncs {
 			if sqlf.BeforeF != nil {
 				if err := sqlf.BeforeF(&ctxVP, sqlf); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err, false)
+					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
 					break
 				}
 			}
@@ -373,43 +395,37 @@ func (t *SqlTx[T]) Fin() (ctxVP T, errTx error) {
 
 			if sqlf.Ty == Execf {
 				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrExec, err, sqlf.SkipSqlErr)
-					if !sqlf.SkipSqlErr {
-						break
-					}
+					errTx = NewErrTx(errTx, sqlf, ErrExec, err)
 				} else if sqlf.AfterEF != nil {
 					if err := sqlf.AfterEF(&ctxVP, res); err != nil {
-						errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err, false)
+						errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
 						break
 					}
 				}
 			} else if sqlf.Ty == Queryf {
 				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrQuery, err, sqlf.SkipSqlErr)
-					if !sqlf.SkipSqlErr {
-						break
-					}
+					errTx = NewErrTx(errTx, sqlf, ErrQuery, err)
 				} else if sqlf.AfterQF != nil {
 					if err := sqlf.AfterQF(&ctxVP, res); err != nil {
-						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err, false)
+						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
 						break
 					}
 				}
 			} else {
-				errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil, false)
+				errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil)
 				break
 			}
 		}
 	}
 	if errTx != nil {
-		if err := tx.Rollback(); err != nil {
-			errTx = NewErrTx[T](errTx, nil, ErrRollback, err, false)
-		} else if ErrTxAllSkip[T](errTx) {
-			errTx = nil
+		if !HasErrTx[T](errTx, ErrCommit, ErrRollback) {
+			if err := tx.Rollback(); err != nil {
+				errTx = NewErrTx[T](errTx, nil, ErrRollback, err)
+			}
 		}
 	} else {
 		if err := tx.Commit(); err != nil {
-			errTx = NewErrTx[T](errTx, nil, ErrCommit, err, false)
+			errTx = NewErrTx[T](errTx, nil, ErrCommit, err)
 		}
 	}
 	return
