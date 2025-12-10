@@ -245,6 +245,7 @@ func (t *SqlTx[T]) AfterQF(f AfterQF[T]) *SqlTx[T] {
 
 var (
 	ErrTypNil      = errors.New("ErrTypNil")
+	ErrPreErrWrong = errors.New("ErrPreErrWrong")
 	ErrBeginTx     = errors.New("ErrBeginTx")
 	ErrBeforeF     = errors.New("ErrBeforeF")
 	ErrExec        = errors.New("ErrExec")
@@ -278,15 +279,19 @@ func NewErrTx[T any](preErrTx error, Raw *SqlFunc[T], Typ, Err error, SkipSet bo
 			Err:     Err,
 			SkipSet: SkipSet,
 		}
-		if pre, ok := preErrTx.(*ErrTx[T]); ok && pre != nil {
-			n.prePtr = pre
+		if preErrTx != nil {
+			if pre, ok := preErrTx.(*ErrTx[T]); ok && pre != nil {
+				n.prePtr = pre
+			} else {
+				panic(ErrPreErrWrong)
+			}
 		}
 	}
 	return
 }
-func ParseErrTx[T any](err error) *SqlFunc[T] {
+func ParseErrTx[T any](err error) *ErrTx[T] {
 	if e, ok := err.(*ErrTx[T]); ok && e != nil {
-		return e.Raw
+		return e
 	} else {
 		return nil
 	}
@@ -301,7 +306,12 @@ func ErrTxAllSkip[T any](err any) (allskip bool) {
 	}
 }
 func (t *ErrTx[T]) Is(e error) bool {
-	return t.Typ == e || t.Err == e
+	for tmp := t; tmp != nil; tmp, _ = tmp.prePtr.(*ErrTx[T]) {
+		if tmp.Typ == e || tmp.Err == e {
+			return true
+		}
+	}
+	return false
 }
 func (t *ErrTx[T]) Error() (s string) {
 	var buf strings.Builder

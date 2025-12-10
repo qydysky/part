@@ -517,6 +517,12 @@ func Test8(t *testing.T) {
 	if !ErrTxAllSkip[int](error(txe)) {
 		t.Fatal()
 	}
+	if !errors.Is(txe, ErrBeforeF) {
+		t.Fatal()
+	}
+	if !errors.Is(txe, ErrAfterQuery) {
+		t.Fatal()
+	}
 }
 
 func Test6(t *testing.T) {
