@@ -85,11 +85,11 @@ func New(c Config) (o *Log_interface) {
 			}
 		}
 		if msg.DBConn != nil && msg.DBInsert != `` {
-			var sqlTx *psql.SqlTx[any]
+			var sqlTx *psql.SqlTx
 			if o.DBConnTo == 0 {
-				sqlTx = psql.BeginTx[any](msg.DBConn, context.Background())
+				sqlTx = psql.BeginTx(msg.DBConn, context.Background())
 			} else {
-				sqlTx = psql.BeginTx[any](msg.DBConn, pctx.GenTOCtx(o.DBConnTo))
+				sqlTx = psql.BeginTx(msg.DBConn, pctx.GenTOCtx(o.DBConnTo))
 			}
 
 			var replaceF psql.ReplaceF
@@ -100,7 +100,7 @@ func New(c Config) (o *Log_interface) {
 				replaceF = psql.PlaceHolderA
 			}
 
-			sqlTx.DoPlaceHolder(&psql.SqlFunc[any]{Sql: msg.DBInsert}, &LogI{
+			sqlTx.DoPlaceHolder(&psql.SqlFunc{Sql: msg.DBInsert}, &LogI{
 				Date:   time.Now().Format(time.DateTime),
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(msg.Prefix),
@@ -108,7 +108,7 @@ func New(c Config) (o *Log_interface) {
 				Msgs:   strings.TrimSpace(fmt.Sprintln(msg.Msgs...)),
 			}, replaceF)
 
-			if _, err := sqlTx.Fin(); err != nil {
+			if err := sqlTx.Run(); err != nil {
 				log.Println(err)
 			}
 		}

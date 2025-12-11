@@ -33,8 +33,8 @@ type Log struct {
 	DBInsert string
 	DBHolder psql.ReplaceF
 	DBConn   *sql.DB
-	dbPool   *psql.TxPool[any]
-	dbInsert *psql.SqlFunc[any]
+	dbPool   *psql.TxPool
+	dbInsert *psql.SqlFunc
 
 	NoStdout bool
 
@@ -92,8 +92,8 @@ func New(c *Log) (o *Log) {
 		f.New(c.File, 0, true).Create()
 	}
 	if o.DBConn != nil && o.DBInsert != `` && o.DBHolder != nil {
-		o.dbPool = psql.NewTxPool[any](o.DBConn)
-		o.dbInsert = &psql.SqlFunc[any]{Sql: o.DBInsert}
+		o.dbPool = psql.NewTxPool(o.DBConn)
+		o.dbInsert = &psql.SqlFunc{Sql: o.DBInsert}
 	}
 	if o.PrefixS == nil {
 		o.PrefixS = map[Level]string{T: "T:", I: "I:", W: "W:", E: "E:"}
@@ -161,8 +161,8 @@ func (I *Log) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *Log) {
 	if db != nil && insert != `` && dBHolder != nil {
 		O.DBInsert = insert
 		O.DBHolder = dBHolder
-		O.dbPool = psql.NewTxPool[any](db)
-		O.dbInsert = &psql.SqlFunc[any]{Sql: insert}
+		O.dbPool = psql.NewTxPool(db)
+		O.dbInsert = &psql.SqlFunc{Sql: insert}
 	} else {
 		O.dbPool = nil
 	}
@@ -228,7 +228,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
 				Msgs:   strings.TrimSpace(fmt.Sprintln(i...)),
 			}, O.DBHolder)
-			if _, err := sqlTx.Fin(); err != nil {
+			if err := sqlTx.Run(); err != nil {
 				log.Println(err)
 			}
 		}

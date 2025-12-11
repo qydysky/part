@@ -26,27 +26,27 @@ func Benchmark1(b *testing.B) {
 	}
 	defer db.Close()
 
-	txPool := NewTxPool[any](db)
-	if _, e := txPool.BeginTx(context.Background()).Do(&SqlFunc[any]{
+	txPool := NewTxPool(db)
+	if e := txPool.BeginTx(context.Background()).Do(&SqlFunc{
 		Ty:  Execf,
 		Sql: "create table log123 (a INTEGER,b DATE,c text)",
-	}).Fin(); e != nil {
+	}).Run(); e != nil {
 		b.Fatal(e)
 	}
 
 	x := txPool.BeginTx(context.Background())
 	x.SimplePlaceHolderA("insert into log123 values (1,'2025-01-01',3)", nil)
-	if _, e := x.Fin(); e != nil {
+	if e := x.Run(); e != nil {
 		b.Fatal(e)
 	}
 
-	sqlF := &SqlFunc[any]{
+	sqlF := &SqlFunc{
 		Ty:  Queryf,
 		Sql: "select 1 from log123 where 1=0",
 	}
 
 	for b.Loop() {
-		if _, err := txPool.BeginTx(context.Background()).Do(sqlF).Fin(); err != nil {
+		if err := txPool.BeginTx(context.Background()).Do(sqlF).Run(); err != nil {
 			b.Fatal(err)
 		}
 	}

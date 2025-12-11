@@ -49,11 +49,11 @@ func Test_2(t *testing.T) {
 	defer db.Close()
 
 	{
-		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
-		tx = tx.Do(&psql.SqlFunc[any]{
+		tx := psql.BeginTx(db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
+		tx = tx.Do(&psql.SqlFunc{
 			Sql: "create table log (p test,base text,msg text)",
 		})
-		if _, err := tx.Fin(); psql.HasErrTx[any](err, psql.ErrBeginTx) {
+		if err := tx.Run(); psql.HasErrTx(err, psql.ErrBeginTx) {
 			t.Fatal(err)
 		}
 	}
@@ -75,9 +75,9 @@ func Test_2(t *testing.T) {
 			Base string
 			Msg  string `sql:"s"`
 		}
-		tx := psql.BeginTx[any](db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
+		tx := psql.BeginTx(db, pctx.GenTOCtx(time.Second), &sql.TxOptions{})
 		tx = tx.SimpleDo("select p,base,msg as s from log")
-		tx.AfterQF(func(_ *any, rows *sql.Rows) (e error) {
+		tx.AfterQF(func(rows *sql.Rows) (e error) {
 			if ls, err := psql.DealRows[logg](rows); err == nil {
 				if len(ls) != 1 {
 					return errors.New("num wrong")
@@ -90,7 +90,7 @@ func Test_2(t *testing.T) {
 			}
 			return
 		})
-		if _, err := tx.Fin(); err != nil {
+		if err := tx.Run(); err != nil {
 			t.Fatal(err)
 		}
 	}
