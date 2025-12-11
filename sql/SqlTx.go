@@ -3,6 +3,7 @@ package part
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -258,7 +259,7 @@ func (t *SqlTx) do() (errTx error) {
 func (t *SqlTx) commitOrRollback(errTx error) error {
 	if errTx != nil {
 		if !HasErrTx(errTx, ErrBeginTx, ErrCommit, ErrRollback) {
-			if err := t.tx.Rollback(); err != nil {
+			if err := t.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 				errTx = NewErrTx(errTx, nil, ErrRollback, err)
 			}
 		}
