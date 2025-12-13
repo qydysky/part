@@ -4,3 +4,7 @@ old/Part.go
 old/Reqf.go
 old/Zip.go
 old/FileWR.go
+*.test
+*.log
+*.sqlite3
+*.sqlite3-journal
