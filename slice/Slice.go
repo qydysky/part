@@ -348,6 +348,15 @@ func Del[S ~[]T, T any](s *S, f func(t *T) (del bool)) {
 	}
 }
 
+func DelPtr[S ~[]*T, T any](s *S, f func(t *T) (del bool)) {
+	for i := 0; i < len(*s); i++ {
+		if f((*s)[i]) {
+			*s = append((*s)[:i], (*s)[i+1:]...)
+			i -= 1
+		}
+	}
+}
+
 func Range[T any](s []T) iter.Seq2[int, *T] {
 	return func(yield func(int, *T) bool) {
 		for i := 0; i < len(s); i++ {
