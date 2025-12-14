@@ -219,18 +219,6 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 	_ = O.startLog.CompareAndSwap(false, true)
 
 	{
-		if O.dbPool != nil {
-			if err := O.dbPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
-				Date:   time.Now().Format(time.DateTime),
-				Unix:   time.Now().Unix(),
-				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
-				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
-				Msgs:   strings.TrimSpace(fmt.Sprintln(i...)),
-			}, O.DBHolder).Run(); err != nil {
-				log.Println(err)
-			}
-		}
-
 		format := formatPool.Get()
 		defer formatPool.Put(format)
 
@@ -260,6 +248,18 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 			O.logger.SetPrefix(prefix)
 		}
 		O.logger.Printf(string(*format), *val...)
+
+		if O.dbPool != nil {
+			if err := O.dbPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
+				Date:   time.Now().Format(time.DateTime),
+				Unix:   time.Now().Unix(),
+				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
+				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
+				Msgs:   strings.TrimSpace(fmt.Sprintf(string(*format), *val...)),
+			}, O.DBHolder).Run(); err != nil {
+				log.Println(err)
+			}
+		}
 	}
 	return
 }
