@@ -226,6 +226,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 		for range O.BaseS {
 			*format = append(*format, '%', 'v', ' ')
 		}
+		baseL := len(*format)
 		if formatS == "" {
 			for j := 0; j < len(i); j++ {
 				*format = append(*format, '%', 'v')
@@ -255,7 +256,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
 				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
-				Msgs:   strings.TrimSpace(fmt.Sprintf(string(*format), *val...)),
+				Msgs:   strings.TrimSpace(fmt.Sprintf(string((*format)[baseL:]), *val...)),
 			}, O.DBHolder).Run(); err != nil {
 				log.Println(err)
 			}
