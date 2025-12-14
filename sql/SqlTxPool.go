@@ -3,7 +3,6 @@ package part
 import (
 	"context"
 	"database/sql"
-	"weak"
 
 	pool "github.com/qydysky/part/pool"
 )
@@ -25,7 +24,9 @@ func (t *TxPool) BeginTx(ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
 	tx.opts = nil
 	tx.sqlFuncs = tx.sqlFuncs[:0]
 	tx.fin = false
-	tx.pool = weak.Make(t)
+	tx.finFunc = func() {
+		t.p.Put(tx)
+	}
 	if len(opts) > 0 {
 		tx.opts = opts[0]
 	}

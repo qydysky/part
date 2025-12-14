@@ -465,8 +465,8 @@ func Test9(t *testing.T) {
 }
 
 func Test10(t *testing.T) {
-	defer os.Remove("./b")
-	db, err := sql.Open("sqlite", "./b")
+	defer os.Remove("/tmp/b")
+	db, err := sql.Open("sqlite", "/tmp/b")
 	if err != nil {
 		t.Fatal(err)
 	}
