@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"weak"
 
 	pool "github.com/qydysky/part/pool"
 	ps "github.com/qydysky/part/slice"
@@ -33,7 +32,7 @@ type SqlTx struct {
 	opts     *sql.TxOptions
 	sqlFuncs []*SqlFunc
 	fin      bool
-	pool     weak.Pointer[TxPool]
+	finFunc  func()
 }
 
 func BeginTx(canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
@@ -179,6 +178,11 @@ func (t *SqlTx) AfterQF(f AfterQF) *SqlTx {
 	return t
 }
 
+func (t *SqlTx) FinF(f func()) *SqlTx {
+	t.finFunc = f
+	return t
+}
+
 func (t *SqlTx) Run() (errTx error) {
 	return t.commitOrRollback(t.do())
 }
@@ -270,8 +274,8 @@ func (t *SqlTx) commitOrRollback(errTx error) error {
 	}
 	t.tx = nil
 	t.fin = true
-	if txp := t.pool.Value(); txp != nil {
-		txp.p.Put(t)
+	if t.finFunc != nil {
+		t.finFunc()
 	}
 	return errTx
 }

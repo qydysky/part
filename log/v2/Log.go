@@ -220,15 +220,13 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 
 	{
 		if O.dbPool != nil {
-			var sqlTx = O.dbPool.BeginTx(context.Background())
-			sqlTx.DoPlaceHolder(O.dbInsert, &LogDb{
+			if err := O.dbPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
 				Date:   time.Now().Format(time.DateTime),
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
 				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
 				Msgs:   strings.TrimSpace(fmt.Sprintln(i...)),
-			}, O.DBHolder)
-			if err := sqlTx.Run(); err != nil {
+			}, O.DBHolder).Run(); err != nil {
 				log.Println(err)
 			}
 		}
