@@ -4,10 +4,12 @@ import (
 	// "fmt"
 
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,33 @@ import (
 	pf "github.com/qydysky/part/file"
 	psql "github.com/qydysky/part/sql"
 )
+
+func Test_4(t *testing.T) {
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("./a")
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+
+	_ = psql.BeginTx(db, context.Background()).SimpleDo("create table log (base text, msgs test)").Run()
+
+	n := New(&Log{
+		DBInsert: "insert into log (base, msgs) values ({Base},{Msgs})",
+		DBHolder: psql.PlaceHolderA,
+		DBConn:   db,
+	})
+
+	n.Base("123").TF("%v", 123)
+
+	psql.BeginTx(db, context.Background()).SimpleDo("select msgs from log").AfterQF(func(rows *sql.Rows) error {
+		if psql.DealRowMap(rows).Raw["MSGS"] != "123" {
+			t.Fatal()
+		}
+		return nil
+	})
+}
 
 func Test_1(t *testing.T) {
 	n := New(&Log{
