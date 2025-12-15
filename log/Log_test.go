@@ -53,7 +53,7 @@ func Test_2(t *testing.T) {
 		tx = tx.Do(&psql.SqlFunc{
 			Sql: "create table log (p test,base text,msg text)",
 		})
-		if err := tx.Run(); psql.HasErrTx(err, psql.ErrBeginTx) {
+		if err := tx.Run(); !psql.HasErrTx(err, nil, psql.ErrExec) {
 			t.Fatal(err)
 		}
 	}
