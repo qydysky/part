@@ -58,12 +58,10 @@ func ParseErrTx(err error) *ErrTx {
 	}
 }
 func HasErrTx(err any, errs ...error) bool {
-	if err == nil {
-		return false
-	} else if e, ok := err.(*ErrTx); ok && e != nil {
+	if e, ok := err.(*ErrTx); ok && e != nil {
 		for v := range e.ForwardRange() {
 			for _, v1 := range errs {
-				if errors.Is(v, v1) {
+				if v == v1 || errors.Is(v, v1) {
 					return true
 				}
 			}
@@ -71,7 +69,14 @@ func HasErrTx(err any, errs ...error) bool {
 		return false
 	} else if e, ok := err.(error); ok && e != nil {
 		for _, v1 := range errs {
-			if errors.Is(e, v1) {
+			if e == v1 || errors.Is(e, v1) {
+				return true
+			}
+		}
+		return false
+	} else if err == nil {
+		for _, v1 := range errs {
+			if v1 == nil {
 				return true
 			}
 		}

@@ -15,6 +15,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestMain6(t *testing.T) {
+	// connect
+	var e error
+	if !HasErrTx(e, nil) {
+		t.Fatal()
+	}
+}
+
 func TestMain5(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", ":memory:")
