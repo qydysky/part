@@ -67,8 +67,8 @@ func (t *SqlTx) SimpleDo(sql string, args ...any) *SqlTx {
 
 func (t *SqlTx) Do(sqlf *SqlFunc) *SqlTx {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
-	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
 	sqlf.autoType()
+	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
 	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }

@@ -15,6 +15,22 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestMain8(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("./a")
+	defer db.Close()
+
+	ctx := context.Background()
+	a := BeginTx(db, ctx).Do(&SqlFunc{Sql: "select msg as Msg from danmu"})
+	if a.sqlFuncs[0].Ty == null {
+		t.Fatal()
+	}
+}
+
 func TestMain6(t *testing.T) {
 	// connect
 	var e error
