@@ -25,6 +25,13 @@ type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
+type RWMutex interface {
+	RLock()
+	RUnlock()
+	Lock()
+	Unlock()
+}
+
 type SqlTx struct {
 	canTx    CanTx
 	ctx      context.Context
@@ -33,6 +40,8 @@ type SqlTx struct {
 	sqlFuncs []*SqlFunc
 	fin      bool
 	finFunc  func()
+	rw       RWMutex
+	hadW     bool
 }
 
 func BeginTx(canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
@@ -51,12 +60,16 @@ func (t *SqlTx) SimpleDo(sql string, args ...any) *SqlTx {
 	dsqlf := ps.AppendPtr(&t.sqlFuncs).Clear()
 	dsqlf.Sql = strings.TrimSpace(sql)
 	dsqlf.Args = args
+	dsqlf.autoType()
+	t.hadW = t.hadW || dsqlf.Ty == Execf
 	return t
 }
 
 func (t *SqlTx) Do(sqlf *SqlFunc) *SqlTx {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
+	sqlf.autoType()
+	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }
 
@@ -154,6 +167,8 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
 		sqlf.Args = append(sqlf.Args, v.val)
 	}
+	sqlf.autoType()
+	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }
 
@@ -178,6 +193,11 @@ func (t *SqlTx) AfterQF(f AfterQF) *SqlTx {
 	return t
 }
 
+func (t *SqlTx) RMutex(m RWMutex) *SqlTx {
+	t.rw = m
+	return t
+}
+
 func (t *SqlTx) FinF(f func()) *SqlTx {
 	t.finFunc = f
 	return t
@@ -198,82 +218,94 @@ func (t *SqlTx) do() (errTx error) {
 		panic(ErrHadFin)
 	}
 
-	tx, err := t.canTx.BeginTx(t.ctx, t.opts)
-	t.tx = tx
-	if err != nil {
+	if t.rw != nil {
+		if t.hadW {
+			t.rw.Lock()
+		} else {
+			t.rw.RLock()
+		}
+	}
+
+	if tx, err := t.canTx.BeginTx(t.ctx, t.opts); err != nil {
 		errTx = NewErrTx(errTx, nil, ErrBeginTx, err)
 		return
 	} else {
-		for _, sqlf := range t.sqlFuncs {
-			if sqlf.BeforeF != nil {
-				if err := sqlf.BeforeF(sqlf); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
-					break
-				}
-			}
+		t.tx = tx
+	}
 
-			if sqlf.Sql == "" {
-				continue
-			}
-
-			if sqlf.Ctx == nil {
-				sqlf.Ctx = t.ctx
-			}
-
-			if sqlf.Ty == null {
-				sqlf.Ty = Execf
-				if uquery := strings.ToUpper(strings.TrimSpace(sqlf.Sql)); strings.HasPrefix(uquery, "SELECT") {
-					sqlf.Ty = Queryf
-				}
-			}
-
-			if sqlf.Ty == Execf {
-				if res, err := tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrExec, err)
-					break
-				} else if sqlf.AfterEF != nil {
-					if err := sqlf.AfterEF(res); err != nil {
-						errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
-						break
-					}
-				}
-			} else if sqlf.Ty == Queryf {
-				if res, err := tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrQuery, err)
-					break
-				} else {
-					if sqlf.AfterQF != nil {
-						if err := sqlf.AfterQF(res); err != nil {
-							res.Close()
-							errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
-							break
-						}
-					}
-					res.Close()
-				}
-			} else {
-				errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil)
+	for _, sqlf := range t.sqlFuncs {
+		if sqlf.BeforeF != nil {
+			if err := sqlf.BeforeF(sqlf); err != nil {
+				errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
 				break
 			}
 		}
+
+		if sqlf.Sql == "" {
+			continue
+		}
+
+		if sqlf.Ctx == nil {
+			sqlf.Ctx = t.ctx
+		}
+
+		if sqlf.Ty == Execf {
+			if res, err := t.tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
+				errTx = NewErrTx(errTx, sqlf, ErrExec, err)
+				break
+			} else if sqlf.AfterEF != nil {
+				if err := sqlf.AfterEF(res); err != nil {
+					errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
+					break
+				}
+			}
+		} else if sqlf.Ty == Queryf {
+			if res, err := t.tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
+				errTx = NewErrTx(errTx, sqlf, ErrQuery, err)
+				break
+			} else {
+				if sqlf.AfterQF != nil {
+					if err := sqlf.AfterQF(res); err != nil {
+						res.Close()
+						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
+						break
+					}
+				}
+				res.Close()
+			}
+		} else {
+			errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil)
+			break
+		}
 	}
+
 	return
 }
 
 func (t *SqlTx) commitOrRollback(errTx error) error {
-	if errTx != nil {
-		if !HasErrTx(errTx, ErrBeginTx, ErrCommit, ErrRollback) {
-			if err := t.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-				errTx = NewErrTx(errTx, nil, ErrRollback, err)
+	if t.tx != nil {
+		if errTx != nil {
+			if !HasErrTx(errTx, ErrBeginTx, ErrCommit, ErrRollback) {
+				if err := t.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+					errTx = NewErrTx(errTx, nil, ErrRollback, err)
+				}
 			}
-		}
-	} else {
-		if err := t.tx.Commit(); err != nil {
-			errTx = NewErrTx(errTx, nil, ErrCommit, err)
+		} else {
+			if err := t.tx.Commit(); err != nil {
+				errTx = NewErrTx(errTx, nil, ErrCommit, err)
+			}
 		}
 	}
 	t.tx = nil
 	t.fin = true
+	if t.rw != nil {
+		if t.hadW {
+			t.rw.Unlock()
+		} else {
+			t.rw.RUnlock()
+		}
+		t.hadW = false
+	}
 	if t.finFunc != nil {
 		t.finFunc()
 	}

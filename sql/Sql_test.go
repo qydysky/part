@@ -23,6 +23,37 @@ func TestMain6(t *testing.T) {
 	}
 }
 
+func TestMain7(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("./a")
+	defer db.Close()
+
+	ctx := context.Background()
+	dbConnW, _ := db.Conn(ctx)
+	defer dbConnW.Close()
+
+	if e := BeginTx(dbConnW, ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	var m sync.RWMutex
+	var wg sync.WaitGroup
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func() {
+			defer wg.Done()
+			if e := BeginTx(dbConnW, ctx).RMutex(&m).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
+				t.Fatal(e)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func TestMain5(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", ":memory:")

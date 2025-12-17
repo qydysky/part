@@ -3,6 +3,7 @@ package part
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 type BeforeF func(sqlf *SqlFunc) error
@@ -39,4 +40,13 @@ func (t *SqlFunc) Copy(dest *SqlFunc) *SqlFunc {
 	dest.AfterEF = t.AfterEF
 	dest.AfterQF = t.AfterQF
 	return dest
+}
+
+func (t *SqlFunc) autoType() {
+	if t.Ty == null {
+		t.Ty = Execf
+		if uquery := strings.ToUpper(strings.TrimSpace(t.Sql)); strings.HasPrefix(uquery, "SELECT") {
+			t.Ty = Queryf
+		}
+	}
 }
