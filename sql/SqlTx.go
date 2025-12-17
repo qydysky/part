@@ -123,6 +123,7 @@ var queryPool = pool.NewPoolBlocks[paraSort]()
 func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *SqlTx {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	sqlf = sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
+	defer sqlf.autoType()
 
 	if queryPtr == nil {
 		return t
@@ -167,7 +168,6 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
 		sqlf.Args = append(sqlf.Args, v.val)
 	}
-	sqlf.autoType()
 	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }
