@@ -37,7 +37,7 @@ func Test_4(t *testing.T) {
 	n := New(&Log{
 		DBInsert: "insert into log (base, msgs) values ({Base},{Msgs})",
 		DBHolder: psql.PlaceHolderA,
-		DBConn:   db,
+		DBPool:   psql.NewTxPool(db),
 	})
 
 	n.Base("123").TF("%v", 123)
@@ -94,7 +94,7 @@ func Test_2(t *testing.T) {
 	})
 
 	ndb := n.BaseAdd(`>1`)
-	ndb = ndb.LDB(db, psql.PlaceHolderA, `insert into log (p,base,msg) values ({Prefix},{Base},{Msgs})`)
+	ndb = ndb.LDB(psql.NewTxPool(db), psql.PlaceHolderA, `insert into log (p,base,msg) values ({Prefix},{Base},{Msgs})`)
 	ndb.L(T, `s`)
 	n.L(T, `p`)
 

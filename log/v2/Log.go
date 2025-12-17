@@ -2,7 +2,6 @@ package part
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"log"
@@ -32,8 +31,7 @@ type Log struct {
 	// }
 	DBInsert string
 	DBHolder psql.ReplaceF
-	DBConn   *sql.DB
-	dbPool   *psql.TxPool
+	DBPool   *psql.TxPool
 	dbInsert *psql.SqlFunc
 
 	NoStdout bool
@@ -91,8 +89,7 @@ func New(c *Log) (o *Log) {
 	if c.File != `` {
 		f.New(c.File, 0, true).Create()
 	}
-	if o.DBConn != nil && o.DBInsert != `` && o.DBHolder != nil {
-		o.dbPool = psql.NewTxPool(o.DBConn)
+	if o.DBPool != nil && o.DBInsert != `` && o.DBHolder != nil {
 		o.dbInsert = &psql.SqlFunc{Sql: o.DBInsert}
 	}
 	if o.PrefixS == nil {
@@ -108,8 +105,7 @@ func Copy(i *Log) (o *Log) {
 		File:     i.File,
 		DBInsert: i.DBInsert,
 		DBHolder: i.DBHolder,
-		DBConn:   i.DBConn,
-		dbPool:   i.dbPool,
+		DBPool:   i.DBPool,
 		dbInsert: i.dbInsert,
 		NoStdout: i.NoStdout,
 		PrefixS:  maps.Clone(i.PrefixS),
@@ -152,19 +148,19 @@ func (I *Log) LShow(show bool) (O *Log) {
 }
 
 // Open 日志输出至DB
-func (I *Log) LDB(db *sql.DB, dBHolder psql.ReplaceF, insert string) (O *Log) {
+func (I *Log) LDB(dbPool *psql.TxPool, dBHolder psql.ReplaceF, insert string) (O *Log) {
 	if I.startLog.Load() {
 		O = Copy(I)
 	} else {
 		O = I
 	}
-	if db != nil && insert != `` && dBHolder != nil {
+	if dbPool != nil && insert != `` && dBHolder != nil {
 		O.DBInsert = insert
 		O.DBHolder = dBHolder
-		O.dbPool = psql.NewTxPool(db)
+		O.DBPool = dbPool
 		O.dbInsert = &psql.SqlFunc{Sql: insert}
 	} else {
-		O.dbPool = nil
+		O.DBPool = nil
 	}
 	return
 }
@@ -183,12 +179,6 @@ func (I *Log) LFile(fileP string) (O *Log) {
 	}
 	O.reloadLogger()
 	return
-}
-
-func (I *Log) Close() {
-	if I.DBConn != nil {
-		(*I.DBConn).Close()
-	}
 }
 
 // 日志等级
@@ -249,8 +239,8 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 		}
 		O.logger.Printf(string(*format), *val...)
 
-		if O.dbPool != nil {
-			if err := O.dbPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
+		if O.DBPool != nil {
+			if err := O.DBPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
 				Date:   time.Now().Format(time.DateTime),
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
