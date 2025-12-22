@@ -39,12 +39,47 @@ func TestMain6(t *testing.T) {
 	}
 }
 
+func TestMain9(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	defer os.Remove("./a")
+	defer db.Close()
+
+	ctx := context.Background()
+
+	dbpool := NewTxPool(db)
+
+	if e := dbpool.BeginTx(ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	n := 1000
+	now := time.Now()
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			if e := dbpool.BeginTx(ctx).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
+				t.Fatal(e)
+			}
+		}()
+	}
+	wg.Wait()
+	t.Log(time.Since(now).Milliseconds() / int64(n))
+}
+
 func TestMain7(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", "./a")
 	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxOpenConns(1)
 	defer os.Remove("./a")
 	defer db.Close()
 
@@ -56,18 +91,20 @@ func TestMain7(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	var m sync.RWMutex
+	n := 1000
+	now := time.Now()
 	var wg sync.WaitGroup
-	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	wg.Add(n)
+	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			if e := BeginTx(dbConnW, ctx).RMutex(&m).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
+			if e := BeginTx(dbConnW, ctx).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
 				t.Fatal(e)
 			}
 		}()
 	}
 	wg.Wait()
+	t.Log(time.Since(now).Milliseconds() / int64(n))
 }
 
 func TestMain5(t *testing.T) {
@@ -532,7 +569,7 @@ func Test10(t *testing.T) {
 	txs := NewSqlTxs()
 
 	BeginTx(db, context.Background()).AddToTxs(txs).SimpleDo("insert into log123 values ('2')")
-	BeginTx(db, context.Background(), &sql.TxOptions{sql.LevelReadUncommitted, true}).AddToTxs(txs).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
+	BeginTx(db, context.Background(), &sql.TxOptions{Isolation: sql.LevelReadUncommitted, ReadOnly: true}).AddToTxs(txs).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
 		t.Log(DealRow[struct {
 			C int64
 		}](rows).Raw.C)

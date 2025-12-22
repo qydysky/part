@@ -25,13 +25,6 @@ type CanTx interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
-type RWMutex interface {
-	RLock()
-	RUnlock()
-	Lock()
-	Unlock()
-}
-
 type SqlTx struct {
 	canTx    CanTx
 	ctx      context.Context
@@ -40,8 +33,6 @@ type SqlTx struct {
 	sqlFuncs []*SqlFunc
 	fin      bool
 	finFunc  func()
-	rw       RWMutex
-	hadW     bool
 }
 
 func BeginTx(canTx CanTx, ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
@@ -61,7 +52,6 @@ func (t *SqlTx) SimpleDo(sql string, args ...any) *SqlTx {
 	dsqlf.Sql = strings.TrimSpace(sql)
 	dsqlf.Args = args
 	dsqlf.autoType()
-	t.hadW = t.hadW || dsqlf.Ty == Execf
 	return t
 }
 
@@ -69,7 +59,6 @@ func (t *SqlTx) Do(sqlf *SqlFunc) *SqlTx {
 	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	sqlf.autoType()
 	sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
-	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }
 
@@ -168,7 +157,6 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
 		sqlf.Args = append(sqlf.Args, v.val)
 	}
-	t.hadW = t.hadW || sqlf.Ty == Execf
 	return t
 }
 
@@ -193,11 +181,6 @@ func (t *SqlTx) AfterQF(f AfterQF) *SqlTx {
 	return t
 }
 
-func (t *SqlTx) RMutex(m RWMutex) *SqlTx {
-	t.rw = m
-	return t
-}
-
 func (t *SqlTx) FinF(f func()) *SqlTx {
 	t.finFunc = f
 	return t
@@ -216,14 +199,6 @@ func (t *SqlTx) AddToTxs(txs *SqlTxs) *SqlTx {
 func (t *SqlTx) do() (errTx error) {
 	if t.fin {
 		panic(ErrHadFin)
-	}
-
-	if t.rw != nil {
-		if t.hadW {
-			t.rw.Lock()
-		} else {
-			t.rw.RLock()
-		}
 	}
 
 	if tx, err := t.canTx.BeginTx(t.ctx, t.opts); err != nil {
@@ -298,14 +273,6 @@ func (t *SqlTx) commitOrRollback(errTx error) error {
 	}
 	t.tx = nil
 	t.fin = true
-	if t.rw != nil {
-		if t.hadW {
-			t.rw.Unlock()
-		} else {
-			t.rw.RUnlock()
-		}
-		t.hadW = false
-	}
 	if t.finFunc != nil {
 		t.finFunc()
 	}

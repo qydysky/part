@@ -84,10 +84,14 @@ const (
 )
 
 // New 初始化
-func New(c *Log) (o *Log) {
-	o = c
-	if c.File != `` {
-		f.New(c.File, 0, true).Create()
+func New(c ...*Log) (o *Log) {
+	if len(c) > 0 {
+		o = c[0]
+	} else {
+		o = &Log{}
+	}
+	if o.File != `` {
+		f.New(o.File, 0, true).Create()
 	}
 	if o.DBPool != nil && o.DBInsert != `` && o.DBHolder != nil {
 		o.dbInsert = &psql.SqlFunc{Sql: o.DBInsert}

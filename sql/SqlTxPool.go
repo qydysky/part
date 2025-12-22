@@ -10,16 +10,10 @@ import (
 type TxPool struct {
 	p  pool.PoolBlockI[SqlTx]
 	db *sql.DB
-	rw RWMutex
 }
 
 func NewTxPool(db *sql.DB) *TxPool {
-	return &TxPool{pool.NewPoolBlock[SqlTx](), db, nil}
-}
-
-func (t *TxPool) RMutex(m RWMutex) *TxPool {
-	t.rw = m
-	return t
+	return &TxPool{pool.NewPoolBlock[SqlTx](), db}
 }
 
 func (t *TxPool) BeginTx(ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
@@ -30,8 +24,6 @@ func (t *TxPool) BeginTx(ctx context.Context, opts ...*sql.TxOptions) *SqlTx {
 	tx.opts = nil
 	tx.sqlFuncs = tx.sqlFuncs[:0]
 	tx.fin = false
-	tx.hadW = false
-	tx.rw = t.rw
 	tx.finFunc = func() {
 		t.p.Put(tx)
 	}
