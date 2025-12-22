@@ -84,10 +84,8 @@ func TestMain7(t *testing.T) {
 	defer db.Close()
 
 	ctx := context.Background()
-	dbConnW, _ := db.Conn(ctx)
-	defer dbConnW.Close()
 
-	if e := BeginTx(dbConnW, ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
+	if e := BeginTx(db, ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
 		t.Fatal(e)
 	}
 
@@ -98,7 +96,7 @@ func TestMain7(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			if e := BeginTx(dbConnW, ctx).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
+			if e := BeginTx(db, ctx).SimpleDo("insert into log (msg) values ('1')").Run(); e != nil {
 				t.Fatal(e)
 			}
 		}()
