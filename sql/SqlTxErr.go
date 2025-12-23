@@ -2,7 +2,10 @@ package part
 
 import (
 	"errors"
+	"fmt"
+	"go/build"
 	"iter"
+	"runtime"
 	"strings"
 )
 
@@ -22,23 +25,24 @@ var (
 )
 
 type ErrTx struct {
-	Raw    *SqlFunc
-	prePtr any
-	Typ    error
-	Err    error
+	Raw      *SqlFunc
+	prePtr   any
+	callTree string
+	Typ      error
+	Err      error
 }
 
 var _ error = &ErrTx{}
 
 // Typ must not nil
-func NewErrTx(preErrTx error, Raw *SqlFunc, Typ, Err error) (n *ErrTx) {
+func NewErrTx(preErrTx error, Typ, Err error) (n *ErrTx) {
 	if Typ == nil {
 		panic(ErrTypNil)
 	} else {
 		n = &ErrTx{
-			Raw: Raw,
-			Typ: Typ,
-			Err: Err,
+			Typ:      Typ,
+			callTree: *getCall(1),
+			Err:      Err,
 		}
 		if preErrTx != nil {
 			if pre, ok := preErrTx.(*ErrTx); ok && pre != nil {
@@ -85,6 +89,10 @@ func HasErrTx(err any, errs ...error) bool {
 		return false
 	}
 }
+func (t *ErrTx) WithRaw(raw *SqlFunc) *ErrTx {
+	t.Raw = raw
+	return t
+}
 func (t *ErrTx) ForwardRange() iter.Seq[*ErrTx] {
 	return func(yield func(*ErrTx) bool) {
 		for tmp := t; tmp != nil; tmp, _ = tmp.prePtr.(*ErrTx) {
@@ -116,5 +124,23 @@ func (t *ErrTx) Error() (s string) {
 	if t.Err != nil {
 		buf.WriteString(" > " + t.Err.Error())
 	}
+	if t.callTree != "" {
+		buf.WriteString(t.callTree + "\n")
+	}
 	return buf.String()
+}
+
+func getCall(i int) (calls *string) {
+	var cs string
+	for i += 1; true; i++ {
+		if pc, file, line, ok := runtime.Caller(i); !ok || strings.HasPrefix(file, build.Default.GOROOT) {
+			break
+		} else {
+			cs += fmt.Sprintf("\ncall by %s\n\t%s:%d", runtime.FuncForPC(pc).Name(), file, line)
+		}
+	}
+	if cs == "" {
+		cs += fmt.Sprintln("\ncall by goroutine")
+	}
+	return &cs
 }

@@ -566,13 +566,13 @@ func Test10(t *testing.T) {
 
 	txs := NewSqlTxs()
 
-	BeginTx(db, context.Background()).AddToTxs(txs).SimpleDo("insert into log123 values ('2')")
-	BeginTx(db, context.Background(), &sql.TxOptions{Isolation: sql.LevelReadUncommitted, ReadOnly: true}).AddToTxs(txs).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
+	BeginTx(db, context.Background()).SimpleDo("insert into log123 values ('2')").AddToTxs(txs)
+	BeginTx(db, context.Background(), &sql.TxOptions{Isolation: sql.LevelReadUncommitted, ReadOnly: true}).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
 		t.Log(DealRow[struct {
 			C int64
 		}](rows).Raw.C)
 		return nil
-	})
+	}).AddToTxs(txs)
 
 	t.Log(txs.Run())
 }
@@ -677,8 +677,8 @@ func Test5(t *testing.T) {
 }
 
 func Test8(t *testing.T) {
-	txe := NewErrTx(nil, nil, ErrBeforeF, errors.New("1"))
-	txe = NewErrTx(txe, nil, ErrAfterQuery, errors.New("2"))
+	txe := NewErrTx(nil, ErrBeforeF, errors.New("1"))
+	txe = NewErrTx(txe, ErrAfterQuery, errors.New("2"))
 	if !errors.Is(txe, ErrBeforeF) {
 		t.Fatal()
 	}
@@ -726,7 +726,9 @@ func Test6(t *testing.T) {
 				return
 			}).Run(); err != nil {
 			if !errors.Is(err, ErrQuery) {
-				t.Fatal()
+				t.Fatal(err)
+			} else {
+				t.Log(err)
 			}
 		}
 	}
