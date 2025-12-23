@@ -39,6 +39,33 @@ func TestMain6(t *testing.T) {
 	}
 }
 
+func TestMain10(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	defer os.Remove("./a")
+	defer db.Close()
+
+	ctx := context.Background()
+
+	dbpool := NewTxPool(db)
+
+	if e := dbpool.BeginTx(ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	tx1 := dbpool.BeginTx(ctx).SimpleDo("insert into log (msg) values ('1')")
+	tx2 := dbpool.BeginTx(ctx).SimpleDo("insert into log (msg) values ('1')")
+
+	e1 := tx1.do()
+	e2 := tx2.do()
+	t.Log(tx1.commitOrRollback(e1))
+	t.Log(tx2.commitOrRollback(e2))
+}
+
 func TestMain9(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", "./a")
@@ -677,8 +704,8 @@ func Test5(t *testing.T) {
 }
 
 func Test8(t *testing.T) {
-	txe := NewErrTx(nil, nil, ErrBeforeF, errors.New("1"))
-	txe = NewErrTx(txe, nil, ErrAfterQuery, errors.New("2"))
+	txe := NewErrTx(nil, ErrBeforeF, errors.New("1"))
+	txe = NewErrTx(txe, ErrAfterQuery, errors.New("2"))
 	if !errors.Is(txe, ErrBeforeF) {
 		t.Fatal()
 	}

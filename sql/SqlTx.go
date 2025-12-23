@@ -110,7 +110,7 @@ type paraSort struct {
 var queryPool = pool.NewPoolBlocks[paraSort]()
 
 func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *SqlTx {
-	sqlf.Sql = strings.TrimSpace(sqlf.Sql)
+	// sqlf.Sql = strings.TrimSpace(sqlf.Sql)
 	sqlf = sqlf.Copy(ps.AppendPtr(&t.sqlFuncs).Clear())
 	defer sqlf.autoType()
 
@@ -202,7 +202,7 @@ func (t *SqlTx) do() (errTx error) {
 	}
 
 	if tx, err := t.canTx.BeginTx(t.ctx, t.opts); err != nil {
-		errTx = NewErrTx(errTx, nil, ErrBeginTx, err)
+		errTx = NewErrTx(errTx, ErrBeginTx, err)
 		return
 	} else {
 		t.tx = tx
@@ -211,7 +211,7 @@ func (t *SqlTx) do() (errTx error) {
 	for _, sqlf := range t.sqlFuncs {
 		if sqlf.BeforeF != nil {
 			if err := sqlf.BeforeF(sqlf); err != nil {
-				errTx = NewErrTx(errTx, sqlf, ErrBeforeF, err)
+				errTx = NewErrTx(errTx, ErrBeforeF, err).WithRaw(sqlf)
 				break
 			}
 		}
@@ -226,30 +226,30 @@ func (t *SqlTx) do() (errTx error) {
 
 		if sqlf.Ty == Execf {
 			if res, err := t.tx.ExecContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-				errTx = NewErrTx(errTx, sqlf, ErrExec, err)
+				errTx = NewErrTx(errTx, ErrExec, err).WithRaw(sqlf)
 				break
 			} else if sqlf.AfterEF != nil {
 				if err := sqlf.AfterEF(res); err != nil {
-					errTx = NewErrTx(errTx, sqlf, ErrAfterExec, err)
+					errTx = NewErrTx(errTx, ErrAfterExec, err).WithRaw(sqlf)
 					break
 				}
 			}
 		} else if sqlf.Ty == Queryf {
 			if res, err := t.tx.QueryContext(sqlf.Ctx, sqlf.Sql, sqlf.Args...); err != nil {
-				errTx = NewErrTx(errTx, sqlf, ErrQuery, err)
+				errTx = NewErrTx(errTx, ErrQuery, err).WithRaw(sqlf)
 				break
 			} else {
 				if sqlf.AfterQF != nil {
 					if err := sqlf.AfterQF(res); err != nil {
 						res.Close()
-						errTx = NewErrTx(errTx, sqlf, ErrAfterQuery, err)
+						errTx = NewErrTx(errTx, ErrAfterQuery, err).WithRaw(sqlf)
 						break
 					}
 				}
 				res.Close()
 			}
 		} else {
-			errTx = NewErrTx(errTx, sqlf, ErrUndefinedTy, nil)
+			errTx = NewErrTx(errTx, ErrUndefinedTy, nil).WithRaw(sqlf)
 			break
 		}
 	}
@@ -262,12 +262,12 @@ func (t *SqlTx) commitOrRollback(errTx error) error {
 		if errTx != nil {
 			if !HasErrTx(errTx, ErrBeginTx, ErrCommit, ErrRollback) {
 				if err := t.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-					errTx = NewErrTx(errTx, nil, ErrRollback, err)
+					errTx = NewErrTx(errTx, ErrRollback, err)
 				}
 			}
 		} else {
 			if err := t.tx.Commit(); err != nil {
-				errTx = NewErrTx(errTx, nil, ErrCommit, err)
+				errTx = NewErrTx(errTx, ErrCommit, err)
 			}
 		}
 	}

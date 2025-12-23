@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,40 @@ import (
 	pf "github.com/qydysky/part/file"
 	psql "github.com/qydysky/part/sql"
 )
+
+func Test_5(t *testing.T) {
+	db, err := sql.Open("sqlite", "./a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove("./a")
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+
+	_ = psql.BeginTx(db, context.Background()).SimpleDo("create table log (base text, msgs test)").Run()
+
+	l := New().Base("123").LDB(psql.NewTxPool(db), psql.PlaceHolderA, "insert into log (base, msgs) values ({Base},{Msgs})").LShow(false)
+
+	n := 100
+	var rw sync.WaitGroup
+	rw.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer rw.Done()
+			l.TF("%v", 123)
+		}()
+	}
+	rw.Wait()
+
+	psql.BeginTx(db, context.Background()).SimpleDo("select count(1) c from log").AfterQF(func(rows *sql.Rows) error {
+		if c := psql.DealRowMap(rows).Raw["c"].(int64); c != int64(n) {
+			t.Fatal()
+		} else {
+			t.Log(c)
+		}
+		return nil
+	}).Run()
+}
 
 func Test_4(t *testing.T) {
 	db, err := sql.Open("sqlite", "./a")
