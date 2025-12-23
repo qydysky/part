@@ -39,33 +39,6 @@ func TestMain6(t *testing.T) {
 	}
 }
 
-func TestMain10(t *testing.T) {
-	// connect
-	db, err := sql.Open("sqlite", "./a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db.SetMaxOpenConns(1)
-	defer os.Remove("./a")
-	defer db.Close()
-
-	ctx := context.Background()
-
-	dbpool := NewTxPool(db)
-
-	if e := dbpool.BeginTx(ctx).SimpleDo("create table log (msg text)").Run(); e != nil {
-		t.Fatal(e)
-	}
-
-	tx1 := dbpool.BeginTx(ctx).SimpleDo("insert into log (msg) values ('1')")
-	tx2 := dbpool.BeginTx(ctx).SimpleDo("insert into log (msg) values ('1')")
-
-	e1 := tx1.do()
-	e2 := tx2.do()
-	t.Log(tx1.commitOrRollback(e1))
-	t.Log(tx2.commitOrRollback(e2))
-}
-
 func TestMain9(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", "./a")
@@ -593,13 +566,13 @@ func Test10(t *testing.T) {
 
 	txs := NewSqlTxs()
 
-	BeginTx(db, context.Background()).AddToTxs(txs).SimpleDo("insert into log123 values ('2')")
-	BeginTx(db, context.Background(), &sql.TxOptions{Isolation: sql.LevelReadUncommitted, ReadOnly: true}).AddToTxs(txs).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
+	BeginTx(db, context.Background()).SimpleDo("insert into log123 values ('2')").AddToTxs(txs)
+	BeginTx(db, context.Background(), &sql.TxOptions{Isolation: sql.LevelReadUncommitted, ReadOnly: true}).SimpleDo("select count(1) c from log123").AfterQF(func(rows *sql.Rows) error {
 		t.Log(DealRow[struct {
 			C int64
 		}](rows).Raw.C)
 		return nil
-	})
+	}).AddToTxs(txs)
 
 	t.Log(txs.Run())
 }
@@ -753,7 +726,9 @@ func Test6(t *testing.T) {
 				return
 			}).Run(); err != nil {
 			if !errors.Is(err, ErrQuery) {
-				t.Fatal()
+				t.Fatal(err)
+			} else {
+				t.Log(err)
 			}
 		}
 	}

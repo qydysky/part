@@ -190,9 +190,8 @@ func (t *SqlTx) Run() (errTx error) {
 	return t.commitOrRollback(t.do())
 }
 
-func (t *SqlTx) AddToTxs(txs *SqlTxs) *SqlTx {
+func (t *SqlTx) AddToTxs(txs *SqlTxs) {
 	txs.AddTx(t)
-	return t
 }
 
 // must call commitOrRollback
