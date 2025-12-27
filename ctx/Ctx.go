@@ -23,17 +23,20 @@ type Ctx struct {
 	actualC *atomic.Int32
 }
 
-// planNum 可以为0 表示无法预知的调用次数，如果在mainDone调用前没有Wait、WithWait时，mainDone将返回ErrNothingWait
+// planNum 可以为0 表示无法预知的调用次数，如果在mainDone调用前没有WaitCtx、WithWait时，mainDone将返回ErrNothingWait
 //
-//		mainCtx, mainDone := WithWait(ctx, 0, time.Second)
-//		defer mainDone()// done all child ctx then wait child done() called or after one second
+// done(wait) 是特别的方法，除了常规结束maxctx功能，还会等待所有WaitCtx、WithWait结束。
+// 当wait为true时，done总是等待结束。当wait为false或者未传入时，done仅在第一次调用时等待，再次调用返回ErrDoneCalled
 //
-//		go func(){
-//			ctx1, done1 := WaitCtx(mainCtx)
-//			defer done1()
-//			do something..
-//	 		<-ctx1.Done() // wait mainDone call
-//		}()
+//	mainCtx, mainDone := WithWait(ctx, 0, time.Second)
+//	defer mainDone()// done all child ctx then wait child done() called or after one second
+//
+//	go func(){
+//		ctx1, done1 := WaitCtx(mainCtx)
+//		defer done1()
+//		do something..
+//		<-ctx1.Done() // wait mainDone call
+//	}()
 func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx context.Context, done func(wait ...bool) error) {
 	if ctxp, ok := sctx.Value(ptr).(*Ctx); ok {
 		ctxp.actualC.Add(1)
@@ -67,14 +70,12 @@ func WithWait(sctx context.Context, planNum int32, to ...time.Duration) (dctx co
 				return ErrWaitTo
 			}
 			time.Sleep(time.Millisecond * sleepDru)
-			// runtime.Gosched()
 		}
 		for ctx.actualC.Load() > 0 {
 			if len(to) > 0 && time.Since(be) > to[0] {
 				return ErrWaitTo
 			}
 			time.Sleep(time.Millisecond * sleepDru)
-			// runtime.Gosched()
 		}
 		if len(to) > 0 && time.Since(be) > to[0] {
 			return ErrWaitTo
