@@ -431,7 +431,7 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 	}
 
 	if val.Method == "" {
-		if len(val.PostStr) > 0 {
+		if len(val.PostStr) > 0 || len(val.PostByt) > 0 || val.PostReader != nil || val.RawPipe != nil {
 			val.Method = "POST"
 		} else if val.JustResponseCode {
 			val.Method = "OPTIONS"
