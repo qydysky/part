@@ -17,6 +17,40 @@ import (
 	reqf "github.com/qydysky/part/reqf"
 )
 
+var _ http.ResponseWriter = &customResponseWriter{}
+
+type customResponseWriter struct {
+	statusCode int
+	header     http.Header
+	buf        bytes.Buffer
+}
+
+func (t *customResponseWriter) Write(p []byte) (int, error) {
+	return t.buf.Write(p)
+}
+
+func (t *customResponseWriter) WriteHeader(statusCode int) {
+	t.statusCode = statusCode
+}
+
+func (t *customResponseWriter) Header() http.Header {
+	if t.header == nil {
+		t.header = make(http.Header)
+	}
+	return t.header
+}
+
+func Test2(t *testing.T) {
+	var buf = customResponseWriter{}
+	ok := MethodFiliter(&buf, &http.Request{Method: http.MethodOptions}, http.MethodOptions, http.MethodGet)
+	if !ok {
+		t.Fatal()
+	}
+	if buf.header.Get("Allow") != "OPTIONS, GET" {
+		t.Fatal()
+	}
+}
+
 func TestMain(t *testing.T) {
 	ser := &http.Server{
 		Addr: "127.0.0.1:18081",

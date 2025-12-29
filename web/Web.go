@@ -788,6 +788,19 @@ func IsMethod(r *http.Request, method ...string) bool {
 	return false
 }
 
+func MethodFiliter(w http.ResponseWriter, r *http.Request, method ...string) (pass bool) {
+	for i := 0; i < len(method); i++ {
+		if r.Method == method[i] {
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Allow", strings.Join(method, ", "))
+			}
+			return true
+		}
+	}
+	w.WriteHeader(http.StatusMethodNotAllowed)
+	return false
+}
+
 // 当请求时间戳在modDur之内时，返回304，true
 func NotModifiedDur(r *http.Request, w http.ResponseWriter, modDur time.Duration) (notMod bool) {
 
