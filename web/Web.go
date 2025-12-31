@@ -1,9 +1,12 @@
 package part
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -14,6 +17,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	zstd "github.com/klauspost/compress/zstd"
+	br "github.com/qydysky/brotli"
 	pio "github.com/qydysky/part/io"
 	psync "github.com/qydysky/part/sync"
 	sys "github.com/qydysky/part/sys"
@@ -68,6 +73,7 @@ func NewSyncMap(conf *http.Server, m *WebPath, matchFunc ...func(path string) (f
 	}
 }
 
+// matchFunc: WebPath.Load WebPath.LoadOnePerfix WebPath.LoadPerfix
 func NewSyncMapNoPanic(conf *http.Server, m *WebPath, matchFunc ...func(path string) (func(w http.ResponseWriter, r *http.Request), bool)) (o *WebSync, err error) {
 
 	o = new(WebSync)
@@ -90,16 +96,16 @@ func NewSyncMapNoPanic(conf *http.Server, m *WebPath, matchFunc ...func(path str
 		ln = tls.NewListener(ln, conf.TLSConfig)
 	}
 
-	go func() {
-		_ = o.Server.Serve(ln)
-	}()
-
 	if o.Server.Handler == nil {
 		// o.mux = http.NewServeMux()
 		// o.Server.Handler = o.mux
 
 		o.Server.Handler = NewHandler(matchFunc[0])
 	}
+
+	go func() {
+		_ = o.Server.Serve(ln)
+	}()
 
 	// o.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 	// 	f, ok := matchFunc[0](r.URL.Path)
@@ -863,4 +869,58 @@ func Easy_boot() *Web {
 		},
 	})
 	return s
+}
+
+func WithEncoding(w http.ResponseWriter, r *http.Request) (wf io.Writer, close func() error) {
+	if wf, close = WithZstd(w, r); wf != w {
+		return
+	} else if wf, close = WithBr(w, r); wf != w {
+		return
+	} else if wf, close = WithGzip(w, r); wf != w {
+		return
+	} else if wf, close = WithDeflate(w, r); wf != w {
+		return
+	} else {
+		return w, func() error { return nil }
+	}
+}
+
+func WithGzip(w http.ResponseWriter, r *http.Request) (wf io.Writer, close func() error) {
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gzipw := gzip.NewWriter(w)
+		return gzipw, gzipw.Close
+	} else {
+		return w, func() error { return nil }
+	}
+}
+
+func WithBr(w http.ResponseWriter, r *http.Request) (wf io.Writer, close func() error) {
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "br") {
+		w.Header().Set("Content-Encoding", "br")
+		brw := br.NewWriter(w)
+		return brw, brw.Close
+	} else {
+		return w, func() error { return nil }
+	}
+}
+
+func WithDeflate(w http.ResponseWriter, r *http.Request) (wf io.Writer, close func() error) {
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "deflate") {
+		if fw, e := flate.NewWriter(w, 1); e == nil {
+			w.Header().Set("Content-Encoding", "deflate")
+			return fw, fw.Close
+		}
+	}
+	return w, func() error { return nil }
+}
+
+func WithZstd(w http.ResponseWriter, r *http.Request) (wf io.Writer, close func() error) {
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "zstd") {
+		if fw, e := zstd.NewWriter(w); e == nil {
+			w.Header().Set("Content-Encoding", "zstd")
+			return fw, fw.Close
+		}
+	}
+	return w, func() error { return nil }
 }
