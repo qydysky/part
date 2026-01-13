@@ -22,11 +22,11 @@ type Client struct {
 	// rec send close
 	msg *msgq.MsgType[*WsMsg]
 
-	RTOMs   int               // default: 300s
-	WTOMs   int               // default: 300s
-	BufSize int               // msg buf 1: always use single buf >1: use bufs cycle. default:10
-	Header  map[string]string // default: map[string]string{}
-	Proxy   string
+	RTOMs int // default: 300s
+	WTOMs int // default: 300s
+	// BufSize int               // msg buf 1: always use single buf >1: use bufs cycle. default:10
+	Header map[string]string // default: map[string]string{}
+	Proxy  string
 
 	Ping  Ping // default: no ping
 	pingT int64
@@ -58,16 +58,16 @@ func New_client(config *Client) (*Client, error) {
 		WTOMs:             300 * 1000,
 		Func_normal_close: func() {},
 		Func_abort_close:  func() {},
-		BufSize:           10,
-		msg:               msgq.NewType[*WsMsg](),
+		// BufSize:           10,
+		msg: msgq.NewType[*WsMsg](),
 	}
 	tmp.Url = config.Url
 	if tmp.Url == "" {
 		return nil, errors.New(`url == ""`)
 	}
-	if v := config.BufSize; v >= 1 {
-		tmp.BufSize = v
-	}
+	// if v := config.BufSize; v >= 1 {
+	// 	tmp.BufSize = v
+	// }
 	if v := config.RTOMs; v != 0 {
 		tmp.RTOMs = v
 	}
@@ -169,7 +169,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		}()
 
 		buf := make([]byte, humanize.KByte)
-		var msgs = pool.NewFlexBlocks[byte](o.BufSize)
+		var msgsPool = pool.NewPoolBlocks[byte]()
 		var err error
 		for err == nil {
 			if e := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); e != nil {
@@ -178,41 +178,40 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 				err = e
 			} else if msg, e := pio.ReadAll(r, buf); e != nil {
 				err = e
-			} else if tmpbuf, putBack, e := msgs.Get(); e != nil {
-				err = e
 			} else {
-				tmpbuf = append(tmpbuf[:0], msg...)
-				switch msg_type {
-				case websocket.PingMessage:
-					o.msg.Push_tag(`send`, &WsMsg{
-						ty: websocket.PongMessage,
-						Msg: func(f func([]byte) error) error {
-							f(tmpbuf)
-							putBack(tmpbuf)
-							return nil
-						},
-					})
-				case websocket.PongMessage:
-					o.pingT = time.Now().UnixMilli()
-					time.AfterFunc(time.Duration(o.Ping.Period*int(time.Millisecond)), func() {
+				tmpbuf := msgsPool.Get()
+				{
+					*tmpbuf = append((*tmpbuf)[:0], msg...)
+					switch msg_type {
+					case websocket.PingMessage:
 						o.msg.Push_tag(`send`, &WsMsg{
-							ty: websocket.PingMessage,
+							ty: websocket.PongMessage,
 							Msg: func(f func([]byte) error) error {
-								f(o.Ping.Msg)
-								return nil
+								defer msgsPool.Put(tmpbuf)
+								return f(*tmpbuf)
 							},
 						})
-					})
-					o.Ping.had_pong = true
-				default:
-					o.msg.Push_tag(`recv`, &WsMsg{
-						ty: websocket.TextMessage,
-						Msg: func(f func([]byte) error) error {
-							f(tmpbuf)
-							putBack(tmpbuf)
-							return nil
-						},
-					})
+					case websocket.PongMessage:
+						msgsPool.Put(tmpbuf)
+						o.pingT = time.Now().UnixMilli()
+						time.AfterFunc(time.Duration(o.Ping.Period*int(time.Millisecond)), func() {
+							o.msg.Push_tag(`send`, &WsMsg{
+								ty: websocket.PingMessage,
+								Msg: func(f func([]byte) error) error {
+									return f(o.Ping.Msg)
+								},
+							})
+						})
+						o.Ping.had_pong = true
+					default:
+						o.msg.Push_tag(`recv`, &WsMsg{
+							ty: websocket.TextMessage,
+							Msg: func(f func([]byte) error) error {
+								defer msgsPool.Put(tmpbuf)
+								return f(*tmpbuf)
+							},
+						})
+					}
 				}
 			}
 			if e, ok := err.(*websocket.CloseError); ok {
