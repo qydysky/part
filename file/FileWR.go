@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"iter"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -853,7 +852,7 @@ func (t *File) DirFilesRange(dropFiliter ...func(os.FileInfo) bool) iter.Seq[*Fi
 }
 
 // filiter return true will not append to dirFiles
-func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []string, err error) {
+func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []*File, err error) {
 	if !t.IsDir() {
 		err = ErrNoDir
 		return
@@ -866,7 +865,7 @@ func (t *File) DirFiles(dropFiliter ...func(os.FileInfo) bool) (dirFiles []strin
 	} else {
 		for i := 0; i < len(fis); i++ {
 			if len(dropFiliter) == 0 || !dropFiliter[0](fis[i]) {
-				dirFiles = append(dirFiles, path.Clean(f.Name())+string(os.PathSeparator)+fis[i].Name())
+				dirFiles = append(dirFiles, t.Open(fis[i].Name()))
 			}
 		}
 	}

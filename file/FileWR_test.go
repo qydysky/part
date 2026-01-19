@@ -162,7 +162,7 @@ func TestDirFs(t *testing.T) {
 		if len(fs) != 1 {
 			t.Fatal()
 		}
-		if fs[0] != "testdata"+string(os.PathSeparator)+"1.txt" {
+		if fs[0].Name() != "testdata"+string(os.PathSeparator)+"1.txt" {
 			t.Fatal(fs[0])
 		}
 	}
