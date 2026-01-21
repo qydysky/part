@@ -16,6 +16,7 @@ import (
 	pool "github.com/qydysky/part/pool"
 	psql "github.com/qydysky/part/sql"
 	psys "github.com/qydysky/part/sys"
+	us "github.com/qydysky/part/unsafe"
 )
 
 type Log struct {
@@ -241,7 +242,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 		if prefix := O.PrefixS[prefix]; prefix != O.logger.Prefix() {
 			O.logger.SetPrefix(prefix)
 		}
-		O.logger.Printf(string(*format), *val...)
+		O.logger.Printf(us.B2S(*format), *val...)
 
 		if O.DBPool != nil {
 			if err := O.DBPool.BeginTx(context.Background()).DoPlaceHolder(O.dbInsert, &LogDb{
@@ -249,7 +250,7 @@ func (I *Log) LF(prefix Level, formatS string, i ...any) (O *Log) {
 				Unix:   time.Now().Unix(),
 				Prefix: strings.TrimSpace(O.PrefixS[prefix]),
 				Base:   strings.TrimSpace(fmt.Sprintln(O.BaseS...)),
-				Msgs:   strings.TrimSpace(fmt.Sprintf(string((*format)[len(O.BaseS)*3:]), (*val)[len(O.BaseS):]...)),
+				Msgs:   strings.TrimSpace(fmt.Sprintf(us.B2S((*format)[len(O.BaseS)*3:]), (*val)[len(O.BaseS):]...)),
 			}, O.DBHolder).Run(); err != nil {
 				log.Println(err)
 			}

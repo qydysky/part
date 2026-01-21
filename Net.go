@@ -19,6 +19,7 @@ import (
 	pe "github.com/qydysky/part/errors"
 	pfile "github.com/qydysky/part/file"
 	psync "github.com/qydysky/part/sync"
+	us "github.com/qydysky/part/unsafe"
 )
 
 var (
@@ -621,7 +622,7 @@ func (this *netl) GetLocalDns() error {
 			}
 		}
 
-		this.Dns.Server = string(ip)
+		this.Dns.Server = us.B2S(ip)
 		return nil
 	} else if pfile.New("/etc/resolv.conf", 0, true).IsExist() {
 		cmd := exec.Command("cat", "/etc/resolv.conf")
@@ -638,7 +639,7 @@ func (this *netl) GetLocalDns() error {
 				loc_ip = loc_ip + tmp
 			}
 		}
-		this.Dns.Server = string(ip)
+		this.Dns.Server = us.B2S(ip)
 		return nil
 	}
 	Logf().E("[err]Dns: system: ", runtime.GOOS)

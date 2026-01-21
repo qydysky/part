@@ -16,6 +16,7 @@ import (
 	pe "github.com/qydysky/part/errors"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
+	us "github.com/qydysky/part/unsafe"
 )
 
 var (
@@ -185,7 +186,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 			lock.Lock()
 			defer lock.Unlock()
 
-			switch data := string(d.Data); data {
+			switch data := us.B2S(d.Data); data {
 			case "pause":
 				paused = true
 			case "play":
@@ -260,7 +261,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 					}
 
 					tIndex := bytes.Index(data, []byte{','})
-					d, _ := strconv.ParseFloat(string(data[:tIndex]), 64)
+					d, _ := strconv.ParseFloat(us.B2S(data[:tIndex]), 64)
 					// 处理start
 					if d < cuRec.start.Seconds() {
 						// 时刻位于start之前，清空数据

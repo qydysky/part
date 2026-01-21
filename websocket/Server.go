@@ -10,6 +10,7 @@ import (
 	idpool "github.com/qydysky/part/idpool"
 	mq "github.com/qydysky/part/msgq"
 	psync "github.com/qydysky/part/sync"
+	us "github.com/qydysky/part/unsafe"
 )
 
 type Server struct {
@@ -99,7 +100,7 @@ func (t *Server) WS(w http.ResponseWriter, r *http.Request) (o <-chan uintptr) {
 			},
 			`close`: func(u Uinterface) bool {
 				if u.Id == 0 || u.Id == User.Id {
-					msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, string(u.Data))
+					msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, us.B2S(u.Data))
 					TO := time.Now().Add(time.Second * time.Duration(5))
 
 					if err := ws.WriteControl(websocket.CloseMessage, msg, TO); err != nil && !errors.Is(err, websocket.ErrCloseSent) {

@@ -15,6 +15,7 @@ import (
 	msgq "github.com/qydysky/part/msgq"
 	pool "github.com/qydysky/part/pool"
 	psync "github.com/qydysky/part/sync"
+	us "github.com/qydysky/part/unsafe"
 )
 
 type Client struct {
@@ -153,7 +154,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 					return nil, err
 				}
 				response.Body.Close()
-				e += ` ` + string(body)
+				e += ` ` + us.B2S(body)
 			}
 		}
 		return nil, errors.New(e)

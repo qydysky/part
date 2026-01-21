@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	signal "github.com/qydysky/part/signal"
+	us "github.com/qydysky/part/unsafe"
 )
 
 var EOF = "\n"
@@ -28,9 +29,9 @@ func PCheck(pros []string) []int {
 	}
 
 	for j, i := range _pros {
-		cmd := exec.Command("pgrep", "-c", string(i))
+		cmd := exec.Command("pgrep", "-c", us.B2S(i))
 		output, _ := cmd.Output()
-		outputt := strings.Replace(string(output), "\n", "", -1)
+		outputt := strings.Replace(us.B2S(output), "\n", "", -1)
 		res[j], _ = strconv.Atoi(outputt)
 	}
 	return res
