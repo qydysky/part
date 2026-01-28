@@ -2,10 +2,51 @@ package part
 
 import (
 	"bytes"
+	"io"
 	"slices"
+	"strings"
 	"testing"
 	"unsafe"
 )
+
+func Test6(t *testing.T) {
+	var b = strings.NewReader("1234567890")
+	buf := New[byte]()
+	if err := AsioReaderBuf(buf, b); err != nil {
+		t.Fatal(err)
+	} else if string(buf.getPureBuf()) != "1234567890" {
+		t.Fatal()
+	}
+}
+
+func Benchmark4(b *testing.B) {
+	var data = strings.NewReader("1234567890")
+	buf := New[byte]()
+	for b.Loop() {
+		if err := AsioReaderBuf(buf, data); err != nil {
+			b.Fatal(err)
+		} else if string(buf.getPureBuf()) != "1234567890" {
+			b.Fatal()
+		} else {
+			buf.Reset()
+			data.Seek(0, io.SeekStart)
+		}
+	}
+}
+
+func Benchmark5(b *testing.B) {
+	var data = strings.NewReader("1234567890")
+	buf := make([]byte, 4000)
+	for b.Loop() {
+		if n, err := data.Read(buf); err != nil {
+			b.Fatal(err)
+		} else if string(buf[:n]) != "1234567890" {
+			b.Fatal()
+		} else {
+			data.Seek(0, io.SeekStart)
+		}
+	}
+}
 
 func TestDel(t *testing.T) {
 	var s = []int{1, 2, 3, 4, 4, 6, 4, 7}

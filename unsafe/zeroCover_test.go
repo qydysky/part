@@ -16,6 +16,26 @@ func Test2(t *testing.T) {
 	}
 }
 
+func Test3(t *testing.T) {
+	data := []byte("123")
+	s := B2S(data)
+	if s != "123" {
+		t.Fatal()
+	}
+	data[0] = '3'
+	if s != "323" {
+		t.Fatal()
+	}
+}
+
+func Test4(t *testing.T) {
+	data := []byte("123")
+	s := B2S(data)
+	b := S2B(s)
+	b[0] = '0'
+	data[0] = '1'
+}
+
 func Benchmark1(b *testing.B) {
 	data := "我1a?？"
 	var a []byte = []byte(data)
