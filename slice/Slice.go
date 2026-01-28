@@ -84,7 +84,7 @@ func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
 		if t.maxsize > 0 && t.maxsize < cap(t.buf)+4000-leftS {
 			return 0, ErrOverMax
 		}
-		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 4000-leftS-cap(t.buf))...)
+		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 4000-leftS)...)
 	}
 
 	if n, err := r.Read(t.buf[t.bufsize:]); err != nil {
