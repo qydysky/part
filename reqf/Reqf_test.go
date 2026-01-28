@@ -264,16 +264,14 @@ func Test15(t *testing.T) {
 		t.Log(e)
 	}
 
-	go func() {
-		buf := make([]byte, 1<<8)
-		for {
-			if n, e := i.Read(buf); n != 0 {
-				continue
-			} else if e != nil {
-				break
-			}
+	buf := make([]byte, 1<<8)
+	for {
+		if n, e := i.Read(buf); n != 0 {
+			continue
+		} else if e != nil {
+			break
 		}
-	}()
+	}
 
 	if !errors.Is(reuse.Wait(), ErrCopyRes) {
 		t.Fatal()
