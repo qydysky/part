@@ -86,14 +86,12 @@ func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
 		}
 		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 4000-leftS)...)
 	}
-
-	if n, err := r.Read(t.buf[t.bufsize:]); err != nil {
-		return n, err
-	} else {
+	n, err = r.Read(t.buf[t.bufsize:])
+	if n > 0 {
 		t.bufsize += n
 		t.modified.t += 1
-		return n, err
 	}
+	return
 }
 
 func (t *Buf[T]) ExpandCapTo(size int) {
