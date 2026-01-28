@@ -19,6 +19,14 @@ func Test6(t *testing.T) {
 	}
 }
 
+func Test7(t *testing.T) {
+	var b = strings.NewReader("1234567890")
+	buf := New[byte](9)
+	if _, err := AsioReaderBuf(buf, b); err != ErrOverMax {
+		t.Fatal(err)
+	}
+}
+
 func Benchmark4(b *testing.B) {
 	var data = strings.NewReader("1234567890")
 	buf := New[byte]()
