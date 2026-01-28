@@ -121,9 +121,9 @@ func (t *IOpipe) Close() (err error) {
 	if t.w != nil {
 		err = errors.Join(err, t.w.Close())
 	}
-	if t.r != nil {
-		err = errors.Join(err, t.r.Close())
-	}
+	// if t.r != nil {
+	// 	err = errors.Join(err, t.r.Close())
+	// }
 	t.ctxC()
 	return
 }
@@ -138,9 +138,9 @@ func (t *IOpipe) CloseWithError(e error) (err error) {
 	if t.w != nil {
 		err = errors.Join(err, t.w.CloseWithError(e))
 	}
-	if t.r != nil {
-		err = errors.Join(err, t.r.CloseWithError(e))
-	}
+	// if t.r != nil {
+	// 	err = errors.Join(err, t.r.CloseWithError(e))
+	// }
 	t.ctxC()
 	return
 }
