@@ -12,9 +12,9 @@ import (
 func Test6(t *testing.T) {
 	var b = strings.NewReader("1234567890")
 	buf := New[byte]()
-	if err := AsioReaderBuf(buf, b); err != nil {
+	if n, err := AsioReaderBuf(buf, b); err != nil {
 		t.Fatal(err)
-	} else if string(buf.getPureBuf()) != "1234567890" {
+	} else if string(buf.getPureBuf()) != "1234567890" || n != 10 {
 		t.Fatal()
 	}
 }
@@ -23,7 +23,7 @@ func Benchmark4(b *testing.B) {
 	var data = strings.NewReader("1234567890")
 	buf := New[byte]()
 	for b.Loop() {
-		if err := AsioReaderBuf(buf, data); err != nil {
+		if _, err := AsioReaderBuf(buf, data); err != nil {
 			b.Fatal(err)
 		} else if string(buf.getPureBuf()) != "1234567890" {
 			b.Fatal()

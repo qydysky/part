@@ -78,7 +78,7 @@ func (t *Buf[T]) Cap() int {
 
 var ErrNoEmptyCap = perrors.New("slices.AsioReaderBuf", "ErrNoEmptyCap")
 
-func AsioReaderBuf(t *Buf[byte], r io.Reader) error {
+func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
 	t.l.Lock()
 	defer t.l.Unlock()
 
@@ -89,16 +89,16 @@ func AsioReaderBuf(t *Buf[byte], r io.Reader) error {
 	} else if cap(t.buf) < 4000 {
 		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 4000-cap(t.buf))...)
 	} else if t.bufsize == cap(t.buf) {
-		return ErrNoEmptyCap
+		return 0, ErrNoEmptyCap
 	}
 
 	if n, err := r.Read(t.buf[t.bufsize:]); err != nil {
-		return err
+		return n, err
 	} else {
 		t.bufsize += n
+		t.modified.t += 1
+		return n, err
 	}
-	t.modified.t += 1
-	return nil
 }
 
 func (t *Buf[T]) ExpandCapTo(size int) {
