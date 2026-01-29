@@ -706,3 +706,37 @@ func (t *CacheWriter) Write(b []byte) (n int, e error) {
 	}()
 	return len(b), t.ctx.Err()
 }
+
+type WriteToI interface {
+	Read(p []byte) (n int, err error)
+	// not return EOF when reach end
+	WriteTo(w interface {
+		Write(p []byte) (n int, err error)
+	}) (n int64, err error)
+}
+
+type ioWriteTo struct {
+	raw WriteToI
+}
+
+// 任意范型为byte时，支持io.WriteTo接口
+func WrapIoWriteTo(raw ...WriteToI) *ioWriteTo {
+	if len(raw) > 0 {
+		return &ioWriteTo{raw[0]}
+	} else {
+		return &ioWriteTo{}
+	}
+}
+
+func (t *ioWriteTo) SetRaw(raw WriteToI) *ioWriteTo {
+	t.raw = raw
+	return t
+}
+
+func (t *ioWriteTo) WriteTo(w io.Writer) (n int64, err error) {
+	return t.raw.WriteTo(w)
+}
+
+func (t *ioWriteTo) Read(p []byte) (n int, err error) {
+	return t.raw.Read(p)
+}
