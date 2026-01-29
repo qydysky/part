@@ -15,14 +15,19 @@ func Test6(t *testing.T) {
 	if n, err := AsioReaderBuf(buf, b); err != nil {
 		t.Fatal(err)
 	} else if string(buf.getPureBuf()) != "1234567890" || n != 10 {
-		t.Fatal()
+		t.Fatal(n)
 	}
 }
 
 func Test7(t *testing.T) {
 	var b = strings.NewReader("1234567890")
-	buf := New[byte](9)
-	if _, err := AsioReaderBuf(buf, b); err != ErrOverMax {
+	buf := New[byte](8)
+	n, err := AsioReaderBuf(buf, b)
+	if err != nil || n != 8 {
+		t.Fatal(err)
+	}
+	_, err = AsioReaderBuf(buf, b)
+	if err != nil && err != ErrOverMax {
 		t.Fatal(err)
 	}
 }
