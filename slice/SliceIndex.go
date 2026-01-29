@@ -126,6 +126,8 @@ func (t *SliceIndexNoLock[T]) HadModified(mt SliceIndexModified) (modified bool,
 	modified = t.modified.t != mt.t
 	return
 }
+
+// 将source[s,e]合并到可读中
 func (t *SliceIndexNoLock[T]) Merge(s, e int) {
 	if len(t.buf) == 0 {
 		t.buf = append(t.buf, s, e)
@@ -156,6 +158,8 @@ func (t *SliceIndexNoLock[T]) Merge(s, e int) {
 		return
 	}
 }
+
+// 将source[s,e]附加到可读后
 func (t *SliceIndexNoLock[T]) Append(s, e int) {
 	if i := len(t.buf) - 1; i >= 0 && s == t.buf[i] {
 		if t.buf[i] < e {
@@ -248,4 +252,23 @@ func (t *SliceIndexNoLock[T]) RemoveFront(n int) {
 			t.modified.t += 1
 		}
 	}
+}
+
+func (t *SliceIndexNoLock[T]) WriteTo(w interface {
+	Write(p []T) (n int, err error)
+}) (n int64, err error) {
+	if len(t.buf) == 0 {
+		return 0, io.EOF
+	}
+	for i, ln := 0, 0; i < len(t.buf); i += 2 {
+		ln, err = w.Write(t.source[t.buf[0]:t.buf[1]])
+		n += int64(ln)
+		if t.buf[1]-t.buf[0] == ln {
+			t.buf = t.buf[2:]
+		} else {
+			t.buf[0] += ln
+		}
+	}
+	t.modified.t += 1
+	return
 }
