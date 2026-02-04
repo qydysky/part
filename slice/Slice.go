@@ -81,21 +81,10 @@ func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	if cap(t.buf) == 0 {
-		if t.maxsize > 0 {
-			t.buf = append(t.buf[:cap(t.buf)], make([]byte, min(4096, t.maxsize))...)
-		} else {
-			t.buf = append(t.buf[:cap(t.buf)], make([]byte, min(4096))...)
-		}
-	} else if leftS := cap(t.buf) - t.bufsize; leftS == 0 {
-		if t.maxsize > 0 && t.maxsize < 2*cap(t.buf) {
-			return 0, ErrOverMax
-		}
-		t.buf = append(t.buf[:cap(t.buf)], make([]byte, cap(t.buf))...)
+	if cap(t.buf) == 0 || cap(t.buf) == t.bufsize {
+		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 1)...)
 	}
-
-	t.buf = t.buf[:cap(t.buf)]
-	n, err = r.Read(t.buf[t.bufsize:])
+	n, err = r.Read(t.buf[t.bufsize:min(cap(t.buf), t.bufsize+4096)])
 	if n > 0 {
 		t.bufsize += n
 		t.modified.t += 1
