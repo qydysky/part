@@ -12,6 +12,7 @@ import (
 func Test6(t *testing.T) {
 	var b = strings.NewReader("1234567890")
 	buf := New[byte]()
+	buf.Append([]byte{1})
 	buf.ExpandCapTo(10)
 	if n, err := AsioReaderBuf(buf, b); err != nil {
 		t.Fatal(err)

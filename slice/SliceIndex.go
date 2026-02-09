@@ -110,6 +110,7 @@ type SliceIndexNoLock[T comparable] struct {
 	modified SliceIndexModified
 }
 
+// 通过buf类似的操作方法，在现有buf上创建引用
 func NewSliceIndexNoLock[T comparable](source []T) *SliceIndexNoLock[T] {
 	return &SliceIndexNoLock[T]{
 		buf:    []int{},

@@ -76,17 +76,17 @@ func (t *Buf[T]) Cap() int {
 	return cap(t.buf)
 }
 
-// actual buf size may larger then maxsize
+// GetLock() first and buf will reset then read
 func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
 	t.l.Lock()
 	defer t.l.Unlock()
-
-	if cap(t.buf) == 0 || cap(t.buf) == t.bufsize {
-		t.buf = append(t.buf[:cap(t.buf)], make([]byte, 1)...)
+	if cap(t.buf) == 0 {
+		t.buf = make([]byte, 1)
 	}
-	n, err = r.Read(t.buf[t.bufsize:min(cap(t.buf), t.bufsize+4096)])
+	t.buf = t.buf[0:cap(t.buf)]
+	n, err = r.Read(t.buf)
 	if n > 0 {
-		t.bufsize += n
+		t.bufsize = n
 		t.modified.t += 1
 	}
 	return
