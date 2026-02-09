@@ -166,19 +166,20 @@ func TestXxx3(t *testing.T) {
 	)
 	s.Append(b1)
 
-	buf, ul := s.GetPureBufRLock()
-	m.Append(buf)
+	buf := s.GetRLock()
+	m.Append(buf.GetPureBuf())
 	if e := m.AppendTo(c); e != nil {
 		t.Fatal(e)
 	}
 	m.Reset()
-	ul()
+	buf.RUnlock()
 
-	buf1, ul1 := c.GetPureBufRLock()
+	cb := c.GetRLock()
+	buf1 := cb.GetPureBufRLock()
 	if !bytes.Equal(buf1, []byte("01234")) {
 		t.Fatal()
 	}
-	ul1()
+	cb.RUnlock()
 }
 
 func TestXxx4(t *testing.T) {
@@ -191,11 +192,12 @@ func TestXxx4(t *testing.T) {
 	b1[0] = 'a'
 	c.SetFrom(b2)
 
-	buf, ul := c.GetPureBufRLock()
+	vl := c.GetRLock()
+	buf := vl.GetPureBufRLock()
 	if !bytes.Equal(buf, []byte("01234")) {
 		t.Fatal()
 	}
-	ul()
+	vl.RUnlock()
 }
 
 func TestXxx2(t *testing.T) {
@@ -255,7 +257,8 @@ func Test4(t *testing.T) {
 
 	c.Append([]byte("12345"))
 
-	buf, unlock := c.GetPureBufRLock()
+	cb := c.GetRLock()
+	buf := cb.GetPureBufRLock()
 
 	go func() {
 		w <- struct{}{}
@@ -271,7 +274,7 @@ func Test4(t *testing.T) {
 		t.Fatal()
 	}
 
-	unlock()
+	cb.RUnlock()
 
 	<-w
 
