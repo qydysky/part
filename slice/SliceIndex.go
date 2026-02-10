@@ -258,9 +258,6 @@ func (t *SliceIndexNoLock[T]) RemoveFront(n int) {
 func (t *SliceIndexNoLock[T]) WriteTo(w interface {
 	Write(p []T) (n int, err error)
 }) (n int64, err error) {
-	if len(t.buf) == 0 {
-		return 0, io.EOF
-	}
 	for i, ln := 0, 0; i < len(t.buf); i += 2 {
 		ln, err = w.Write(t.source[t.buf[0]:t.buf[1]])
 		n += int64(ln)
@@ -269,7 +266,7 @@ func (t *SliceIndexNoLock[T]) WriteTo(w interface {
 		} else {
 			t.buf[0] += ln
 		}
+		t.modified.t += 1
 	}
-	t.modified.t += 1
 	return
 }
