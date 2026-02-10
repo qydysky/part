@@ -260,8 +260,10 @@ func Test4(t *testing.T) {
 
 	go func() {
 		w <- struct{}{}
-		c.Reset()
-		t.Log(c.Append([]byte("22345")))
+		cb := c.GetLock()
+		defer cb.Unlock()
+		cb.Reset()
+		t.Log(cb.Append([]byte("22345")))
 		t.Log(c.buf)
 		w <- struct{}{}
 	}()
@@ -273,7 +275,6 @@ func Test4(t *testing.T) {
 	}
 
 	cb.RUnlock()
-
 	<-w
 
 	if !bytes.Equal(buf, []byte("22345")) {
