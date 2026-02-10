@@ -1,6 +1,7 @@
 package part
 
 import (
+	"errors"
 	"io"
 	"iter"
 	"sync"
@@ -52,8 +53,7 @@ func (t *Buf[T]) Reset() {
 }
 
 func (t *Buf[T]) AppendTo(to *Buf[T]) error {
-	buf := t.GetPureBufRLock()
-	return to.Append(buf)
+	return to.Append(t.GetPureBuf())
 }
 
 var ErrOverMax = perrors.New("slices.Append", "ErrOverMax")
@@ -71,10 +71,6 @@ func (t *Buf[T]) ExpandCapTo(size int) {
 }
 
 func (t *Buf[T]) Append(data []T) error {
-	return t.append(data)
-}
-
-func (t *Buf[T]) append(data []T) error {
 	if t.buf == nil {
 		t.buf = make([]T, len(data))
 	} else if t.maxsize != 0 && t.bufsize+len(data) > t.maxsize {
@@ -95,7 +91,7 @@ func (t *BufAppendsI[T]) Append(data []T) *BufAppendsI[T] {
 	if t.e != nil || len(data) == 0 {
 		return t
 	}
-	t.e = t.bufp.append(data)
+	t.e = t.bufp.Append(data)
 	return t
 }
 
@@ -120,10 +116,6 @@ func (t *Buf[T]) SetFrom(data []T) error {
 var ErrOverLen = perrors.New("slices.Remove", "ErrOverLen")
 
 func (t *Buf[T]) RemoveFront(n int) error {
-	return t.removeFront(n)
-}
-
-func (t *Buf[T]) removeFront(n int) error {
 	if n <= 0 {
 		return nil
 	}
@@ -140,10 +132,6 @@ func (t *Buf[T]) removeFront(n int) error {
 }
 
 func (t *Buf[T]) RemoveBack(n int) error {
-	return t.removeBack(n)
-}
-
-func (t *Buf[T]) removeBack(n int) error {
 	if n <= 0 {
 		return nil
 	}
@@ -180,20 +168,6 @@ func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 
 // unsafe
 func (t *Buf[T]) GetPureBuf() (buf []T) {
-	return t.getPureBuf()
-}
-func (t *Buf[T]) getPureBuf() (buf []T) {
-	return t.buf[:t.bufsize]
-}
-
-// must call unlock
-//
-// buf will no modify before unlock
-//
-// modify func(eg Reset) with block until unlock
-//
-// unsafe
-func (t *Buf[T]) GetPureBufRLock() (buf []T) {
 	return t.buf[:t.bufsize]
 }
 
@@ -207,8 +181,8 @@ func (t *Buf[T]) Read(b []T) (n int, e error) {
 	for t.Size() == 0 {
 		time.Sleep(time.Millisecond * 100)
 	}
-	n = copy(b, t.getPureBuf())
-	e = t.removeFront(n)
+	n = copy(b, t.GetPureBuf())
+	e = t.RemoveFront(n)
 	return
 }
 
@@ -221,12 +195,11 @@ type BufRLockMI[T any] interface {
 	Size() int
 	Cap() int
 	Read(b []T) (n int, e error)
-	GetPureBuf() []T
 	GetCopyBuf() []T
 	RemoveFront(int) error
 	RemoveBack(int) error
 	AppendTo(to *Buf[T]) error
-	GetPureBufRLock() []T
+	GetPureBuf() []T
 	GetModified() Modified
 	HadModified(mt Modified) (modified bool, err error)
 }
@@ -236,6 +209,9 @@ type BufLockMI[T any] interface {
 	Reset()
 	ExpandCapTo(size int)
 	Write(b []T) (n int, e error)
+	ReadFrom(r interface {
+		Read(p []T) (n int, err error)
+	}) (int64, error)
 	Append(data []T) error
 	Appends(f func(ba *BufAppendsI[T])) error
 	SetFrom(data []T) error
@@ -275,6 +251,45 @@ func (t *Buf[T]) GetRLock() (i interface {
 }) {
 	t.l.RLock()
 	return &BufRLockM[T]{t}
+}
+
+func (t *Buf[T]) ReadFrom(r interface {
+	Read(p []T) (n int, err error)
+}) (total int64, e error) {
+	t.Reset()
+	for {
+		if cap(t.buf) == t.bufsize {
+			t.buf = append(t.buf, *new(T))
+			t.buf = t.buf[:cap(t.buf)]
+		}
+		if n, err := r.Read(t.buf[t.bufsize:cap(t.buf)]); n > 0 {
+			t.bufsize += n
+			total += int64(n)
+			t.modified.t += 1
+		} else if err != nil {
+			if !errors.Is(err, io.EOF) {
+				e = err
+			}
+			return
+		}
+	}
+}
+
+func (t *Buf[T]) WriteTo(w interface {
+	Write(p []T) (n int, err error)
+}) (total int64, e error) {
+	for t.bufsize > 0 {
+		if n, err := w.Write(t.GetPureBuf()); n > 0 {
+			t.modified.t += 1
+			t.bufsize -= n
+			total += int64(n)
+		} else if errors.Is(err, io.EOF) {
+			return total, nil
+		} else {
+			return total, err
+		}
+	}
+	return total, nil
 }
 
 var _ io.ReadWriter = New[byte]()
@@ -374,20 +389,4 @@ func AppendPtr[T any](s *[]*T) *T {
 		*s = append(*s, new(T))
 	}
 	return (*s)[l]
-}
-
-// GetLock() first and buf will reset then read
-func AsioReaderBuf(t *Buf[byte], r io.Reader) (n int, err error) {
-	t.l.Lock()
-	defer t.l.Unlock()
-	if cap(t.buf) == 0 {
-		t.buf = make([]byte, 1)
-	}
-	t.buf = t.buf[0:cap(t.buf)]
-	n, err = r.Read(t.buf)
-	if n > 0 {
-		t.bufsize = n
-		t.modified.t += 1
-	}
-	return
 }
