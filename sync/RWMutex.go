@@ -32,46 +32,6 @@ type RWMutex struct {
 	PanicFunc func(any)
 }
 
-// func parse(i int32) string {
-// 	switch i {
-// 	case -2:
-// 		return "lock"
-// 	case -1:
-// 		return "ulock"
-// 	}
-// 	return "rlock"
-// }
-
-// // i == oldt -> i = t -> pass
-// //
-// // otherwish block until i == oldt
-// func cas(i *atomic.Int32, oldt, t int32, to ...time.Duration) error {
-// 	c := time.Now()
-// 	for !i.CompareAndSwap(oldt, t) {
-// 		if len(to) != 0 && time.Since(c) > to[0] {
-// 			return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
-// 		}
-// 		runtime.Gosched()
-// 	}
-// 	return nil
-// }
-
-// // i == t -> pass
-// //
-// // i == oldt -> i = t -> pass
-// //
-// // otherwish block until i == oldt
-// func lcas(i *atomic.Int32, oldt, t int32, to ...time.Duration) error {
-// 	c := time.Now()
-// 	for i.Load() != t && !i.CompareAndSwap(oldt, t) {
-// 		if len(to) != 0 && time.Since(c) > to[0] {
-// 			return fmt.Errorf("timeout to set %s => %s while is %s", parse(oldt), parse(t), parse(i.Load()))
-// 		}
-// 		runtime.Gosched()
-// 	}
-// 	return nil
-// }
-
 func (m *RWMutex) panicFunc(s any) {
 	if m.PanicFunc != nil {
 		m.PanicFunc(s)

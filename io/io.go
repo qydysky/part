@@ -740,3 +740,37 @@ func (t *ioWriteTo) WriteTo(w io.Writer) (n int64, err error) {
 func (t *ioWriteTo) Read(p []byte) (n int, err error) {
 	return t.raw.Read(p)
 }
+
+type ReadFromI interface {
+	Write(p []byte) (n int, err error)
+	// not return EOF when reach end
+	ReadFrom(w interface {
+		Read(p []byte) (n int, err error)
+	}) (n int64, err error)
+}
+
+type ioReadFrom struct {
+	raw ReadFromI
+}
+
+// 任意范型为byte时，支持io.ReadFrom接口
+func WrapIoReadFrom(raw ...ReadFromI) *ioReadFrom {
+	if len(raw) > 0 {
+		return &ioReadFrom{raw[0]}
+	} else {
+		return &ioReadFrom{}
+	}
+}
+
+func (t *ioReadFrom) SetRaw(raw ReadFromI) *ioReadFrom {
+	t.raw = raw
+	return t
+}
+
+func (t *ioReadFrom) ReadFrom(r io.Reader) (n int64, err error) {
+	return t.raw.ReadFrom(r)
+}
+
+func (t *ioReadFrom) Write(p []byte) (n int, err error) {
+	return t.raw.Write(p)
+}

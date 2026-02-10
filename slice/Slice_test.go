@@ -7,41 +7,39 @@ import (
 	"strings"
 	"testing"
 	"unsafe"
+
+	pio "github.com/qydysky/part/io"
 )
 
 func Test6(t *testing.T) {
 	var b = strings.NewReader("1234567890")
 	buf := New[byte]()
-	buf.Append([]byte{1})
-	buf.ExpandCapTo(10)
-	if n, err := AsioReaderBuf(buf, b); err != nil {
+	if n, err := pio.WrapIoReadFrom(buf).ReadFrom(b); err != nil {
 		t.Fatal(err)
-	} else if string(buf.getPureBuf()) != "1234567890" || n != 10 {
-		t.Fatal(n)
+	} else if string(buf.GetPureBuf()) != "1234567890" || n != 10 {
+		t.Fatal(buf.GetPureBuf(), n, buf.bufsize)
 	}
 }
 
 func Test7(t *testing.T) {
-	var b = strings.NewReader("1234567890")
 	buf := New[byte](8)
-	n, err := AsioReaderBuf(buf, b)
-	if err != nil || n != 8 {
-		t.Fatal(err)
-	}
-	_, err = AsioReaderBuf(buf, b)
-	if err != nil && err != ErrOverMax {
-		t.Fatal(err)
+	buf.Append([]byte("1234567890"))
+	b := bytes.NewBuffer([]byte{})
+	if n, e := pio.WrapIoWriteTo(buf).WriteTo(b); n != 10 || e != nil {
+		t.Fatal(n, e)
+	} else if b.String() != "1234567890" {
+		t.Fatal()
 	}
 }
 
 func Benchmark4(b *testing.B) {
 	var data = strings.NewReader("1234567890")
 	buf := New[byte]()
-	buf.ExpandCapTo(11)
+	rf := pio.WrapIoReadFrom(buf)
 	for b.Loop() {
-		if _, err := AsioReaderBuf(buf, data); err != nil {
+		if _, err := rf.ReadFrom(data); err != nil {
 			b.Fatal(err)
-		} else if string(buf.getPureBuf()) != "1234567890" {
+		} else if string(buf.GetPureBuf()) != "1234567890" {
 			b.Fatal()
 		} else {
 			buf.Reset()
@@ -166,19 +164,20 @@ func TestXxx3(t *testing.T) {
 	)
 	s.Append(b1)
 
-	buf, ul := s.GetPureBufRLock()
-	m.Append(buf)
+	buf := s.GetRLock()
+	m.Append(buf.GetPureBuf())
 	if e := m.AppendTo(c); e != nil {
 		t.Fatal(e)
 	}
 	m.Reset()
-	ul()
+	buf.RUnlock()
 
-	buf1, ul1 := c.GetPureBufRLock()
+	cb := c.GetRLock()
+	buf1 := cb.GetPureBuf()
 	if !bytes.Equal(buf1, []byte("01234")) {
 		t.Fatal()
 	}
-	ul1()
+	cb.RUnlock()
 }
 
 func TestXxx4(t *testing.T) {
@@ -191,11 +190,12 @@ func TestXxx4(t *testing.T) {
 	b1[0] = 'a'
 	c.SetFrom(b2)
 
-	buf, ul := c.GetPureBufRLock()
+	vl := c.GetRLock()
+	buf := vl.GetPureBuf()
 	if !bytes.Equal(buf, []byte("01234")) {
 		t.Fatal()
 	}
-	ul()
+	vl.RUnlock()
 }
 
 func TestXxx2(t *testing.T) {
@@ -255,12 +255,15 @@ func Test4(t *testing.T) {
 
 	c.Append([]byte("12345"))
 
-	buf, unlock := c.GetPureBufRLock()
+	cb := c.GetRLock()
+	buf := cb.GetPureBuf()
 
 	go func() {
 		w <- struct{}{}
-		c.Reset()
-		t.Log(c.Append([]byte("22345")))
+		cb := c.GetLock()
+		defer cb.Unlock()
+		cb.Reset()
+		t.Log(cb.Append([]byte("22345")))
 		t.Log(c.buf)
 		w <- struct{}{}
 	}()
@@ -271,8 +274,7 @@ func Test4(t *testing.T) {
 		t.Fatal()
 	}
 
-	unlock()
-
+	cb.RUnlock()
 	<-w
 
 	if !bytes.Equal(buf, []byte("22345")) {
