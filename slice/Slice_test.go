@@ -11,6 +11,33 @@ import (
 	pio "github.com/qydysky/part/io"
 )
 
+func Test8(t *testing.T) {
+	var b = strings.NewReader("1234567890")
+	buf := New[byte]()
+	buf.ExpandCapTo(10)
+	if n, e := b.Read(buf.GetRawBuf(buf.Size(), buf.Size()+6)); e != nil {
+		t.Fatal(e)
+	} else {
+		buf.AddSize(n)
+	}
+	if string(buf.GetPureBuf()) != "123456" {
+		t.Fatal()
+	}
+	buf.RemoveFront(5)
+	if n, e := b.Read(buf.GetRawBuf(buf.Size(), buf.Size()+6)); e != nil {
+		t.Fatal(e)
+	} else {
+		buf.AddSize(n)
+	}
+	if string(buf.GetPureBuf()) != "67890" {
+		t.Fatal()
+	}
+	buf.RemoveFront(5)
+	if _, e := b.Read(buf.GetRawBuf(buf.Size(), buf.Size()+6)); e != io.EOF {
+		t.Fatal(e)
+	}
+}
+
 func Test6(t *testing.T) {
 	var b = strings.NewReader("1234567890")
 	buf := New[byte]()
