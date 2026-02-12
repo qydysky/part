@@ -24,6 +24,9 @@ type Modified struct {
 	t uint64
 }
 
+// normally, use GetLock() or GetRLock() in mutil goroutines
+//
+// or use other export methods without lock
 func New[T any](maxsize ...int) *Buf[T] {
 	t := new(Buf[T])
 	if len(maxsize) > 0 {
@@ -41,6 +44,18 @@ func (t *Buf[T]) Clear() {
 
 func (t *Buf[T]) Size() int {
 	return t.bufsize
+}
+
+// unsafe without lock
+func (t *Buf[T]) SetSize(n int) {
+	t.bufsize = n
+	t.modified.t += 1
+}
+
+// unsafe without lock
+func (t *Buf[T]) AddSize(n int) {
+	t.bufsize += n
+	t.modified.t += 1
 }
 
 func (t *Buf[T]) IsEmpty() bool {
@@ -62,6 +77,7 @@ func (t *Buf[T]) Cap() int {
 	return cap(t.buf)
 }
 
+// may alloc more mem
 func (t *Buf[T]) ExpandCapTo(size int) {
 	if cap(t.buf) >= size {
 		return
@@ -147,7 +163,7 @@ func (t *Buf[T]) RemoveBack(n int) error {
 	return nil
 }
 
-// unsafe
+// unsafe without lock
 func (t *Buf[T]) SetModified() {
 	t.modified.t += 1
 }
@@ -166,7 +182,12 @@ func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 	return
 }
 
-// unsafe
+// unsafe without lock
+func (t *Buf[T]) GetRawBuf(op, ed int) (buf []T) {
+	return t.buf[op:ed]
+}
+
+// unsafe without lock
 func (t *Buf[T]) GetPureBuf() (buf []T) {
 	return t.buf[:t.bufsize]
 }
@@ -195,11 +216,12 @@ type BufRLockMI[T any] interface {
 	Size() int
 	Cap() int
 	Read(b []T) (n int, e error)
-	GetCopyBuf() []T
 	RemoveFront(int) error
 	RemoveBack(int) error
 	AppendTo(to *Buf[T]) error
-	GetPureBuf() []T
+	GetCopyBuf() []T
+	GetPureBuf() []T          // unsafe
+	GetRawBuf(op, ed int) []T // unsafe
 	GetModified() Modified
 	HadModified(mt Modified) (modified bool, err error)
 }
@@ -218,6 +240,7 @@ type BufLockMI[T any] interface {
 	RemoveFront(n int) error
 	RemoveBack(n int) error
 	SetModified()
+	SetSize(int)
 	BufRLockMI[T]
 }
 
