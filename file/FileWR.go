@@ -889,16 +889,19 @@ func (t *File) File() *os.File {
 }
 
 func (t *File) Stat() (fs.FileInfo, error) {
-	if len(t.Config.FilePath) > 4096 {
-		return nil, ErrFilePathTooLong
-	}
-
 	fos, e := t.getOs()
 	if e != nil {
 		return nil, e
 	}
+	return t.stat(fos)
+}
 
-	info, err := fos.Stat(t.Config.FilePath)
+func (t *File) stat(fos fosi) (info fs.FileInfo, err error) {
+	if len(t.Config.FilePath) > 4096 {
+		return nil, ErrFilePathTooLong
+	}
+
+	info, err = fos.Stat(t.Config.FilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, os.ErrNotExist
@@ -995,9 +998,19 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 		if e != nil {
 			return e
 		}
-		if !t.IsExist() {
+
+		info, err := t.stat(fos)
+		if err != nil {
+			if errors.Is(err, ErrFilePathTooLong) {
+				panic(err)
+			} else if strings.HasSuffix(err.Error(), "path escapes from parent") {
+				panic(ErrPathEscapes)
+			}
+		}
+
+		if err != nil {
 			newPath(fos, t.Config.FilePath, fs.ModeDir|fmode)
-			if t.IsDir() {
+			if info.IsDir() {
 				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
 					return e
 				} else {
@@ -1017,7 +1030,7 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 				}
 			}
 		} else {
-			if t.IsDir() {
+			if info.IsDir() {
 				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
 					return e
 				} else {
