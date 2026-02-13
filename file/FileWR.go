@@ -1010,7 +1010,7 @@ func (t *File) getRWCloser(mode ...fs.FileMode) error {
 
 		if err != nil {
 			newPath(fos, t.Config.FilePath, fs.ModeDir|fmode)
-			if info.IsDir() {
+			if t.IsDir() {
 				if f, e := fos.OpenFile(t.Config.FilePath, os.O_RDONLY|os.O_EXCL, fmode); e != nil {
 					return e
 				} else {
