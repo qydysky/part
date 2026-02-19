@@ -48,13 +48,21 @@ func (t *Buf[T]) Size() int {
 // unsafe without lock
 func (t *Buf[T]) SetSize(n int) {
 	t.bufsize = n
+	t.resetSize()
 	t.modified.t += 1
 }
 
 // unsafe without lock
 func (t *Buf[T]) AddSize(n int) {
 	t.bufsize += n
+	t.resetSize()
 	t.modified.t += 1
+}
+
+func (t *Buf[T]) resetSize() {
+	if len(t.buf) < t.bufsize {
+		t.buf = t.buf[:t.bufsize]
+	}
 }
 
 func (t *Buf[T]) IsEmpty() bool {
@@ -139,6 +147,7 @@ func (t *Buf[T]) RemoveFront(n int) error {
 	} else if t.bufsize == n {
 		t.bufsize = 0
 	} else {
+		t.resetSize()
 		t.bufsize = copy(t.buf, t.buf[n:t.bufsize])
 	}
 
