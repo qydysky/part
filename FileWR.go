@@ -46,7 +46,7 @@ type Filel struct {
 func (t Filel) Write(b []byte) (int, error) { return t.write(b) }
 
 func File() *file {
-	return &file{}
+	return new(file)
 }
 
 func (this *file) FileWR(C Filel) string {

@@ -166,7 +166,7 @@ func TestMain4(t *testing.T) {
 func TestMain5(t *testing.T) {
 	var i int = 10222
 	var o int
-	g := &Gob{}
+	g := new(Gob)
 	g.encode(&i)
 	g.decode(&o)
 	if i != o {

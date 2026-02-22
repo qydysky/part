@@ -89,7 +89,7 @@ func New(c ...*Log) (o *Log) {
 	if len(c) > 0 {
 		o = c[0]
 	} else {
-		o = &Log{}
+		o = new(Log)
 	}
 	if o.File != `` {
 		f.New(o.File, 0, true).Create()

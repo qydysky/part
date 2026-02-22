@@ -14,7 +14,7 @@ type SkipFunc struct {
 }
 
 func (t *SkipFunc) NeedSkip() (result bool) {
-	return !atomic.CompareAndSwapPointer(&t.c, nil, unsafe.Pointer(&struct{}{}))
+	return !atomic.CompareAndSwapPointer(&t.c, nil, unsafe.Pointer(new(struct{})))
 }
 
 func (t *SkipFunc) UnSet() {
@@ -30,7 +30,7 @@ type FlashFunc struct {
 }
 
 func (t *FlashFunc) Flash() (current uintptr) {
-	current = uintptr(unsafe.Pointer(&struct{}{}))
+	current = uintptr(unsafe.Pointer(new(struct{})))
 	t.b.Store(current)
 	return
 }

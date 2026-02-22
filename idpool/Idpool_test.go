@@ -8,7 +8,7 @@ type test struct{}
 
 func Test(t *testing.T) {
 	pool := New(func() *test {
-		return &test{}
+		return new(test)
 	})
 	a := pool.Get()
 	b := pool.Get()

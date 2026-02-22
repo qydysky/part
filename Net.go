@@ -34,7 +34,7 @@ type netl struct {
 }
 
 func Net() *netl {
-	return &netl{}
+	return new(netl)
 }
 
 type dnsl struct {

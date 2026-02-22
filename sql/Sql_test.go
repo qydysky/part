@@ -668,7 +668,7 @@ func Test4(t *testing.T) {
 }
 
 func Test5(t *testing.T) {
-	err := error(&ErrTx{})
+	err := error(new(ErrTx))
 	if _, ok := err.(interface{ Is(error) bool }); ok {
 		t.Log("ok")
 	} else {

@@ -11,6 +11,10 @@ var a0 = Action("a0")
 var a1 = Action("a1")
 var a11 = a1.Append("1")
 
+func Test5(t *testing.T) {
+	t.Log(ErrorFormat(Join(io.EOF, a0, a1, a11), ErrActionInLineFunc))
+}
+
 func TestXxx(t *testing.T) {
 	var err error
 

@@ -724,7 +724,7 @@ func WrapIoWriteTo(raw ...WriteToI) *ioWriteTo {
 	if len(raw) > 0 {
 		return &ioWriteTo{raw[0]}
 	} else {
-		return &ioWriteTo{}
+		return new(ioWriteTo)
 	}
 }
 
@@ -758,7 +758,7 @@ func WrapIoReadFrom(raw ...ReadFromI) *ioReadFrom {
 	if len(raw) > 0 {
 		return &ioReadFrom{raw[0]}
 	} else {
-		return &ioReadFrom{}
+		return new(ioReadFrom)
 	}
 }
 

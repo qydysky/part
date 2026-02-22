@@ -15,7 +15,7 @@ func (b *B) AddOne(any) int {
 func Test5(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa5", &B{}); e != nil {
+	}]("aa5", new(B)); e != nil {
 		panic(e)
 	}
 
@@ -35,7 +35,7 @@ func Test4(t *testing.T) {
 func Test3(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa3", &B{}); e != nil {
+	}]("aa3", new(B)); e != nil {
 		panic(e)
 	}
 
@@ -53,14 +53,14 @@ func Test3(t *testing.T) {
 func Test1(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa1", &B{}); e != nil {
+	}]("aa1", new(B)); e != nil {
 		panic(e)
 	}
 
 	aa := GetV3[interface {
 		AddOne(any) int
 	}]("aa-1").Inter(func(err error) interface{ AddOne(any) int } {
-		return &B{}
+		return new(B)
 	})
 
 	if aa.AddOne(func(i int) int { return i + 1 }) != 2 {
@@ -71,7 +71,7 @@ func Test1(t *testing.T) {
 func Test(t *testing.T) {
 	if e := Register[interface {
 		AddOne(any) int
-	}]("aa", &B{}); e != nil {
+	}]("aa", new(B)); e != nil {
 		panic(e)
 	}
 

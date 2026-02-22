@@ -29,7 +29,7 @@ type Gob struct {
 }
 
 // func NewGob(ptr any) *Gob {
-// 	t := &Gob{}
+// 	t := new(Gob)
 // 	var buf bytes.Buffer
 // 	t.Err = gob.NewEncoder(&buf).Encode(ptr)
 // 	t.Data = buf.Bytes()
@@ -81,7 +81,7 @@ type GobCoders struct {
 }
 
 func (t *GobCoders) New() *GobCoder {
-	return t.Get(&Gob{})
+	return t.Get(new(Gob))
 }
 
 func (t *GobCoders) Get(g *Gob) *GobCoder {
@@ -129,7 +129,7 @@ type Server struct {
 }
 
 func NewServer(host string) *Server {
-	ser := &Server{}
+	ser := new(Server)
 	webSync := web.NewSyncMap(&http.Server{
 		Addr: host,
 	}, &ser.webP)
@@ -166,7 +166,7 @@ func UnRegister(t *Server, path string) {
 }
 
 func Call[T, E any](host, path string, it *T, ot *E) error {
-	t := &Gob{}
+	t := new(Gob)
 	if e := t.encode(it); e != nil {
 		return errors.Join(ErrCliEncode, e)
 	} else {
@@ -271,7 +271,7 @@ func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) err
 // }
 
 // func RegisterSerReg(regHost, regPath string, info RegisterSerHost) error {
-// 	return Call(&info, &struct{}{}, regHost, regPath)
+// 	return Call(&info, new(struct{}), regHost, regPath)
 // }
 
 // func RegisterSerCall[T any](ser *RegisterSer, it *T, path string) {
@@ -287,7 +287,7 @@ func CallReuse[T, E any](host, path string, poolSize int) func(it *T, ot *E) err
 // 		item.RUnlock()
 
 // 		for len(hosts) > 0 {
-// 			_ = Call(it, &struct{}{}, hosts[0], path)
+// 			_ = Call(it, new(struct{}), hosts[0], path)
 // 			hosts = hosts[1:]
 // 		}
 // 	}

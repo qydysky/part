@@ -8,3 +8,4 @@ old/FileWR.go
 *.log
 *.sqlite3
 *.sqlite3-journal
+*.sh

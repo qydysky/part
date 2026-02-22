@@ -183,7 +183,7 @@ func Benchmark(b *testing.B) {
 }
 
 func Test5(t *testing.T) {
-	logger := New(&Log{})
+	logger := New(new(Log))
 	logger.I("1")
 }
 
@@ -205,7 +205,7 @@ func Test6(t *testing.T) {
 }
 
 func Test7(t *testing.T) {
-	l0 := New(&Log{})
+	l0 := New(new(Log))
 	l1 := l0.Level(map[Level]string{})
 	if _, ok := l1.PrefixS[I]; ok {
 		t.Fatal()
