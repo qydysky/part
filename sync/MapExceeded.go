@@ -53,8 +53,16 @@ func (t *MapExceeded[K, V]) Range(f func(key K, value *V) bool) {
 	})
 }
 
-func (t *MapExceeded[K, V]) Len() int {
-	return t.m.Len()
+func (t *MapExceeded[K, V]) Len() (live int) {
+	t.m.Range(func(key, value any) bool {
+		if value.(*mapExceededItem[V]).exceeded.Before(time.Now()) {
+			t.Delete(key.(K))
+		} else {
+			live += 1
+		}
+		return true
+	})
+	return
 }
 
 func (t *MapExceeded[K, V]) GC() {

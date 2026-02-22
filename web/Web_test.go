@@ -17,7 +17,7 @@ import (
 	reqf "github.com/qydysky/part/reqf"
 )
 
-var _ http.ResponseWriter = &customResponseWriter{}
+var _ http.ResponseWriter = new(customResponseWriter)
 
 type customResponseWriter struct {
 	statusCode int
@@ -55,7 +55,7 @@ func TestMain(t *testing.T) {
 	ser := &http.Server{
 		Addr: "127.0.0.1:18081",
 	}
-	wp := &WebPath{}
+	wp := new(WebPath)
 	if _, e := NewSyncMapNoPanic(ser, wp, wp.Load); e != nil {
 		t.Fatal()
 	}
@@ -183,7 +183,7 @@ func Test_Server(t *testing.T) {
 
 func Test_double(t *testing.T) {
 	ch := make(chan int, 10)
-	webpath := &WebPath{}
+	webpath := new(WebPath)
 	webpath.Store(`/`, func(w http.ResponseWriter, _ *http.Request) {
 		ch <- 0
 	})

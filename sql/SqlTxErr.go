@@ -32,7 +32,7 @@ type ErrTx struct {
 	Err      error
 }
 
-var _ error = &ErrTx{}
+var _ error = new(ErrTx)
 
 // Typ must not nil
 func NewErrTx(preErrTx error, Typ, Err error) (n *ErrTx) {

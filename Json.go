@@ -11,7 +11,7 @@ package part
 
 // type json struct {}
 
-// func Json() (*json) {return &json{}}
+// func Json() (*json) {return new(json)}
 
 // func (*json) Check(Source interface{}) error {
 // 	var jq *goej.Decoder

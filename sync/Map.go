@@ -18,7 +18,7 @@ type MapFunc[T, E any] interface {
 	Swap(key T, value E) (previous E, loaded bool)
 }
 
-var _ = MapFunc[any, any](&Map{})
+var _ = MapFunc[any, any](new(Map))
 
 type Map struct {
 	size atomic.Int64
@@ -107,7 +107,7 @@ func (t *Map) Copy() (m Map) {
 }
 
 func (t *Map) CopyP() (m *Map) {
-	m = &Map{}
+	m = new(Map)
 	t.Range(func(k, v any) bool {
 		m.Store(k, v)
 		return true

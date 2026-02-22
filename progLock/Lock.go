@@ -26,7 +26,7 @@ const (
 )
 
 func New() *lock {
-	return &lock{}
+	return new(lock)
 }
 
 // start will save current time and Data

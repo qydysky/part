@@ -27,7 +27,7 @@ type sys struct {
 }
 
 func Sys() *sys {
-	return &sys{}
+	return new(sys)
 }
 
 func (*sys) Type(s ...interface{}) string {

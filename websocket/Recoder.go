@@ -125,7 +125,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 	}
 
 	var (
-		rootRec  = &rec{}
+		rootRec  = new(rec)
 		rangeRec = func(each func(*rec) (stop bool)) (stopRec *rec) {
 			stopRec = rootRec
 			for {
@@ -152,7 +152,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 			tmp.start = start
 			tmp.dur = dur
 			tmp.file = file.Open(filepath)
-			tmp.next = &rec{}
+			tmp.next = new(rec)
 			tmp = tmp.next
 			return nil
 		})

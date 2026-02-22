@@ -17,7 +17,7 @@ package part
 // }
 
 // func Checkfile() *checkfile {
-// 	return &checkfile{}
+// 	return new(checkfile)
 // }
 
 // func (t *checkfile) Build(checkFile, root, checkDir, SplitString string, usemd5 bool) {

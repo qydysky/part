@@ -11,7 +11,7 @@ type random struct {
 }
 
 func Rand() *random {
-	return &random{}
+	return new(random)
 }
 
 func (*random) TrueRandom(max int64) int64 {

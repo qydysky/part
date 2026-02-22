@@ -18,7 +18,7 @@ import (
 type lzip struct{ sync.Mutex }
 
 func Zip() *lzip {
-	return &lzip{}
+	return new(lzip)
 }
 
 func (this *lzip) InZip(srcFile string, destZip string) error {
@@ -152,7 +152,7 @@ type rZip struct {
 	sync.Mutex
 }
 
-func RZip() *rZip { return &rZip{} }
+func RZip() *rZip { return new(rZip) }
 
 func (t *rZip) New(zipFile string) error {
 	t.Lock()

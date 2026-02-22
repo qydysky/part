@@ -11,7 +11,7 @@ import (
 const sleepDru = 100
 
 var (
-	ptr            = &struct{}{}
+	ptr            = new(struct{})
 	ErrWaitTo      = errors.New("ErrWaitTo")
 	ErrNothingWait = errors.New("ErrNothingWait")
 	ErrDoneCalled  = errors.New("ErrDoneCalled")
