@@ -36,6 +36,18 @@ func Benchmark1(b *testing.B) {
 	}
 }
 
+func Test3(t *testing.T) {
+	p := New(PoolFunc[int]{
+		New: func() *int {
+			return new(1)
+		},
+	}, 1)
+	a := p.Get()
+	p.Put(a)
+	_ = p.Get()
+	p.State()
+}
+
 func Test2(t *testing.T) {
 	p := New(PoolFunc[int]{}, 1)
 	t.Log(p.pf.InUse == nil)
@@ -117,6 +129,6 @@ func TestXxx(t *testing.T) {
 	b.Put(c1)
 
 	if len(c1.d) == 0 || b.State().Inuse != 0 || b.State().Sum != 1 {
-		t.Fatal(len(c1.d) != 0, b.State().Inuse != 0, b.State().Sum != 1)
+		t.Fatal(len(c1.d), b.State().Inuse, b.State().Sum)
 	}
 }

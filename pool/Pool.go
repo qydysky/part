@@ -75,10 +75,18 @@ func (t *Buf[T]) State() BufState {
 		} else {
 			nopooled++
 		}
-		if (t.pf.InUse == nil && v) || t.pf.InUse(k) {
-			inuse++
+		if t.pf.InUse != nil {
+			if t.pf.InUse(k) {
+				inuse++
+			} else {
+				nouse++
+			}
 		} else {
-			nouse++
+			if v {
+				inuse++
+			} else {
+				nouse++
+			}
 		}
 	}
 
