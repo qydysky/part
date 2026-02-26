@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+func TestA(t *testing.T) {
+	m := new(MapExceeded[string, string])
+	if val, loaded, _ := m.LoadOrStore("a"); val != "" || loaded {
+		t.Fatal()
+	}
+
+	if val, loaded, _ := m.LoadOrStore("a"); val != "" || loaded {
+		t.Fatal()
+	}
+}
+
 type tmp struct {
 	p int
 }
