@@ -81,30 +81,22 @@ func (t *MapExceeded[K, V]) Delete(k K) {
 func (t *MapExceeded[K, V]) LoadOrStore(k K) (vr V, loaded bool, store func(v1 V, dur time.Duration)) {
 	store = func(v1 V, dur time.Duration) {}
 	var actual any
-	actual, loaded = t.m.LoadOrStore(k, &mapExceededItem[V]{})
+	actual, loaded = t.m.LoadOrStore(k, &mapExceededItem[V]{
+		exceeded: time.Now().Add(-time.Second), // 默认赋值，若后续未调用store,则当成未存
+	})
 	v := actual.(*mapExceededItem[V])
 	v.wait.RLock()
 	exp := v.exceeded
 	vr = v.data
 	v.wait.RUnlock()
-	if loaded && time.Now().Before(exp) {
-		return
-	}
-	if !loaded || (loaded && !exp.IsZero()) {
+	if !loaded || !time.Now().Before(exp) {
+		loaded = false
 		store = func(v1 V, dur time.Duration) {
 			v.wait.Lock()
 			v.data = v1
 			v.exceeded = time.Now().Add(dur)
 			v.wait.Unlock()
 		}
-		return
-	}
-	for loaded && exp.IsZero() {
-		time.Sleep(time.Millisecond * 20)
-		v.wait.RLock()
-		exp = v.exceeded
-		vr = v.data
-		v.wait.RUnlock()
 	}
 	return
 }
