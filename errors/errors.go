@@ -2,6 +2,8 @@ package errors
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 )
 
 type Action string
@@ -63,6 +65,8 @@ func (t Error) WithReason(reason string) Error {
 	t.Reason = reason
 	return t
 }
+
+var Is = errors.Is
 
 func Catch(e error, action Action) bool {
 	if v, ok := e.(Error); ok {
@@ -178,9 +182,9 @@ var (
 	// 否则"> " + e.Error() + " "
 	ErrActionInLineFunc ErrFormat = func(e error) string {
 		if err, ok := e.(Error); ok && string(err.action) != err.Reason {
-			return "> " + string(err.action) + ":" + e.Error() + " "
+			return fmt.Sprintf("> %v:%v ", err.action, strings.TrimSpace(e.Error()))
 		} else {
-			return "> " + e.Error() + " "
+			return fmt.Sprintf("> %v ", strings.TrimSpace(e.Error()))
 		}
 	}
 )

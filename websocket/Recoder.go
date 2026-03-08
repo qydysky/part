@@ -104,7 +104,7 @@ var (
 func Plays(regF func(reg func(filepath string, start, dur time.Duration) error)) (s *Server, close func()) {
 	sg := ctx.CarryCancel(context.WithCancel(context.Background()))
 
-	s = New_server()
+	s = NewServer()
 	serMq := s.Interface()
 
 	timer := time.NewTicker(time.Millisecond * 500)

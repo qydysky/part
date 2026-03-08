@@ -12,7 +12,7 @@ import (
 func Test_Server(t *testing.T) {
 	t.Parallel()
 
-	s := New_server()
+	s := NewServer()
 	{
 		ws_mq := s.Interface()
 		// close all
@@ -64,7 +64,7 @@ func Test_Server(t *testing.T) {
 
 	time.Sleep(time.Second)
 
-	if c, e := New_client(&Client{
+	if c, e := NewClient(&Client{
 		Url: `ws://` + w.Server.Addr + `/ws`,
 	}); e != nil {
 		t.Fatal(e)
