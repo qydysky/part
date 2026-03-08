@@ -24,13 +24,15 @@ type Uinterface struct {
 	Data []byte
 }
 
-func New_server() *Server {
+func NewServer() *Server {
 	return &Server{
 		ws_mq:    mq.NewType[Uinterface](),                              //收发通道
 		userpool: idpool.New(func() *struct{} { return new(struct{}) }), //浏览器标签页池
 	}
 }
 
+// 用于httpSer.Handle里。接入和断开管道各收到一次消息
+//
 // o <-chan uintptr 返回r创建的id,表示开始接入，用于下述事件中
 //
 // 0. 发送到t.ws_mq `init`

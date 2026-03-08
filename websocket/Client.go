@@ -53,7 +53,7 @@ type Ping struct {
 	had_pong bool
 }
 
-func New_client(config *Client) (*Client, error) {
+func NewClient(config *Client) (*Client, error) {
 	tmp := Client{
 		RTOMs:             300 * 1000,
 		WTOMs:             300 * 1000,
@@ -97,7 +97,9 @@ func New_client(config *Client) (*Client, error) {
 // // 发送数据到服务器
 //
 //	msg.Push_tag(`send`, &WsMsg{
-//		Msg:  []byte("message"),
+//		Msg: func(f func([]byte) error) error {
+//			return f([]byte("test"))
+//		},
 //	})
 //
 // // 接收服务器的数据

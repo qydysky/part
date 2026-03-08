@@ -10,7 +10,7 @@ import (
 )
 
 func Test_Client(t *testing.T) {
-	s := New_server()
+	s := NewServer()
 	{
 		ws_mq := s.Interface()
 
@@ -53,7 +53,7 @@ func Test_Client(t *testing.T) {
 	time.Sleep(time.Second)
 
 	{
-		c, e := New_client(&Client{
+		c, e := NewClient(&Client{
 			Url: "ws://127.0.0.1:10888/ws",
 			Func_normal_close: func() {
 				t.Log("close")
@@ -94,7 +94,7 @@ func Test_Client(t *testing.T) {
 		}
 	}
 	{
-		c, e := New_client(&Client{
+		c, e := NewClient(&Client{
 			Url: "ws://127.0.0.1:10888/ws",
 			Func_normal_close: func() {
 				t.Log("close")
@@ -148,7 +148,7 @@ func Test_Client(t *testing.T) {
 }
 
 func Test_Client2(t *testing.T) {
-	s := New_server()
+	s := NewServer()
 	{
 		ws_mq := s.Interface()
 
@@ -187,7 +187,7 @@ func Test_Client2(t *testing.T) {
 	time.Sleep(time.Second)
 
 	{
-		c, e := New_client(&Client{
+		c, e := NewClient(&Client{
 			Url: "ws://127.0.0.1:10888/ws",
 			Func_normal_close: func() {
 				t.Log("close")

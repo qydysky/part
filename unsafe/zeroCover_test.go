@@ -22,10 +22,14 @@ func Test3(t *testing.T) {
 	if s != "123" {
 		t.Fatal()
 	}
+	p := B2S([]byte(s))
 	data[0] = '3'
 	if s != "323" {
 		t.Fatal()
 	}
+	clear(data)
+	t.Log(s)
+	t.Log(p)
 }
 
 func Test4(t *testing.T) {

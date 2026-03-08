@@ -29,7 +29,7 @@ func Test_Play(t *testing.T) {
 	})
 	time.Sleep(time.Second)
 
-	if c, e := New_client(&Client{
+	if c, e := NewClient(&Client{
 		Url: `ws://` + w.Server.Addr + `/ws`,
 		Func_normal_close: func() {
 			fmt.Println(`Func_normal_close`)
@@ -103,7 +103,7 @@ func Test_Plays(t *testing.T) {
 	// wait
 	time.Sleep(time.Second)
 
-	if c, e := New_client(&Client{
+	if c, e := NewClient(&Client{
 		Url: `ws://` + w.Server.Addr + `/ws`,
 		Func_normal_close: func() {
 			fmt.Println(`Func_normal_close`)
@@ -187,7 +187,7 @@ func Test_PlaysSeed(t *testing.T) {
 	// wait
 	time.Sleep(time.Second)
 
-	if c, e := New_client(&Client{
+	if c, e := NewClient(&Client{
 		Url: `ws://` + w.Server.Addr + `/ws`,
 		Func_normal_close: func() {
 			fmt.Println(`Func_normal_close`)
@@ -278,7 +278,7 @@ func Test_PlaysStart(t *testing.T) {
 	// wait
 	time.Sleep(time.Second)
 
-	if c, e := New_client(&Client{
+	if c, e := NewClient(&Client{
 		Url: `ws://` + w.Server.Addr + `/ws`,
 		Func_normal_close: func() {
 			fmt.Println(`Func_normal_close`)

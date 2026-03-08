@@ -87,16 +87,15 @@ func Test2(t *testing.T) {
 }
 
 func Test1(t *testing.T) {
-	e := Join(io.EOF, io.ErrClosedPipe)
-	e = Join(io.EOF, e)
+	e := Join(io.EOF, Join(io.EOF, io.ErrClosedPipe))
 	if !errors.Is(e, io.ErrClosedPipe) {
 		t.FailNow()
 	}
-	if ErrorFormat(e, ErrSimplifyFunc) != "EOF\nEOF\nio: read/write on closed pipe\n" {
-		t.FailNow()
+	if m := ErrorFormat(e, ErrSimplifyFunc); m != "EOF\nEOF\nio: read/write on closed pipe\n" {
+		t.Fatal(m)
 	}
-	if ErrorFormat(e, ErrInLineFunc) != "> EOF > EOF > io: read/write on closed pipe " {
-		t.FailNow()
+	if m := ErrorFormat(e, ErrInLineFunc); m != "> EOF > EOF > io: read/write on closed pipe " {
+		t.Fatal(m)
 	}
 }
 
