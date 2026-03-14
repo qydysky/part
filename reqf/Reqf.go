@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"net/http"
 	"net/url"
@@ -168,11 +169,50 @@ func (t *Req) Respon(f func(b []byte) error) error {
 	return f(t.responBuf.Bytes())
 }
 
+func (t *Req) RequestMarshal(f func(v any) ([]byte, error), v any) (data []byte) {
+	data, _ = f(v)
+	return
+}
+
 func (t *Req) ResponUnmarshal(f func(b []byte, v any) error, v any) error {
 	t.l.RLock()
 	defer t.l.RUnlock()
 
 	return f(t.responBuf.Bytes(), v)
+}
+
+func (t *Req) ResponSSE(pipe *pio.IOpipe) iter.Seq[func(key []byte) (val []byte)] {
+	return func(yield func(func(key []byte) (val []byte)) bool) {
+		var b = make([]byte, 1)
+		var lastb byte
+		var buf bytes.Buffer
+		for {
+			_, e := pipe.Read(b)
+			if e != nil {
+				break
+			} else {
+				if lastb == '\n' && b[0] == '\n' {
+					if !yield(func(key []byte) (val []byte) {
+						tmp := buf.Bytes()
+						if i := bytes.Index(tmp, key); i != -1 {
+							if j := bytes.Index(tmp[i+len(key)+2:], []byte{'\n'}); j != -1 {
+								return tmp[i+len(key)+2 : i+len(key)+2+j]
+							} else {
+								return tmp[i+len(key)+2:]
+							}
+						}
+						return
+					}) {
+						break
+					}
+					buf.Reset()
+				} else {
+					buf.WriteByte(b[0])
+				}
+				lastb = b[0]
+			}
+		}
+	}
 }
 
 func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval) {
