@@ -181,14 +181,16 @@ func (t *Req) ResponUnmarshal(f func(b []byte, v any) error, v any) error {
 	return f(t.responBuf.Bytes(), v)
 }
 
-func (t *Req) ResponSSE(pipe *pio.IOpipe) iter.Seq[func(key []byte) (val []byte)] {
+// f is response reader
+//
+// such as Rval.SaveToPipe.Read,Rval.RawPipe.ResRead
+func ResponSSE(f func([]byte) (int, error)) iter.Seq[func(key []byte) (val []byte)] {
 	return func(yield func(func(key []byte) (val []byte)) bool) {
 		var b = make([]byte, 1)
 		var lastb byte
 		var buf bytes.Buffer
 		for {
-			_, e := pipe.Read(b)
-			if e != nil {
+			if _, e := f(b); e != nil {
 				break
 			} else {
 				if lastb == '\n' && b[0] == '\n' {
@@ -587,7 +589,9 @@ func ToForm(m map[string]string) (postStr string, contentType string) {
 }
 
 func ResDate(res *http.Response) (time.Time, error) {
-	if date := res.Header.Get("date"); date != `` {
+	if res == nil {
+		return time.Time{}, ErrNoDate.New()
+	} else if date := res.Header.Get("date"); date != `` {
 		return time.Parse(time.RFC1123, date)
 	} else {
 		return time.Time{}, ErrNoDate.New()

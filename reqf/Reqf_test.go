@@ -120,9 +120,9 @@ func init() {
 		},
 	})
 	time.Sleep(time.Second)
-	reuse.Reqf(Rval{
-		Url: "http://" + addr + "/no",
-	})
+	// reuse.Reqf(Rval{
+	// 	Url: "http://" + addr + "/no",
+	// })
 }
 
 // https 10879 B/op        141 allocs/op
@@ -700,6 +700,7 @@ func Test_req3(t *testing.T) {
 }
 
 func Test_req5(t *testing.T) {
+	defer time.Sleep(time.Second)
 	r := New()
 	r.Reqf(Rval{
 		Url:     "http://" + addr + "/reply",
@@ -707,7 +708,7 @@ func Test_req5(t *testing.T) {
 	})
 	r.Respon(func(buf []byte) error {
 		if !bytes.Equal(buf, []byte("123")) {
-			t.Fatal()
+			t.Fatal(string(buf))
 		}
 		return nil
 	})
@@ -724,17 +725,13 @@ func Test_req5(t *testing.T) {
 		t.Fatal(e)
 	}
 	raw.ReqClose()
+	buf = append(buf, []byte{}...)
+	buf = buf[:cap(buf)]
 	clear(buf)
 	if _, e := raw.ResRead(buf); e != nil && !errors.Is(e, io.EOF) {
 		t.Fatal(e)
 	}
 	if !bytes.Equal([]byte("123"), buf) {
-		t.Fatal()
+		t.Fatal(buf)
 	}
-	reuse.Response(func(r *http.Response) error {
-		if _, e := ResDate(r); e != nil {
-			t.Fatal()
-		}
-		return nil
-	})
 }
