@@ -71,6 +71,7 @@ func (t *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(`Connection`, `keep-alive`)
 	w.Header().Set(`Transfer-Encoding`, `chunked`)
 	w.Header().Set(`Content-Type`, `text/event-stream`)
+	w.Header().Set(`Cache-Control`, `no-cache`)
 
 	defer t.mq.Pull_tag_only(`send`, func(u *Umsg) (disable bool) {
 		if u.Id != 0 && u.Id != umsg.Id {
