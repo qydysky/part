@@ -35,7 +35,7 @@ func (t *Server) MQ() *pmq.MsgType[*Umsg] {
 
 // 用于httpSer.Handle里。接入和断开管道各收到一次消息
 //
-// <- chan uintptr
+// <- chan *Umsg
 //
 // 0. 发送到t.mq `init`
 //
@@ -51,16 +51,16 @@ func (t *Server) MQ() *pmq.MsgType[*Umsg] {
 //
 // 3. 连接结束，发送到t.mq `fin`
 //
-// <- chan uintptr
-func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan uintptr {
+// <- chan *Umsg
+func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan *Umsg {
 	umsg := t.connPool.Get()
 	defer t.connPool.Put(umsg)
 
-	ch := make(chan uintptr, 3)
+	ch := make(chan *Umsg, 3)
 	go func() {
-		ch <- umsg.Id
+		ch <- umsg
 		defer func() {
-			ch <- umsg.Id
+			ch <- umsg
 		}()
 
 		t.mq.Push_tag(`init`, umsg)
