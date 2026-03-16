@@ -48,7 +48,11 @@ func Test1(t *testing.T) {
 	ser := web.New(&http.Server{Addr: "127.0.0.1:9000"})
 	defer ser.Shutdown()
 	ser.Handle(map[string]func(http.ResponseWriter, *http.Request){
-		`/sse/`: sseSer.Handle,
+		`/sse/`: func(w http.ResponseWriter, r *http.Request) {
+			ch := sseSer.Handle(w, r)
+			<-ch
+			<-ch
+		},
 	})
 
 	time.Sleep(time.Second)
@@ -103,7 +107,11 @@ func Test2(t *testing.T) {
 	ser := web.New(&http.Server{Addr: "127.0.0.1:9000"})
 	defer ser.Shutdown()
 	ser.Handle(map[string]func(http.ResponseWriter, *http.Request){
-		`/sse/`: sseSer.Handle,
+		`/sse/`: func(w http.ResponseWriter, r *http.Request) {
+			ch := sseSer.Handle(w, r)
+			<-ch
+			<-ch
+		},
 	})
 
 	time.Sleep(time.Second)

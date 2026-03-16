@@ -35,6 +35,8 @@ func (t *Server) MQ() *pmq.MsgType[*Umsg] {
 
 // 用于httpSer.Handle里。接入和断开管道各收到一次消息
 //
+// <- chan uintptr
+//
 // 0. 发送到t.mq `init`
 //
 // 1. 尝试开始sse连接，如有错误，发送到t.mq `error`
@@ -48,60 +50,76 @@ func (t *Server) MQ() *pmq.MsgType[*Umsg] {
 // 2. 如有错误，发送到t.mq `error`
 //
 // 3. 连接结束，发送到t.mq `fin`
-func (t *Server) Handle(w http.ResponseWriter, r *http.Request) {
+//
+// <- chan uintptr
+func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan uintptr {
 	umsg := t.connPool.Get()
 	defer t.connPool.Put(umsg)
 
-	t.mq.Push_tag(`init`, umsg)
-	defer t.mq.Push_tag(`fin`, umsg)
+	ch := make(chan uintptr, 3)
+	go func() {
+		ch <- umsg.Id
+		defer func() {
+			ch <- umsg.Id
+		}()
 
-	for cu := 0; true; {
-		umsg.Data = umsg.Data[0:cap(umsg.Data)]
-		if n, e := io.ReadFull(r.Body, umsg.Data[cu:]); e != nil {
-			cu += n
-			umsg.Data = umsg.Data[:cu]
-			break
-		} else {
-			cu += n
-			umsg.Data = append(umsg.Data, []byte{}...)
+		t.mq.Push_tag(`init`, umsg)
+		defer t.mq.Push_tag(`fin`, umsg)
+
+		for cu := 0; true; {
+			umsg.Data = umsg.Data[0:cap(umsg.Data)]
+			if n, e := io.ReadFull(r.Body, umsg.Data[cu:]); e != nil {
+				cu += n
+				umsg.Data = umsg.Data[:cu]
+				break
+			} else {
+				cu += n
+				umsg.Data = append(umsg.Data, []byte{}...)
+			}
 		}
-	}
 
-	w = pw.WithFlush(w)
-	w.Header().Set(`Connection`, `keep-alive`)
-	w.Header().Set(`Transfer-Encoding`, `chunked`)
-	w.Header().Set(`Content-Type`, `text/event-stream`)
-	w.Header().Set(`Cache-Control`, `no-cache`)
+		w = pw.WithFlush(w)
+		w.Header().Set(`Connection`, `keep-alive`)
+		w.Header().Set(`Transfer-Encoding`, `chunked`)
+		w.Header().Set(`Content-Type`, `text/event-stream`)
+		w.Header().Set(`Cache-Control`, `no-cache`)
 
-	defer t.mq.Pull_tag_only(`send`, func(u *Umsg) (disable bool) {
-		if u.Id != 0 && u.Id != umsg.Id {
-			return false
-		}
-		if len(u.Key) != 0 {
-			if _, u.Err = w.Write(u.Key); u.Err != nil {
-			} else if _, u.Err = w.Write([]byte{':', ' '}); u.Err != nil {
-			} else if _, u.Err = w.Write(u.Data); u.Err != nil {
+		defer t.mq.Pull_tag_only(`send`, func(u *Umsg) (disable bool) {
+			if u.Id != 0 && u.Id != umsg.Id {
+				return false
+			}
+			if len(u.Key) != 0 {
+				if _, u.Err = w.Write(u.Key); u.Err != nil {
+				} else if _, u.Err = w.Write([]byte{':', ' '}); u.Err != nil {
+				} else if _, u.Err = w.Write(u.Data); u.Err != nil {
+				} else if _, u.Err = w.Write([]byte{'\n'}); u.Err != nil {
+				}
 			} else if _, u.Err = w.Write([]byte{'\n'}); u.Err != nil {
 			}
-		} else if _, u.Err = w.Write([]byte{'\n'}); u.Err != nil {
-		}
-		if u.Err != nil {
-			t.mq.Push_tag(`error`, u)
-			return true
-		} else {
-			return false
-		}
-	})()
+			if u.Err != nil {
+				t.mq.Push_tag(`error`, u)
+				return true
+			} else {
+				return false
+			}
+		})()
 
-	cancle, ch := t.mq.Pull_tag_chan(`close`, 2, context.Background())
-	defer cancle()
+		cancle, ch := t.mq.Pull_tag_chan(`close`, 2, context.Background())
+		defer cancle()
 
-	t.mq.Push_tag(`recv`, umsg)
-	for {
-		if id := (<-ch).Id; id == 0 || id == umsg.Id {
-			break
+		t.mq.Push_tag(`recv`, umsg)
+
+		for stop := false; !stop; {
+			select {
+			case uid := <-ch:
+				stop = uid.Id == 0 || uid.Id == umsg.Id
+			case <-r.Context().Done():
+				stop = true
+			}
 		}
-	}
+	}()
+
+	return ch
 }
 
 type Umsg struct {
