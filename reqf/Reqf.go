@@ -169,7 +169,7 @@ func (t *Req) Respon(f func(b []byte) error) error {
 	return f(t.responBuf.Bytes())
 }
 
-func (t *Req) RequestMarshal(f func(v any) ([]byte, error), v any) (data []byte) {
+func RequestMarshal(f func(v any) ([]byte, error), v any) (data []byte) {
 	data, _ = f(v)
 	return
 }
