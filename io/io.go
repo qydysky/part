@@ -634,20 +634,23 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 	return rwc
 }
 
-func ReadAll(r io.Reader, b []byte) ([]byte, error) {
-	b = b[:0]
+// if tmpbuf no larger then the data need to read, tmpbuf will reallocs, so avoid to use tmpbuf but return val
+//
+// return val []byte is tmpbuf, it can be reuse
+func ReadAll(r io.Reader, tmpbuf []byte) ([]byte, error) {
+	tmpbuf = tmpbuf[:0]
 	for {
-		if len(b) == cap(b) {
+		if len(tmpbuf) == cap(tmpbuf) {
 			// Add more capacity (let append pick how much).
-			b = append(b, 0)[:len(b)]
+			tmpbuf = append(tmpbuf, 0)[:len(tmpbuf)]
 		}
-		n, err := r.Read(b[len(b):cap(b)])
-		b = b[:len(b)+n]
+		n, err := r.Read(tmpbuf[len(tmpbuf):cap(tmpbuf)])
+		tmpbuf = tmpbuf[:len(tmpbuf)+n]
 		if err != nil {
 			if err == io.EOF {
 				err = nil
 			}
-			return b, err
+			return tmpbuf, err
 		}
 	}
 }
