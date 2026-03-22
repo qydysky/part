@@ -104,6 +104,41 @@ func (t *BlockFuncN) BlockAll() (unBlock func()) {
 	}
 }
 
+// 新的等待旧的按顺序
+type BlockSeqFunc struct {
+	l atomic.Pointer[chan any]
+}
+
+func NewBlockSeqFunc() (t *BlockSeqFunc) {
+	t = new(BlockSeqFunc)
+	n := make(chan any)
+	close(n)
+	t.l.Swap(&n)
+	return
+}
+
+func (t *BlockSeqFunc) Block() (done func()) {
+	n := make(chan any)
+	<-*t.l.Swap(&n)
+	return func() {
+		close(n)
+	}
+}
+
+func (t *BlockSeqFunc) BlockCtx(ctx context.Context) (done func()) {
+	n := make(chan any)
+	select {
+	case <-ctx.Done():
+		close(n)
+		done = func() {}
+	case <-*t.l.Swap(&n):
+		done = func() {
+			close(n)
+		}
+	}
+	return
+}
+
 // 在Range时，同时创建返回子上下文ctx
 type RangeSource[T any] iter.Seq[T]
 
