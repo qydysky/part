@@ -7,7 +7,19 @@ import (
 	"io"
 	"testing"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	prand "github.com/qydysky/part/rand"
 )
+
+func Test1(t *testing.T) {
+	sBuf := prand.Rand[[]byte](prand.TypeNum|prand.TypeLow|prand.TypeUpp, humanize.MByte)
+	tBuf := make([]byte, humanize.KByte)
+	tBuf, _ = ReadAll(bytes.NewReader(sBuf), tBuf)
+	if !bytes.Equal(sBuf, tBuf) {
+		t.Fatal()
+	}
+}
 
 func Test_iopipe(t *testing.T) {
 	pipe := NewPipe()
