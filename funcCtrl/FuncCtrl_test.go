@@ -6,6 +6,34 @@ import (
 	"time"
 )
 
+func Test2(t *testing.T) {
+	to, cancle := context.WithTimeout(t.Context(), time.Millisecond*500)
+	defer cancle()
+
+	b := NewBlockSeqFunc()
+	time.AfterFunc(time.Second, b.Block())
+	s := time.Now()
+	done := b.BlockCtx(to)
+	if time.Since(s) > time.Millisecond*600 || time.Since(s) < time.Millisecond*500 {
+		t.Fatal()
+	}
+	done()
+}
+
+func Test1(t *testing.T) {
+	b := NewBlockSeqFunc()
+	time.AfterFunc(time.Second, b.Block())
+	s := time.Now()
+	if time.Since(s) > time.Millisecond*100 {
+		t.Fatal()
+	}
+	done := b.Block()
+	if time.Since(s) > time.Millisecond*1100 || time.Since(s) < time.Millisecond*1000 {
+		t.Fatal()
+	}
+	done()
+}
+
 func Test_RangeCtx(t *testing.T) {
 	var rs RangeSource[int] = func(yield func(int) bool) {
 		for i := range 10 {
