@@ -639,11 +639,10 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 // return val []byte is tmpbuf, it can be reuse
 func ReadAll(r io.Reader, tmpbuf []byte) ([]byte, error) {
 	tmpbuf = tmpbuf[:0]
+	if r == nil {
+		return tmpbuf, nil
+	}
 	for {
-		if len(tmpbuf) == cap(tmpbuf) {
-			// Add more capacity (let append pick how much).
-			tmpbuf = append(tmpbuf, 0)[:len(tmpbuf)]
-		}
 		n, err := r.Read(tmpbuf[len(tmpbuf):cap(tmpbuf)])
 		tmpbuf = tmpbuf[:len(tmpbuf)+n]
 		if err != nil {
@@ -651,6 +650,9 @@ func ReadAll(r io.Reader, tmpbuf []byte) ([]byte, error) {
 				err = nil
 			}
 			return tmpbuf, err
+		} else if len(tmpbuf) == cap(tmpbuf) {
+			// Add more capacity (let append pick how much).
+			tmpbuf = append(tmpbuf, 0)[:len(tmpbuf)]
 		}
 	}
 }
