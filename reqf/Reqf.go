@@ -197,10 +197,10 @@ func ResponSSE(f func([]byte) (int, error)) iter.Seq[func(key []byte) (val []byt
 					if !yield(func(key []byte) (val []byte) {
 						tmp := buf.Bytes()
 						if i := bytes.Index(tmp, key); i != -1 {
-							if j := bytes.Index(tmp[i+len(key)+2:], []byte{'\n'}); j != -1 {
-								return tmp[i+len(key)+2 : i+len(key)+2+j]
+							if j := bytes.Index(tmp[i+len(key):], []byte{'\n'}); j != -1 {
+								return tmp[i+len(key) : i+len(key)+j]
 							} else {
-								return tmp[i+len(key)+2:]
+								return tmp[i+len(key):]
 							}
 						}
 						return

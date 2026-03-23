@@ -8,7 +8,6 @@ import (
 
 	pmq "github.com/qydysky/part/msgq"
 	pp "github.com/qydysky/part/pool"
-	pw "github.com/qydysky/part/web"
 )
 
 type Server struct {
@@ -53,11 +52,13 @@ func (t *Server) MQ() *pmq.MsgType[*Umsg] {
 //
 // <- chan *Umsg
 func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan *Umsg {
-	umsg := t.connPool.Get()
-	defer t.connPool.Put(umsg)
+	umsg := t.connPool.Get().ReSet()
+
+	umsg.Data, _ = pio.ReadAll(r.Body, umsg.Data)
 
 	ch := make(chan *Umsg, 3)
 	go func() {
+		defer t.connPool.Put(umsg)
 		ch <- umsg
 		defer func() {
 			ch <- umsg
@@ -65,18 +66,6 @@ func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan *Umsg {
 
 		t.mq.Push_tag(`init`, umsg)
 		defer t.mq.Push_tag(`fin`, umsg)
-
-		for cu := 0; true; {
-			umsg.Data = umsg.Data[0:cap(umsg.Data)]
-			if n, e := io.ReadFull(r.Body, umsg.Data[cu:]); e != nil {
-				cu += n
-				umsg.Data = umsg.Data[:cu]
-				break
-			} else {
-				cu += n
-				umsg.Data = append(umsg.Data, []byte{}...)
-			}
-		}
 
 		w = pw.WithFlush(w)
 		w.Header().Set(`Connection`, `keep-alive`)
@@ -93,8 +82,10 @@ func (t *Server) Handle(w http.ResponseWriter, r *http.Request) <-chan *Umsg {
 				} else if _, u.Err = w.Write([]byte{':', ' '}); u.Err != nil {
 				} else if _, u.Err = w.Write(u.Data); u.Err != nil {
 				} else if _, u.Err = w.Write([]byte{'\n'}); u.Err != nil {
+				} else {
 				}
 			} else if _, u.Err = w.Write([]byte{'\n'}); u.Err != nil {
+			} else {
 			}
 			if u.Err != nil {
 				t.mq.Push_tag(`error`, u)
@@ -127,6 +118,13 @@ type Umsg struct {
 	Err  error
 	Key  []byte
 	Data []byte
+}
+
+func (t *Umsg) ReSet() *Umsg {
+	t.Key = t.Key[:0]
+	t.Data = t.Data[:0]
+	t.Err = nil
+	return t
 }
 
 func (t *Umsg) Set(key, data []byte) *Umsg {

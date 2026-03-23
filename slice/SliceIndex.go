@@ -172,6 +172,17 @@ func (t *SliceIndexNoLock[T]) Append(s, e int) {
 		t.modified.t += 1
 	}
 }
+func (t *SliceIndexNoLock[T]) FiliterAppend(s, e int, f func(*T) (pass bool)) {
+	if i := len(t.buf) - 1; i >= 0 && s == t.buf[i] {
+		if t.buf[i] < e {
+			t.buf[i] = e
+			t.modified.t += 1
+		}
+	} else {
+		t.buf = append(t.buf, s, e)
+		t.modified.t += 1
+	}
+}
 func (t *SliceIndexNoLock[T]) Size() (c int) {
 	for i := 0; i < len(t.buf); i += 2 {
 		c += t.buf[i+1] - t.buf[i]
