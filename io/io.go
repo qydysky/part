@@ -642,17 +642,19 @@ func ReadAll(r io.Reader, tmpbuf []byte) ([]byte, error) {
 	if r == nil {
 		return tmpbuf, nil
 	}
+	cuL := len(tmpbuf)
 	for {
-		n, err := r.Read(tmpbuf[len(tmpbuf):cap(tmpbuf)])
-		tmpbuf = tmpbuf[:len(tmpbuf)+n]
+		tmpbuf = tmpbuf[:cap(tmpbuf)]
+		n, err := r.Read(tmpbuf[cuL:])
+		cuL += n
 		if err != nil {
 			if err == io.EOF {
 				err = nil
 			}
-			return tmpbuf, err
-		} else if len(tmpbuf) == cap(tmpbuf) {
+			return tmpbuf[:cuL], err
+		} else if cuL == cap(tmpbuf) {
 			// Add more capacity (let append pick how much).
-			tmpbuf = append(tmpbuf, 0)[:len(tmpbuf)]
+			tmpbuf = append(tmpbuf, 0)
 		}
 	}
 }

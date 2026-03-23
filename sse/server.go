@@ -130,7 +130,7 @@ func (t *Umsg) ReSet() *Umsg {
 
 func (t *Umsg) Set(key, data []byte) *Umsg {
 	t.Key = key
-	t.Data = data
+	t.Data = append(t.Data[:0], data...)
 	return t
 }
 
