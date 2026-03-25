@@ -578,7 +578,7 @@ func IsCancel(e error) bool {
 
 func ToForm(m map[string]string) (postStr string, contentType string) {
 	var buf strings.Builder
-	sign := prand.Rand[string](0, 30)
+	sign := prand.Rand[string](prand.TypeNum|prand.TypeLow|prand.TypeUpp, 30)
 	for k, v := range m {
 		buf.WriteString(`-----------------------------` + sign + "\n")
 		buf.WriteString(`Content-Disposition: form-data; name="` + k + `"` + "\n\n")
