@@ -195,7 +195,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 				// 上报时刻与当前时刻差超2s,调整时间
 				if t, e := strconv.ParseFloat(data, 64); e == nil && math.Abs(cu-t) > 2 {
 					cuRec = rangeRec(func(r *rec) (stop bool) {
-						return r.op.Seconds() <= t && t <= r.op.Seconds()+r.dur.Seconds()
+						return r.op.Seconds() <= t && t <= r.op.Seconds()+r.dur.Seconds()-r.start.Seconds()
 					})
 					if cuRec.file != nil {
 						_ = cuRec.file.SeekIndex(0, file.AtOrigin)
@@ -249,7 +249,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 								// 退出
 								cancleFin()
 								return
-							} else if cu < cuRec.op.Seconds()+cuRec.dur.Seconds() {
+							} else if cu < cuRec.op.Seconds()+cuRec.dur.Seconds()-cuRec.start.Seconds() {
 								// 当前时间仍位于本段设定的时间段，继续等待
 								break
 							} else {
