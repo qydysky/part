@@ -64,7 +64,7 @@ func Test3(t *testing.T) {
 	bus, actM := Action[struct {
 		B Error
 	}](`bus`)
-	a := bus.B.Wrap(io.EOF)
+	a := Join(bus.B.Raw("we"), io.EOF)
 	t.Log(ErrorFormat(a, ErrActionInLineFunc))
 	if !actM.InAction(bus.B) {
 		t.Fatal()
@@ -78,7 +78,7 @@ func Test3(t *testing.T) {
 	if !errors.Is(a, io.EOF) {
 		t.Fatal()
 	}
-	if !errors.Is(bus.B, io.EOF) {
+	if !errors.Is(a, io.EOF) {
 		t.Fatal()
 	}
 	b := bus.B
