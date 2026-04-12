@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"errors"
 	"fmt"
 	"go/build"
 	"reflect"
@@ -11,22 +12,42 @@ import (
 )
 
 type Error struct {
-	err      error
-	raw      string
-	actRaw   string
-	actPoint uintptr
+	// err       error
+	fieldName string
+	raw       string
+	point     uintptr
+	actRaw    string
+	actPoint  uintptr
 }
 
-func (t *Error) Wrap(err error) Error {
-	t.err = err
-	return *t
-}
-func (t Error) Unwrap() error {
-	return t.err
+func (t *Error) Raw(raw string) *Error {
+	t.raw = raw
+	return t
 }
 
-func (t Error) Error() string {
-	return t.raw
+//	func (t *Error) Wrap(err error) *Error {
+//		t.err = err
+//		return t
+//	}
+//
+//	func (t Error) Unwrap() error {
+//		return t.err
+//	}
+func (t Error) Is(e error) bool {
+	if re, ok := e.(Error); ok {
+		return re.actPoint == t.actPoint && re.point == t.point
+	}
+	return false
+}
+func (t Error) Error() (e string) {
+	e = t.fieldName
+	// if t.err != nil {
+	// 	e += ":" + t.err.Error()
+	// }
+	if t.raw != "" {
+		e += ":" + t.raw
+	}
+	return
 }
 
 func Action[T any](actName string) (act *T, actM ActionMethod) {
@@ -34,22 +55,24 @@ func Action[T any](actName string) (act *T, actM ActionMethod) {
 	for s, v := range reflect.ValueOf(act).Elem().Fields() {
 		if _, ok := v.Interface().(Error); ok {
 			if tagErr := s.Tag.Get(`err`); tagErr != "" {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("raw").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
+				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
 			} else {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("raw").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
+				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
 			}
 			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
 			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
+			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("point").UnsafeAddr())).Elem().Set(reflect.ValueOf(v.UnsafeAddr()))
 		}
 		if _, ok := v.Interface().(*Error); ok {
 			v.Set(reflect.ValueOf(new(Error)))
 			if tagErr := s.Tag.Get(`err`); tagErr != "" {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("raw").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
+				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
 			} else {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("raw").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
+				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
 			}
 			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
 			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.Elem().FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
+			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.Elem().FieldByName("point").UnsafeAddr())).Elem().Set(reflect.ValueOf(v.Elem().UnsafeAddr()))
 		}
 	}
 	actM = ActionMethod{actRaw: actName, actPoint: uintptr(unsafe.Pointer(act))}
@@ -123,9 +146,12 @@ var (
 	//
 	// 否则e.Error() + "\n"
 	ErrActionSimplifyFunc ErrFormatFunc = func(e error) string {
-		if err, ok := e.(Error); ok {
-			return string(err.actRaw) + ":" + e.Error() + "\n"
-		} else {
+		switch x := e.(type) {
+		case Error:
+			return string(x.actRaw) + ":" + e.Error() + "\n"
+		case *Error:
+			return string(x.actRaw) + ":" + e.Error() + "\n"
+		default:
 			return e.Error() + "\n"
 		}
 	}
@@ -137,10 +163,19 @@ var (
 	//
 	// 否则"> " + e.Error() + " "
 	ErrActionInLineFunc ErrFormatFunc = func(e error) string {
-		if err, ok := e.(Error); ok {
-			return fmt.Sprintf("> %v:%v ", err.actRaw, strings.TrimSpace(e.Error()))
-		} else {
+		switch x := e.(type) {
+		case Error:
+			return fmt.Sprintf("> %v:%v ", x.actRaw, strings.TrimSpace(e.Error()))
+		case *Error:
+			return fmt.Sprintf("> %v:%v ", x.actRaw, strings.TrimSpace(e.Error()))
+		default:
 			return fmt.Sprintf("> %v ", strings.TrimSpace(e.Error()))
 		}
 	}
+)
+
+var (
+	Is     = errors.Is
+	Join   = errors.Join
+	Unwrap = errors.Unwrap
 )
