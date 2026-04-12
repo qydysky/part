@@ -65,6 +65,16 @@ func TestXxx3(t *testing.T) {
 	t.Log(err.Error())
 }
 
+func Benchmark1(b *testing.B) {
+	a1 := Action(`a1`)
+	err := a1.NewErr(io.EOF)
+	for b.Loop() {
+		if !Catch(err, a1) {
+			b.Fatal()
+		}
+	}
+}
+
 func TestXxx2(t *testing.T) {
 	err := Join(New("r1", a1), io.EOF)
 	if !Catch(err, a1) {
