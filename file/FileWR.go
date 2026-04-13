@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	pe "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 	pio "github.com/qydysky/part/io"
 	encoder "golang.org/x/text/encoding"
 )

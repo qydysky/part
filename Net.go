@@ -16,7 +16,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	pe "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 	pfile "github.com/qydysky/part/file"
 	psync "github.com/qydysky/part/sync"
 	us "github.com/qydysky/part/unsafe"
@@ -122,10 +122,10 @@ func connBridge(a, b net.Conn, bufSize int) {
 	b.Close()
 }
 
-var (
-	ErrForwardAccept pe.Action = `ErrForwardAccept`
-	ErrForwardDail   pe.Action = `ErrForwardDail`
-)
+var ActForward = pe.Action[struct {
+	ErrForwardAccept pe.Error
+	ErrForwardDail   pe.Error
+}](`ActForward`)
 
 type ForwardMsgFunc interface {
 	ErrorMsg(targetaddr, listenaddr string, e error)
@@ -212,7 +212,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string, callBack Forwa
 			}
 			if err != nil {
 				//返回Accept错误
-				callBack.WarnMsg(targetaddr, listenaddr, pe.Join(ErrForwardAccept, err))
+				callBack.WarnMsg(targetaddr, listenaddr, pe.Join(ActForward.ErrForwardAccept, err))
 				continue
 			}
 
@@ -241,7 +241,7 @@ func Forward(targetaddr, listenaddr string, acceptCIDRs []string, callBack Forwa
 				defer conFin()
 				targetconn, err := net.Dial(tarNet, tarAddr)
 				if err != nil {
-					callBack.WarnMsg(targetaddr, listenaddr, pe.Join(ErrForwardDail, err))
+					callBack.WarnMsg(targetaddr, listenaddr, pe.Join(ActForward.ErrForwardDail, err))
 					return
 				}
 

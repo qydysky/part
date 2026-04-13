@@ -22,7 +22,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	br "github.com/qydysky/brotli"
-	pe "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 	pio "github.com/qydysky/part/io"
 	prand "github.com/qydysky/part/rand"
 	// "encoding/binary"
@@ -77,14 +77,16 @@ const (
 )
 
 var (
-	ErrEmptyUrl         = pe.Action("ErrEmptyUrl")
-	ErrCantRetry        = pe.Action("ErrCantRetry")
-	ErrNewRequest       = pe.Action("ErrNewRequest")
-	ErrClientDo         = pe.Action("ErrClientDo")
-	ErrResponFileCreate = pe.Action("ErrResponFileCreate")
-	ErrCopyRes          = pe.Action("ErrCopyRes")
-	ErrPostStrOrRawPipe = pe.Action("ErrPostStrOrRawPipe")
-	ErrNoDate           = pe.Action("ErrNoDate")
+	ActReq = pe.Action[struct {
+		ErrEmptyUrl         pe.Error
+		ErrCantRetry        pe.Error
+		ErrNewRequest       pe.Error
+		ErrClientDo         pe.Error
+		ErrResponFileCreate pe.Error
+		ErrCopyRes          pe.Error
+		ErrPostStrOrRawPipe pe.Error
+		ErrNoDate           pe.Error
+	}](`ActReq`)
 )
 
 type Req struct {
@@ -245,7 +247,7 @@ func (t *Req) reqfM(ctx context.Context, ctxf1 context.CancelCauseFunc, val Rval
 func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	req, e := http.NewRequestWithContext(ctx, val.Method, val.Url, t.reqBody)
 	if e != nil {
-		return pe.Join(ErrNewRequest.New(), e)
+		return pe.Join(ActReq.ErrNewRequest, e)
 	}
 
 	for _, v := range val.Cookies {
@@ -280,7 +282,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 	resp, e := t.client.Do(req)
 
 	if e != nil {
-		return pe.Join(ErrClientDo.New(), e)
+		return pe.Join(ActReq.ErrClientDo, e)
 	}
 	defer resp.Body.Close()
 
@@ -303,7 +305,7 @@ func (t *Req) reqf(ctx context.Context, val Rval) (err error) {
 		t.responFile, e = os.Create(val.SaveToPath)
 		if e != nil {
 			t.responFile.Close()
-			return pe.Join(err, ErrResponFileCreate.New(), e)
+			return pe.Join(err, ActReq.ErrResponFileCreate, e)
 		}
 		ws = append(ws, t.responFile)
 	}
@@ -405,15 +407,15 @@ func (t *Req) prepareRes() (e error) {
 
 func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCauseFunc, e error) {
 	if val.Url == "" {
-		e = ErrEmptyUrl.New()
+		e = ActReq.ErrEmptyUrl
 		return
 	}
 	if len(val.PostStr) > 0 && val.RawPipe != nil {
-		e = ErrPostStrOrRawPipe.New()
+		e = ActReq.ErrPostStrOrRawPipe
 		return
 	}
 	if val.Retry != 0 && val.RawPipe != nil {
-		e = ErrCantRetry.New()
+		e = ActReq.ErrCantRetry
 		return
 	}
 	t.UsedTime = 0
@@ -538,7 +540,7 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		go func() {
 			select {
 			case <-t.rwTO.C:
-				ctxf1(ErrCopyRes)
+				ctxf1(ActReq.ErrCopyRes)
 			case <-ctx1.Done():
 			}
 		}()
@@ -590,10 +592,10 @@ func ToForm(m map[string]string) (postStr string, contentType string) {
 
 func ResDate(res *http.Response) (time.Time, error) {
 	if res == nil {
-		return time.Time{}, ErrNoDate.New()
+		return time.Time{}, ActReq.ErrNoDate
 	} else if date := res.Header.Get("date"); date != `` {
 		return time.Parse(time.RFC1123, date)
 	} else {
-		return time.Time{}, ErrNoDate.New()
+		return time.Time{}, ActReq.ErrNoDate
 	}
 }

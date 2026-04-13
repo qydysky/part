@@ -4,18 +4,19 @@ import (
 	"runtime"
 	"strings"
 
-	perrors "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 	psync "github.com/qydysky/part/sync"
 )
 
 var pkgInterfaceMap = psync.NewMapG[string, any]()
 
-var (
-	ErrEmptyPkgId    = perrors.New("ErrEmptyPkgId")
-	ErrRegistered    = perrors.New("ErrRegistered")
-	ErrNoFound       = perrors.Action("ErrNoFound")
-	ErrTypeAssertion = perrors.Action("ErrTypeAssertion")
-)
+var ActComp = pe.Action[struct {
+	ErrEmptyPkgId    pe.Error
+	ErrRegistered    pe.Error
+	ErrNoFound       pe.Error
+	ErrTypeAssertion pe.Error
+	m                pe.Method
+}](`ActComp`)
 
 func PkgId(varId ...string) string {
 	if pc, _, _, ok := runtime.Caller(1); ok {
@@ -29,10 +30,10 @@ func PkgId(varId ...string) string {
 // 注册错误时，返回错误
 func Register[TargetInterface any](id string, _interface TargetInterface) error {
 	if id == "" {
-		return ErrEmptyPkgId
+		return ActComp.ErrEmptyPkgId
 	}
 	if _, ok := pkgInterfaceMap.LoadOrStore(id, _interface); ok {
-		return ErrRegistered
+		return ActComp.ErrRegistered
 	}
 	return nil
 }
@@ -48,10 +49,10 @@ func RegisterOrPanic[TargetInterface any](id string, _interface TargetInterface)
 
 func UnRegist(id string) error {
 	if id == "" {
-		return ErrEmptyPkgId
+		return ActComp.ErrEmptyPkgId
 	}
 	if _, ok := pkgInterfaceMap.LoadAndDelete(id); !ok {
-		return ErrNoFound
+		return ActComp.ErrNoFound
 	}
 	return nil
 }
@@ -137,10 +138,10 @@ func (t *GetRunner[TargetInterface]) Inter(ifFail ...func(error) TargetInterface
 	if t.err != nil {
 		if len(ifFail) == 0 {
 			p := PreFuncPanic[TargetInterface]{}
-			if ErrNoFound.Catch(t.err) {
+			if pe.Is(t.err, ActComp.ErrNoFound) {
 				_ = p.ErrNoFound(t.cmpid)
 			}
-			if ErrTypeAssertion.Catch(t.err) {
+			if pe.Is(t.err, ActComp.ErrTypeAssertion) {
 				_ = p.ErrTypeAssertion(t.cmpid)
 			}
 			panic(t.cmpid)
@@ -189,11 +190,11 @@ func (PreFuncPanic[TargetInterface]) Init(s TargetInterface) TargetInterface {
 }
 
 func (PreFuncPanic[TargetInterface]) ErrNoFound(id string) error {
-	panic(perrors.ErrorFormat(ErrNoFound.New(id), perrors.ErrActionInLineFunc))
+	panic(pe.ErrorFormat(ActComp.ErrNoFound.Raw(id), pe.ErrActionInLineFunc))
 }
 
 func (PreFuncPanic[TargetInterface]) ErrTypeAssertion(id string) error {
-	panic(perrors.ErrorFormat(ErrTypeAssertion.New(id), perrors.ErrActionInLineFunc))
+	panic(pe.ErrorFormat(ActComp.ErrTypeAssertion.Raw(id), pe.ErrActionInLineFunc))
 }
 
 type PreFuncErr[TargetInterface any] struct{}
@@ -203,11 +204,11 @@ func (PreFuncErr[TargetInterface]) Init(s TargetInterface) TargetInterface {
 }
 
 func (PreFuncErr[TargetInterface]) ErrNoFound(id string) error {
-	return ErrNoFound.New(id)
+	return ActComp.ErrNoFound.Raw(id)
 }
 
 func (PreFuncErr[TargetInterface]) ErrTypeAssertion(id string) error {
-	return ErrTypeAssertion.New(id)
+	return ActComp.ErrTypeAssertion.Raw(id)
 }
 
 type PreFuncCu[TargetInterface any] struct {
@@ -227,7 +228,7 @@ func (t PreFuncCu[TargetInterface]) ErrNoFound(id string) error {
 	if t.ErrNoFoundf != nil {
 		return t.ErrNoFoundf(id)
 	} else {
-		return ErrNoFound.New(id)
+		return ActComp.ErrNoFound.Raw(id)
 	}
 }
 
@@ -235,6 +236,6 @@ func (t PreFuncCu[TargetInterface]) ErrTypeAssertion(id string) error {
 	if t.ErrTypeAssertionf != nil {
 		return t.ErrTypeAssertionf(id)
 	} else {
-		return ErrTypeAssertion.New(id)
+		return ActComp.ErrTypeAssertion.Raw(id)
 	}
 }

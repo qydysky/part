@@ -19,7 +19,7 @@ func Test5(t *testing.T) {
 		panic(e)
 	}
 
-	if UnRegist("aa-5") != ErrNoFound {
+	if UnRegist("aa-5") != ActComp.ErrNoFound {
 		t.Fatal()
 	}
 
@@ -125,7 +125,7 @@ func Test2(t *testing.T) {
 		GetV2("aa21", PreFuncCu[a]{
 			ErrNoFoundf: func(id string) error {
 				ok = true
-				return ErrNoFound
+				return ActComp.ErrNoFound
 			},
 		})
 		if !ok {
@@ -138,7 +138,7 @@ func Test2(t *testing.T) {
 		GetV2("aa20", PreFuncCu[interface{ Add() }]{
 			ErrTypeAssertionf: func(id string) error {
 				ok = true
-				return ErrTypeAssertion
+				return ActComp.ErrTypeAssertion
 			},
 		})
 		if !ok {

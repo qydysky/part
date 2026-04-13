@@ -20,7 +20,10 @@ type Error struct {
 	actPoint  uintptr
 }
 
-func (t *Error) Raw(raw string) *Error {
+// Raw will alloc new Error, which field raw is replaced, but keep other fields.
+//
+// so errors.Is or Method.IsAction will work fine, but == not
+func (t Error) Raw(raw string) Error {
 	t.raw = raw
 	return t
 }
@@ -50,10 +53,22 @@ func (t Error) Error() (e string) {
 	return
 }
 
-func Action[T any](actName string) (act *T, actM ActionMethod) {
+// T is a struct which have Fields with type Error or Method,eg.
+//
+//	xxx := Action[struct{
+//		A Error
+//		b Error
+//		m Method
+//	}](`xxx`)
+//
+// func will use reflect to init these Fields
+//
+// then use like xxx.A as normal error
+func Action[T any](actName string) (act *T) {
 	act = new(T)
 	for s, v := range reflect.ValueOf(act).Elem().Fields() {
-		if _, ok := v.Interface().(Error); ok {
+		switch s.Type {
+		case reflect.TypeFor[Error]():
 			if tagErr := s.Tag.Get(`err`); tagErr != "" {
 				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
 			} else {
@@ -62,37 +77,28 @@ func Action[T any](actName string) (act *T, actM ActionMethod) {
 			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
 			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
 			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("point").UnsafeAddr())).Elem().Set(reflect.ValueOf(v.UnsafeAddr()))
-		}
-		if _, ok := v.Interface().(*Error); ok {
-			v.Set(reflect.ValueOf(new(Error)))
-			if tagErr := s.Tag.Get(`err`); tagErr != "" {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
-			} else {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
+		case reflect.TypeFor[Method]():
+			if pc, file, line, ok := runtime.Caller(1); ok && !strings.HasPrefix(file, build.Default.GOROOT) {
+				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actLoc").UnsafeAddr())).Elem().Set(reflect.ValueOf(fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), line)))
 			}
-			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.Elem().FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
-			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.Elem().FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
-			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.Elem().FieldByName("point").UnsafeAddr())).Elem().Set(reflect.ValueOf(v.Elem().UnsafeAddr()))
+			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
+			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
 		}
-	}
-	actM = ActionMethod{actRaw: actName, actPoint: uintptr(unsafe.Pointer(act))}
-	if pc, file, line, ok := runtime.Caller(1); ok && !strings.HasPrefix(file, build.Default.GOROOT) {
-		actM.actLoc = fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), line)
 	}
 	return
 }
 
-type ActionMethod struct {
+type Method struct {
 	actLoc   string
 	actRaw   string
 	actPoint uintptr
 }
 
-func (t *ActionMethod) Info() (raw, loc string) {
+func (t *Method) Info() (raw, loc string) {
 	return t.actRaw, t.actLoc
 }
 
-func (t *ActionMethod) InAction(err error) bool {
+func (t *Method) InAction(err error) bool {
 	for {
 		switch x := err.(type) {
 		case Error:

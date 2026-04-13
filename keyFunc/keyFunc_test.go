@@ -3,6 +3,8 @@ package part
 import (
 	"errors"
 	"testing"
+
+	pe "github.com/qydysky/part/errors/v2"
 )
 
 func TestMain(t *testing.T) {
@@ -31,7 +33,7 @@ func TestMain(t *testing.T) {
 	}, func() (misskey string, err error) {
 		t.Log(`id2 1`)
 		// some method get id2 but wrong
-		return "", ErrNextMethod
+		return "", ActKeyFunc.ErrNextMethod
 	}, func() (misskey string, err error) {
 		t.Log(`id2 2`)
 		// some method get id2
@@ -72,7 +74,7 @@ func TestMain2(t *testing.T) {
 		return M.id2 != 0
 	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
-		return "", ErrNextMethod
+		return "", ActKeyFunc.ErrNextMethod
 	}, func() (misskey string, err error) {
 		// some method get id2
 		M.id2 = 1
@@ -112,7 +114,7 @@ func TestMain3(t *testing.T) {
 		return M.id2 != 0
 	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
-		return "", ErrNextMethod
+		return "", ActKeyFunc.ErrNextMethod
 	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
 		return "", errors.New(`wrong`)
@@ -242,7 +244,7 @@ func TestMain6(t *testing.T) {
 		return M.id2 != 0
 	}, func() (misskey string, err error) {
 		// some method get id2 but wrong
-		return "", ErrNextMethod.NewErr(ccc)
+		return "", pe.Join(ActKeyFunc.ErrNextMethod, ccc)
 	}, func() (misskey string, err error) {
 		// some method get id2 but id2 not get
 		M.id2 = 0
@@ -259,11 +261,11 @@ func TestMain6(t *testing.T) {
 		}
 	}
 
-	if !ErrKeyNotValid.Catch(lastNode.Err) {
+	if !pe.Is(lastNode.Err, ActKeyFunc.ErrKeyNotValid) {
 		t.Fatal()
 	}
 
-	if !ErrKeyNotValid.Catch(api.Get(`id1`)) {
+	if !pe.Is(api.Get(`id1`), ActKeyFunc.ErrKeyNotValid) {
 		t.Fatal()
 	}
 
@@ -386,9 +388,9 @@ func TestMain9(t *testing.T) {
 	}).Reg(`id2`, func() bool {
 		return M.id2 != 0
 	}, func() (misskey string, err error) {
-		return "", ErrNextMethod.New("1")
+		return "", ActKeyFunc.ErrNextMethod.Raw("1")
 	}, func() (misskey string, err error) {
-		return "", ErrNextMethod.NewErr(ccc)
+		return "", pe.Join(ActKeyFunc.ErrNextMethod, ccc)
 	})
 
 	lastNode := api.GetTrace(`id1`)
@@ -424,7 +426,7 @@ func TestMain10(t *testing.T) {
 
 	lastNode := api.GetTrace(`id1`)
 	for node := range lastNode.Asc() {
-		if node.Key == `id1` && node.MethodIndex == 0 && !errors.Is(node.Err, ErrKeyNotValid) && !ErrKeyNotValid.Catch(node.Err) {
+		if node.Key == `id1` && node.MethodIndex == 0 && !errors.Is(node.Err, ActKeyFunc.ErrKeyNotValid) && !pe.Is(node.Err, ActKeyFunc.ErrKeyNotValid) {
 			t.Fatal()
 		}
 		t.Log(node)

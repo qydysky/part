@@ -1,14 +1,13 @@
 package part
 
 import (
+	"errors"
 	"io"
 	"iter"
 	"sync"
-
-	perrors "github.com/qydysky/part/errors"
 )
 
-var ErrNoSameSliceIndex = perrors.New("SliceIndex.HadModified", "ErrNoSameSliceIndex")
+var ErrNoSameSliceIndex = errors.New("SliceIndex.HadModified.ErrNoSameSliceIndex")
 
 type SliceIndexModified struct {
 	p uintptr
