@@ -13,7 +13,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	ctx "github.com/qydysky/part/ctx"
-	pe "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 	file "github.com/qydysky/part/file"
 	funcCtrl "github.com/qydysky/part/funcCtrl"
 	us "github.com/qydysky/part/unsafe"
@@ -86,11 +86,10 @@ func Play(filePath string) (s *Server, close func()) {
 	})
 }
 
-var (
-	ErrPlays       = pe.Action(`Plays`)
-	ErrCallPlay    = ErrPlays.New(`ErrCallPlay`)
-	ErrFileNoExist = ErrPlays.New(`ErrFileNoExist`)
-)
+var ActPlays = pe.Action[struct {
+	ErrCallPlay    pe.Error
+	ErrFileNoExist pe.Error
+}](`ActPlays`)
 
 // 当新连接建立时，总是从开头开始
 //
@@ -143,7 +142,7 @@ func Plays(regF func(reg func(filepath string, start, dur time.Duration) error))
 		var tmp *rec = rootRec
 		regF(func(filepath string, start, dur time.Duration) error {
 			if !file.IsExist(filepath) {
-				return ErrFileNoExist
+				return ActPlays.ErrFileNoExist
 			}
 			_ = rangeRec(func(r *rec) (stop bool) {
 				tmp.op += r.dur - r.start

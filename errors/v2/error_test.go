@@ -6,13 +6,14 @@ import (
 	"testing"
 )
 
-var bus, actM = Action[struct {
-	A Error `err:"a"`
-	B *Error
+var bus = Action[struct {
+	actM Method
+	A    Error `err:"a"`
+	B    Error
 }](`bus`)
 
 func Test1(t *testing.T) {
-	t.Log(actM.Info())
+	t.Log(bus.actM.Info())
 	t.Log(ErrorFormat(bus.A, ErrActionInLineFunc))
 	if bus.A.Error() != `a` {
 		t.Fatal()
@@ -21,13 +22,13 @@ func Test1(t *testing.T) {
 		t.Fatal()
 	}
 	a := error(bus.A)
-	if !actM.InAction(a) {
+	if !bus.actM.InAction(a) {
 		t.Fatal()
 	}
 	if !errors.Is(a, bus.A) {
 		t.Fatal()
 	}
-	if actM.InAction(io.EOF) {
+	if bus.actM.InAction(io.EOF) {
 		t.Fatal()
 	}
 	b := errors.Join(io.EOF, bus.A, io.EOF)
@@ -35,41 +36,44 @@ func Test1(t *testing.T) {
 	if !errors.Is(b, bus.A) {
 		t.Fatal()
 	}
-	if !actM.InAction(b) {
+	if !bus.actM.InAction(b) {
 		t.Fatal()
 	}
 	b = errors.Join(b, io.EOF)
-	if !actM.InAction(b) {
+	if !bus.actM.InAction(b) {
 		t.Fatal()
 	}
 }
 
 func Test2(t *testing.T) {
-	bus, actM := Action[struct {
-		B Error
+	bus := Action[struct {
+		actM Method
+		B    Error
 	}](`bus`)
-	bus2, actM2 := Action[struct {
-		C Error
+	bus2 := Action[struct {
+		actM2 Method
+		C     Error
 	}](`bus2`)
 	b := errors.Join(bus.B, bus2.C)
-	if !actM2.InAction(b) {
+	if !bus2.actM2.InAction(b) {
 		t.Fatal()
 	}
-	if !actM.InAction(b) {
+	if !bus.actM.InAction(b) {
 		t.Fatal()
 	}
 }
 
 func Test3(t *testing.T) {
-	bus, actM := Action[struct {
-		B Error
+	bus := Action[struct {
+		actM Method
+		B    Error
 	}](`bus`)
 	a := Join(bus.B.Raw("we"), io.EOF)
 	t.Log(ErrorFormat(a, ErrActionInLineFunc))
-	if !actM.InAction(bus.B) {
+	if !bus.actM.InAction(bus.B) {
 		t.Fatal()
 	}
-	if !actM.InAction(a) {
+	if !bus.actM.InAction(a) {
 		t.Fatal()
 	}
 	if !errors.Is(a, bus.B) {
@@ -89,19 +93,48 @@ func Test3(t *testing.T) {
 	if !errors.Is(c, bus.B) {
 		t.Fatal()
 	}
-	if !actM.InAction(c) {
+	if !bus.actM.InAction(c) {
 		t.Fatal()
 	}
 }
 
 func Benchmark1(b *testing.B) {
-	a1, a1M := Action[struct {
-		A Error
+	a1 := Action[struct {
+		actM Method
+		A    Error
 	}](`a1`)
 	err := errors.Join(a1.A, io.EOF)
 	for b.Loop() {
-		if !a1M.InAction(err) {
+		if !bus.actM.InAction(err) {
 			b.Fatal()
 		}
+	}
+}
+
+func Test4(t *testing.T) {
+	bus := Action[struct {
+		actM Method
+		B    Error
+	}](`bus`)
+	b := bus.B.Raw("1")
+	_ = bus.B.Raw("2")
+	if b.Error() != "B:1" {
+		t.Fatal(b)
+	}
+	if !errors.Is(b, bus.B) {
+		t.Fatal()
+	}
+	var a = Error{
+		fieldName: bus.B.fieldName,
+		raw:       bus.B.raw,
+		point:     bus.B.point,
+		actRaw:    bus.B.actRaw,
+		actPoint:  bus.B.actPoint,
+	}
+	if !bus.actM.InAction(a) {
+		t.Fatal()
+	}
+	if !errors.Is(a, bus.B) {
+		t.Fatal()
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pe "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 )
 
 // no close rc any time

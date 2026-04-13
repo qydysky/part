@@ -4,12 +4,15 @@ import (
 	"errors"
 	"iter"
 
-	perrors "github.com/qydysky/part/errors"
+	pe "github.com/qydysky/part/errors/v2"
 )
 
 var (
-	ErrNextMethod   = perrors.Action(`ErrNextMethod`)
-	ErrKeyNotValid  = perrors.Action(`ErrKeyNotValid`)
+	ActKeyFunc = pe.Action[struct {
+		ErrNextMethod  pe.Error
+		ErrKeyNotValid pe.Error
+		M              pe.Method
+	}](`ActKeyFunc`)
 	ErrKeyMissAgain = errors.New(`ErrKeyMissAgain`)
 	ErrKeyNotReg    = errors.New(`ErrKeyNotReg`)
 )
@@ -33,8 +36,8 @@ func NewKeyFunc() *KeyFunc {
 // fs func() (misskeys string, err error):
 //
 //   - 若缺失依赖key,应返回misskey!=""
-//   - 若方法错误，但不是严重错误，应返回misskey=="" err==ErrNextMethod.NewErr(err)，以便尝试下一个fs，
-//     当没有下个fs时，将会退出并返回ErrNextMethod.NewErr(err)，可以使用errors.Is比较err，也可以使用ErrNextMethod.catch捕获到ErrNextMethod
+//   - 若方法错误，但不是严重错误，应返回misskey=="" err==ActKeyFunc.ErrNextMethod，以便尝试下一个fs，
+//     当没有下个fs时，将会退出并返回ActKeyFunc.ErrNextMethod，可以使用errors.Is比较err，也可以捕获ErrNextMethod
 //   - 若方法错误，需要立即退出，应返回misskey=="" err!=nil
 //   - 其他情况，应返回misskey=="" err==nil
 func (t *KeyFunc) Reg(key string, checkf func() bool, fs ...func() (misskey string, err error)) *KeyFunc {
@@ -154,9 +157,9 @@ func (t *KeyFunc) getTrace(key string, trace *Node) *Node {
 				if t.keyCheck[key]() {
 					return trace
 				} else {
-					trace.Err = ErrKeyNotValid.NewErr(trace.Err)
+					trace.Err = pe.Join(ActKeyFunc.ErrKeyNotValid, trace.Err)
 				}
-			} else if perrors.Catch(trace.Err, ErrNextMethod) {
+			} else if pe.Is(trace.Err, ActKeyFunc.ErrNextMethod) {
 				continue
 			} else {
 				return trace

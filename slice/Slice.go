@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-
-	perrors "github.com/qydysky/part/errors"
 )
 
 type Buf[T any] struct {
@@ -78,7 +76,7 @@ func (t *Buf[T]) AppendTo(to *Buf[T]) error {
 	return to.Append(t.GetPureBuf())
 }
 
-var ErrOverMax = perrors.New("slices.Append", "ErrOverMax")
+var ErrOverMax = errors.New("slices.Append.ErrOverMax")
 
 func (t *Buf[T]) Cap() int {
 	return cap(t.buf)
@@ -136,7 +134,7 @@ func (t *Buf[T]) SetFrom(data []T) error {
 	return nil
 }
 
-var ErrOverLen = perrors.New("slices.Remove", "ErrOverLen")
+var ErrOverLen = errors.New("slices.Remove.ErrOverLen")
 
 func (t *Buf[T]) RemoveFront(n int) error {
 	if n <= 0 {
@@ -180,7 +178,7 @@ func (t *Buf[T]) GetModified() Modified {
 	return t.modified
 }
 
-var ErrNoSameBuf = perrors.New("slices.HadModified", "ErrNoSameBuf")
+var ErrNoSameBuf = errors.New("slices.HadModified.ErrNoSameBuf")
 
 func (t *Buf[T]) HadModified(mt Modified) (modified bool, err error) {
 	if t.modified.p != mt.p {

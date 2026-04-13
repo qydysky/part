@@ -273,7 +273,7 @@ func Test15(t *testing.T) {
 		}
 	}
 
-	if !errors.Is(reuse.Wait(), ErrCopyRes) {
+	if !errors.Is(reuse.Wait(), ActReq.ErrCopyRes) {
 		t.Fatal()
 	}
 }
