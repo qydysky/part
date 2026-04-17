@@ -8,23 +8,29 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"unsafe"
+
+	us "github.com/qydysky/part/unsafe"
 )
 
 type Error struct {
-	// err       error
 	fieldName string
-	raw       string
-	point     uintptr
 	actRaw    string
 	actPoint  uintptr
+	point     uintptr
+	raw       string
 }
 
 // Raw will alloc new Error, which field raw is replaced, but keep other fields.
 //
 // so errors.Is or Method.IsAction will work fine, but == not
 func (t Error) Raw(raw string) Error {
-	t.raw = raw
+	buf := make([]byte, len(t.fieldName)+1+len(raw))
+	copy(buf, us.S2B(t.fieldName))
+	if raw != "" {
+		copy(buf[len(t.fieldName):], []byte{':'})
+		copy(buf[len(t.fieldName)+1:], us.S2B(raw))
+	}
+	t.raw = us.B2S(buf)
 	return t
 }
 
@@ -43,14 +49,10 @@ func (t Error) Is(e error) bool {
 	return false
 }
 func (t Error) Error() (e string) {
-	e = t.fieldName
-	// if t.err != nil {
-	// 	e += ":" + t.err.Error()
-	// }
-	if t.raw != "" {
-		e += ":" + t.raw
+	if len(t.raw) == 0 {
+		return t.fieldName
 	}
-	return
+	return t.raw
 }
 
 // T is a struct which have Fields with type Error or Method,eg.
@@ -70,19 +72,19 @@ func Action[T any](actName string) (act *T) {
 		switch s.Type {
 		case reflect.TypeFor[Error]():
 			if tagErr := s.Tag.Get(`err`); tagErr != "" {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(tagErr))
+				us.SetField(v, 0, tagErr)
 			} else {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("fieldName").UnsafeAddr())).Elem().Set(reflect.ValueOf(s.Name))
+				us.SetField(v, 0, s.Name)
 			}
-			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
-			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
-			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("point").UnsafeAddr())).Elem().Set(reflect.ValueOf(v.UnsafeAddr()))
+			us.SetField(v, 1, actName)
+			us.SetField(v, 2, uintptr(reflect.ValueOf(act).UnsafePointer()))
+			us.SetField(v, 3, v.UnsafeAddr())
 		case reflect.TypeFor[Method]():
 			if pc, file, line, ok := runtime.Caller(1); ok && !strings.HasPrefix(file, build.Default.GOROOT) {
-				reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actLoc").UnsafeAddr())).Elem().Set(reflect.ValueOf(fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), line)))
+				us.SetField(v, 0, fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), line))
 			}
-			reflect.NewAt(reflect.TypeFor[string](), unsafe.Pointer(v.FieldByName("actRaw").UnsafeAddr())).Elem().Set(reflect.ValueOf(actName))
-			reflect.NewAt(reflect.TypeFor[uintptr](), unsafe.Pointer(v.FieldByName("actPoint").UnsafeAddr())).Elem().Set(reflect.ValueOf(uintptr(reflect.ValueOf(act).UnsafePointer())))
+			us.SetField(v, 1, actName)
+			us.SetField(v, 2, uintptr(reflect.ValueOf(act).UnsafePointer()))
 		}
 	}
 	return
@@ -102,8 +104,6 @@ func (t *Method) InAction(err error) bool {
 	for {
 		switch x := err.(type) {
 		case Error:
-			return x.actPoint == t.actPoint
-		case *Error:
 			return x.actPoint == t.actPoint
 		case interface{ Unwrap() error }:
 			err = x.Unwrap()
@@ -155,8 +155,6 @@ var (
 		switch x := e.(type) {
 		case Error:
 			return string(x.actRaw) + ":" + e.Error() + "\n"
-		case *Error:
-			return string(x.actRaw) + ":" + e.Error() + "\n"
 		default:
 			return e.Error() + "\n"
 		}
@@ -171,8 +169,6 @@ var (
 	ErrActionInLineFunc ErrFormatFunc = func(e error) string {
 		switch x := e.(type) {
 		case Error:
-			return fmt.Sprintf("> %v:%v ", x.actRaw, strings.TrimSpace(e.Error()))
-		case *Error:
 			return fmt.Sprintf("> %v:%v ", x.actRaw, strings.TrimSpace(e.Error()))
 		default:
 			return fmt.Sprintf("> %v ", strings.TrimSpace(e.Error()))

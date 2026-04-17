@@ -16,7 +16,7 @@ func Test1(t *testing.T) {
 	t.Log(bus.actM.Info())
 	t.Log(ErrorFormat(bus.A, ErrActionInLineFunc))
 	if bus.A.Error() != `a` {
-		t.Fatal()
+		t.Fatal(bus.A.Error())
 	}
 	if bus.B.Error() != `B` {
 		t.Fatal()
@@ -98,6 +98,22 @@ func Test3(t *testing.T) {
 	}
 }
 
+func Test5(t *testing.T) {
+	if testing.Benchmark(Benchmark2).AllocsPerOp() != 0 {
+		t.Fatal()
+	}
+}
+
+func Benchmark2(b *testing.B) {
+	a := Action[struct {
+		A Error
+	}](``)
+	c := a.A.Raw(`123`)
+	for b.Loop() {
+		c.Error()
+	}
+}
+
 func Benchmark1(b *testing.B) {
 	a1 := Action[struct {
 		actM Method
@@ -105,7 +121,7 @@ func Benchmark1(b *testing.B) {
 	}](`a1`)
 	err := errors.Join(a1.A, io.EOF)
 	for b.Loop() {
-		if !bus.actM.InAction(err) {
+		if !a1.actM.InAction(err) {
 			b.Fatal()
 		}
 	}
