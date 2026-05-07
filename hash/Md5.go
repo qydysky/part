@@ -5,10 +5,23 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	pu "github.com/qydysky/part/unsafe"
 )
 
 func Md5String(str string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
+	return fmt.Sprintf("%x", Md5(str))
+}
+
+func Md5[T any](str T) [16]byte {
+	switch x := any(str).(type) {
+	case []byte:
+		return md5.Sum(x)
+	case string:
+		return md5.Sum(pu.S2B(x))
+	default:
+		panic("unsupport type")
+	}
 }
 
 func Md5File(path string) (string, error) {

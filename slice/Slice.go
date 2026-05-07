@@ -58,7 +58,9 @@ func (t *Buf[T]) AddSize(n int) {
 }
 
 func (t *Buf[T]) resetSize() {
-	if len(t.buf) < t.bufsize {
+	if cap(t.buf) < t.bufsize {
+		t.buf = append(t.buf[:cap(t.buf)], make([]T, t.bufsize-cap(t.buf))...)
+	} else if len(t.buf) < t.bufsize {
 		t.buf = t.buf[:t.bufsize]
 	}
 }
@@ -282,6 +284,7 @@ func (t *Buf[T]) GetRLock() (i interface {
 	return &BufRLockM[T]{t}
 }
 
+// ReadFrom will reset buf first
 func (t *Buf[T]) ReadFrom(r interface {
 	Read(p []T) (n int, err error)
 }) (total int64, e error) {
@@ -302,6 +305,35 @@ func (t *Buf[T]) ReadFrom(r interface {
 			return
 		}
 	}
+}
+
+// ReadN will reset buf first
+func (t *Buf[T]) ReadN(r interface {
+	Read(p []T) (n int, err error)
+}, n int) (total int64, e error) {
+	t.Reset()
+	return t.ReadMoreN(r, n)
+}
+
+func (t *Buf[T]) ReadMoreN(r interface {
+	Read(p []T) (n int, err error)
+}, n int) (total int64, e error) {
+	for n > 0 {
+		if cap(t.buf) == t.bufsize {
+			t.buf = append(t.buf, *new(T))
+			t.buf = t.buf[:cap(t.buf)]
+		}
+		if rn, err := r.Read(t.buf[t.bufsize:min(t.bufsize+n, cap(t.buf))]); rn > 0 {
+			n -= rn
+			t.bufsize += rn
+			total += int64(rn)
+			t.modified.t += 1
+		} else if err != nil {
+			e = err
+			return
+		}
+	}
+	return
 }
 
 func (t *Buf[T]) WriteTo(w interface {

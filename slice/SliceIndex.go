@@ -1,13 +1,21 @@
 package part
 
 import (
-	"errors"
 	"io"
 	"iter"
 	"sync"
+
+	pe "github.com/qydysky/part/errors/v2"
+	pio "github.com/qydysky/part/io"
 )
 
-var ErrNoSameSliceIndex = errors.New("SliceIndex.HadModified.ErrNoSameSliceIndex")
+var (
+	ActSlice = pe.Action[struct {
+		ErrNoSameSliceIndex pe.Error
+		ErrNoModified       pe.Error
+		ErrSliceChange      pe.Error
+	}](`ActSlice`)
+)
 
 type SliceIndexModified struct {
 	p uintptr
@@ -26,7 +34,7 @@ func NewSliceIndex[T comparable](source []T) *SliceIndex[T] {
 func (t *SliceIndex[T]) GetModified() SliceIndexModified {
 	return t.in.GetModified()
 }
-func (t *SliceIndex[T]) HadModified(mt SliceIndexModified) (modified bool, err error) {
+func (t *SliceIndex[T]) HadModified(mt SliceIndexModified) (err error) {
 	return t.in.HadModified(mt)
 }
 func (t *SliceIndex[T]) Merge(s, e int) {
@@ -104,7 +112,8 @@ func (t *SliceIndex[T]) RemoveFront(n int) {
 }
 
 type SliceIndexNoLock[T comparable] struct {
-	buf      []int
+	buf []int
+	// hash     [][16]byte
 	source   []T
 	modified SliceIndexModified
 }
@@ -119,15 +128,17 @@ func NewSliceIndexNoLock[T comparable](source []T) *SliceIndexNoLock[T] {
 func (t *SliceIndexNoLock[T]) GetModified() SliceIndexModified {
 	return t.modified
 }
-func (t *SliceIndexNoLock[T]) HadModified(mt SliceIndexModified) (modified bool, err error) {
+func (t *SliceIndexNoLock[T]) HadModified(mt SliceIndexModified) (err error) {
 	if t.modified.p != mt.p {
-		err = ErrNoSameSliceIndex
+		return ActSlice.ErrNoSameSliceIndex
+	} else if mt.t == t.modified.t {
+		return ActSlice.ErrNoModified
+	} else {
+		return nil
 	}
-	modified = t.modified.t != mt.t
-	return
 }
 
-// 将source[s,e]合并到可读中
+// 将source[s,e)合并到可读中
 func (t *SliceIndexNoLock[T]) Merge(s, e int) {
 	if len(t.buf) == 0 {
 		t.buf = append(t.buf, s, e)
@@ -159,17 +170,18 @@ func (t *SliceIndexNoLock[T]) Merge(s, e int) {
 	}
 }
 
-// 将source[s,e]附加到可读后
+// 将source[s,e)附加到可读后
 func (t *SliceIndexNoLock[T]) Append(s, e int) {
 	if i := len(t.buf) - 1; i >= 0 && s == t.buf[i] {
 		if t.buf[i] < e {
 			t.buf[i] = e
-			t.modified.t += 1
+			// t.hash[(i-1)/2] = ph.Md5(t.source[t.buf[i-1]:t.buf[i]])
 		}
 	} else {
 		t.buf = append(t.buf, s, e)
-		t.modified.t += 1
+		// t.hash = append(t.hash, ph.Md5(t.source[s:e]))
 	}
+	t.modified.t += 1
 }
 func (t *SliceIndexNoLock[T]) FiliterAppend(s, e int, f func(*T) (pass bool)) {
 	if i := len(t.buf) - 1; i >= 0 && s == t.buf[i] {
@@ -194,6 +206,7 @@ func (t *SliceIndexNoLock[T]) Clear() {
 }
 func (t *SliceIndexNoLock[T]) Reset() {
 	t.buf = t.buf[:0]
+	// t.hash = t.hash[:0]
 	t.modified.t += 1
 }
 func (t *SliceIndexNoLock[T]) Iter() iter.Seq2[int, T] {
@@ -223,16 +236,24 @@ func (t *SliceIndexNoLock[T]) Equal(b []T) bool {
 	return matched != len(b)-1
 }
 func (t *SliceIndexNoLock[T]) Read(p []T) (n int, err error) {
-	if len(t.buf) == 0 {
-		return 0, io.EOF
-	}
-	n = copy(p, t.source[t.buf[0]:t.buf[1]])
-	if t.buf[1]-t.buf[0] == n {
-		t.buf = t.buf[2:]
-	} else {
-		t.buf[0] += n
+	for len(p) > n && 2 <= len(t.buf) {
+		// if ph.Md5(t.source[t.buf[0]:t.buf[1]]) != t.hash[0] {
+		// 	panic("change")
+		// }
+		ln := copy(p[n:], t.source[t.buf[0]:t.buf[1]])
+		if t.buf[1]-t.buf[0] == ln {
+			t.buf = t.buf[2:]
+			// t.hash = t.hash[1:]
+		} else {
+			t.buf[0] += ln
+			// t.hash[0] = ph.Md5(t.source[t.buf[0]:t.buf[1]])
+		}
+		n += ln
 	}
 	t.modified.t += 1
+	if len(t.buf) == 0 {
+		err = io.EOF
+	}
 	return
 }
 func (t *SliceIndexNoLock[T]) IsEmpty() bool {
@@ -265,11 +286,13 @@ func (t *SliceIndexNoLock[T]) RemoveFront(n int) {
 	}
 }
 
+var _ io.WriterTo = pio.WrapIoWriteTo(&SliceIndexNoLock[byte]{})
+
 func (t *SliceIndexNoLock[T]) WriteTo(w interface {
 	Write(p []T) (n int, err error)
 }) (n int64, err error) {
-	for i, ln := 0, 0; i < len(t.buf); i += 2 {
-		ln, err = w.Write(t.source[t.buf[0]:t.buf[1]])
+	for 2 <= len(t.buf) {
+		ln, e := w.Write(t.source[t.buf[0]:t.buf[1]])
 		n += int64(ln)
 		if t.buf[1]-t.buf[0] == ln {
 			t.buf = t.buf[2:]
@@ -277,6 +300,10 @@ func (t *SliceIndexNoLock[T]) WriteTo(w interface {
 			t.buf[0] += ln
 		}
 		t.modified.t += 1
+		if e != nil {
+			err = e
+			return
+		}
 	}
 	return
 }
