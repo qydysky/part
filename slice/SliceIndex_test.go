@@ -6,7 +6,9 @@ import (
 	"slices"
 	"testing"
 
+	ph "github.com/qydysky/part/hash"
 	pio "github.com/qydysky/part/io"
+	pr "github.com/qydysky/part/rand"
 )
 
 func Test_1(t *testing.T) {
@@ -22,6 +24,25 @@ func Test_1(t *testing.T) {
 	if !slices.Equal(tbuf.Bytes(), buf) {
 		t.Fatal()
 	}
+}
+
+func Test_2(t *testing.T) {
+	source := pr.Rand[[]byte](pr.TypeHex|pr.TypeUpp, 1000)
+	shadowSource := NewSliceIndexNoLock(source)
+	shadowSource.Append(0, 333)
+	shadowSource.Append(333, 666)
+	tbuf := bytes.NewBuffer([]byte{})
+	if n, e := io.Copy(tbuf, pio.WrapIoWriteTo(shadowSource)); e != nil || n != 666 {
+		t.Fatal(n)
+	}
+	if !slices.Equal(tbuf.Bytes(), source[:666]) {
+		t.Fatal()
+	}
+}
+
+func Test_3(t *testing.T) {
+	source := pr.Rand[[]byte](pr.TypeHex|pr.TypeUpp, 1000)
+	ph.Md5(source)
 }
 
 // 2692443               444.8 ns/op            16 B/op          1 allocs/op
