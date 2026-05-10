@@ -86,12 +86,12 @@ func TestMain9(t *testing.T) {
 
 func TestMain7(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite", "./a")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	db.SetMaxOpenConns(1)
-	defer os.Remove("./a")
+	// defer os.Remove("./a")
 	defer db.Close()
 
 	ctx := context.Background()
