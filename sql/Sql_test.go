@@ -41,12 +41,12 @@ func TestMain6(t *testing.T) {
 
 func TestMain9(t *testing.T) {
 	// connect
-	db, err := sql.Open("sqlite", "./a")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	db.SetMaxOpenConns(1)
-	defer os.Remove("./a")
+	// defer os.Remove("./a")
 	defer db.Close()
 
 	ctx := context.Background()
@@ -70,6 +70,17 @@ func TestMain9(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	if e := dbpool.BeginTx(ctx).SimpleDo("select count(1) c from log").AfterQF(func(rows *sql.Rows) error {
+		if DealRow[struct {
+			C int64
+		}](rows).Raw.C != 1000 {
+			return errors.New("no")
+		}
+		return nil
+	}).Run(); e != nil {
+		t.Fatal(e)
+	}
 	t.Log(time.Since(now).Milliseconds() / int64(n))
 }
 
