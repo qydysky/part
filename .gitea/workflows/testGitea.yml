@@ -1,0 +1,63 @@
+name: TestGitea
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  buildtest:
+    name: test_ubuntu_go
+    runs-on: linux_amd64
+    strategy:
+      matrix:
+        go: [ '1.26' ]
+    steps:
+    - name: Set up Go${{ matrix.go }}
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Check out code
+      uses: actions/checkout@v6
+      with:
+        lfs: true
+
+    - name: Checkout LFS objects
+      run: git lfs checkout
+
+    # - name: golangci-lint
+    #   uses: golangci/golangci-lint-action@v8
+    #   with:
+    #     args: --timeout 5m --verbose
+
+    - name: Test
+      run: |
+        go test -count 1 -timeout 30s -v .
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/sse
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
+        go test -count 1 -timeout 10s -v github.com/qydysky/part/pool
+        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/funcCtrl
+        go test -count 1 -timeout 50s -v -race github.com/qydysky/part/msgq
+        go test -count 10 -race -timeout 10s -run ^Test_3$ github.com/qydysky/part/msgq
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/sync
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/web
+        go test -count 1 -timeout 40s -v -race github.com/qydysky/part/websocket
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/sql
+        go test -count 1 -timeout 20s -v github.com/qydysky/part/sql
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/rpc
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/component2
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/ctx
+        go test -count 1 -timeout 10s -v -race github.com/qydysky/part/slice
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/bools
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/errors/v2
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/crypto/...
+        go test -count 1 -timeout 5s -v -race github.com/qydysky/part/flag -sss=ss -i32=32 -f34=34 -btrue=true -d1m=1m
