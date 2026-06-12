@@ -5,7 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -23,14 +25,18 @@ type Client struct {
 	// rec send close
 	msg *msgq.MsgType[*WsMsg]
 
-	RTOMs int // default: 300s
-	WTOMs int // default: 300s
+	RTOMs int           // default: 300s
+	WTOMs int           // default: 300s
+	RTO   time.Duration // default: 300s
+	WTO   time.Duration // default: 300s
+	CTO   time.Duration // default: 5s
 	// BufSize int               // msg buf 1: always use single buf >1: use bufs cycle. default:10
 	Header map[string]string // default: map[string]string{}
 	Proxy  string
 
-	Ping  Ping // default: no ping
-	pingT int64
+	Ping   Ping // default: no ping
+	pingT  atomic.Pointer[time.Timer]
+	closed atomic.Bool
 
 	Msg_normal_close  string // default: ``
 	Func_normal_close func() // default: func(){}
@@ -48,15 +54,16 @@ type WsMsg struct {
 }
 
 type Ping struct {
-	Msg      []byte
-	Period   int
-	had_pong bool
+	Msg       []byte
+	Period    int // ms
+	PeriodDur time.Duration
 }
 
 func NewClient(config *Client) (*Client, error) {
 	tmp := Client{
 		RTOMs:             300 * 1000,
 		WTOMs:             300 * 1000,
+		CTO:               time.Second * 5,
 		Func_normal_close: func() {},
 		Func_abort_close:  func() {},
 		// BufSize:           10,
@@ -75,6 +82,15 @@ func NewClient(config *Client) (*Client, error) {
 	if v := config.WTOMs; v != 0 {
 		tmp.WTOMs = v
 	}
+	if tmp.RTO == 0 {
+		tmp.RTO = time.Duration(tmp.RTOMs * int(time.Millisecond))
+	}
+	if tmp.WTO == 0 {
+		tmp.WTO = time.Duration(tmp.WTOMs * int(time.Millisecond))
+	}
+	if config.CTO != 0 {
+		tmp.CTO = config.CTO
+	}
 	tmp.Msg_normal_close = config.Msg_normal_close
 	tmp.Header = config.Header
 	if v := config.Func_normal_close; v != nil {
@@ -88,6 +104,9 @@ func NewClient(config *Client) (*Client, error) {
 	}
 	if config.Ping.Period != 0 {
 		tmp.Ping = config.Ping
+	}
+	if tmp.Ping.PeriodDur == 0 {
+		tmp.Ping.PeriodDur = time.Duration(tmp.Ping.Period * int(time.Millisecond))
 	}
 	return &tmp, nil
 }
@@ -141,7 +160,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 	c, response, err := dial.Dial(o.Url, tmp_Header)
 	if err != nil {
 		o.error(err)
-	} else if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
+	} else if err := c.SetWriteDeadline(time.Now().Add(o.WTO)); err != nil {
 		o.error(err)
 	}
 	if err != nil {
@@ -175,7 +194,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		var msgsPool = pool.NewPoolBlocks[byte]()
 		var err error
 		for err == nil {
-			if e := c.SetReadDeadline(time.Now().Add(time.Duration(o.RTOMs * int(time.Millisecond)))); e != nil {
+			if e := c.SetReadDeadline(time.Now().Add(o.RTO)); e != nil {
 				err = e
 			} else if msg_type, r, e := c.NextReader(); e != nil {
 				err = e
@@ -196,8 +215,10 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 						})
 					case websocket.PongMessage:
 						msgsPool.Put(tmpbuf)
-						o.pingT = time.Now().UnixMilli()
-						time.AfterFunc(time.Duration(o.Ping.Period*int(time.Millisecond)), func() {
+						if ti := o.pingT.Swap(nil); ti != nil {
+							ti.Stop()
+						}
+						time.AfterFunc(o.Ping.PeriodDur, func() {
 							o.msg.Push_tag(`send`, &WsMsg{
 								ty: websocket.PingMessage,
 								Msg: func(f func([]byte) error) error {
@@ -205,7 +226,6 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 								},
 							})
 						})
-						o.Ping.had_pong = true
 					default:
 						o.msg.Push_tag(`recv`, &WsMsg{
 							ty: websocket.TextMessage,
@@ -228,7 +248,9 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 					o.error(err)
 				}
 			} else if err != nil {
-				o.error(err)
+				if !(o.closed.Load() && os.IsTimeout(err)) {
+					o.error(err)
+				}
 			}
 		}
 	}()
@@ -242,37 +264,39 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 		if wm.ty == 0 {
 			wm.ty = websocket.TextMessage
 		}
-		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
-			o.error(err)
-			return true
-		}
 		if err := wm.Msg(func(b []byte) error {
-			return c.WriteMessage(wm.ty, b)
+			switch wm.ty {
+			case websocket.CloseMessage:
+				o.closed.Store(true)
+				if e := c.SetReadDeadline(time.Now().Add(o.CTO)); e != nil {
+					err = e
+				}
+				return c.WriteControl(wm.ty, b, time.Now().Add(o.WTO))
+			case websocket.PingMessage:
+				o.pingT.Store(time.AfterFunc(o.RTO, func() {
+					o.error(errors.New("PongFail"))
+					o.closed.Store(true)
+					if e := c.SetReadDeadline(time.Now().Add(o.CTO)); e != nil {
+						o.error(e)
+					}
+					if e := c.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close), time.Now().Add(o.WTO)); e != nil {
+						o.error(e)
+					}
+				}))
+				return c.WriteControl(wm.ty, b, time.Now().Add(o.WTO))
+			case websocket.PongMessage:
+				return c.WriteControl(wm.ty, b, time.Now().Add(o.WTO))
+			default:
+				if err := c.SetWriteDeadline(time.Now().Add(o.WTO)); err != nil {
+					o.error(err)
+				}
+				return c.WriteMessage(wm.ty, b)
+			}
 		}); err != nil {
 			o.error(err)
 			return true
 		}
-		if wm.ty == websocket.PingMessage {
-			time.AfterFunc(time.Duration(o.RTOMs*int(time.Millisecond)), func() {
-				if time.Now().UnixMilli() > o.pingT+int64(o.RTOMs) {
-					o.error(errors.New("PongFail"))
-					o.Close()
-				}
-			})
-		}
 		return false
-	})
-
-	// close
-	o.msg.Pull_tag_only(`close`, func(_ *WsMsg) (disable bool) {
-		defer wlock.Lock()()
-		if err := c.SetWriteDeadline(time.Now().Add(time.Duration(o.WTOMs * int(time.Millisecond)))); err != nil {
-			o.error(err)
-		}
-		if err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close)); err != nil {
-			o.error(err)
-		}
-		return true
 	})
 
 	return o.msg, nil
@@ -282,16 +306,19 @@ func (o *Client) Heartbeat() (err error) {
 	o.msg.Push_tag(`send`, &WsMsg{
 		ty: websocket.PingMessage,
 		Msg: func(f func([]byte) error) error {
-			f(o.Ping.Msg)
-			return nil
+			return f(o.Ping.Msg)
 		},
 	})
-	time.Sleep(time.Duration((o.RTOMs + 100) * int(time.Millisecond)))
 	return o.Error()
 }
 
 func (o *Client) Close() {
-	o.msg.Push_tag(`close`, nil)
+	o.msg.Push_tag(`send`, &WsMsg{
+		ty: websocket.CloseMessage,
+		Msg: func(f func([]byte) error) error {
+			return f(websocket.FormatCloseMessage(websocket.CloseNormalClosure, o.Msg_normal_close))
+		},
+	})
 }
 
 func (o *Client) Isclose() (isclose bool) {
