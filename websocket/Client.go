@@ -237,6 +237,9 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 					}
 				}
 			}
+			if o.closed.Load() && os.IsTimeout(err) {
+				err = &websocket.CloseError{Code: websocket.CloseNormalClosure, Text: ""}
+			}
 			if e, ok := err.(*websocket.CloseError); ok {
 				switch e.Code {
 				case websocket.CloseNormalClosure:
@@ -248,9 +251,7 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 					o.error(err)
 				}
 			} else if err != nil {
-				if !(o.closed.Load() && os.IsTimeout(err)) {
-					o.error(err)
-				}
+				o.error(err)
 			}
 		}
 	}()
