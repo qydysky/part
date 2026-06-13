@@ -58,7 +58,7 @@ func Test_Client(t *testing.T) {
 			Func_normal_close: func() {
 				t.Log("close")
 			},
-			WTOMs: 1000,
+			WTO: time.Second,
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -99,7 +99,7 @@ func Test_Client(t *testing.T) {
 			Func_normal_close: func() {
 				t.Log("close")
 			},
-			RTOMs: 2000,
+			RTO: 2 * time.Second,
 		})
 		if e != nil {
 			t.Fatal(e)
@@ -192,7 +192,7 @@ func Test_Client2(t *testing.T) {
 			Func_normal_close: func() {
 				t.Log("close")
 			},
-			WTOMs: 7000,
+			WTO: 7 * time.Second,
 		})
 		if e != nil {
 			t.Fatal(e)
