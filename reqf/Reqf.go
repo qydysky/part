@@ -51,8 +51,10 @@ type Rval struct {
 	JustResponseCode    bool
 	NoResponse          bool
 	Async               bool
-	Cookies             []*http.Cookie
-	Ctx                 context.Context
+	// 当Proxy为空时，默认使用系统配置的代理，将此配置设为true禁用系统代理
+	DisableSystemProxy bool
+	Cookies            []*http.Cookie
+	Ctx                context.Context
 
 	// 预分配响应长度，若合理设置，将可以节约内存
 	ResponsePreCap int
@@ -90,22 +92,23 @@ var (
 )
 
 type Req struct {
-	UsedTime   time.Duration
-	response   *http.Response
-	state      atomic.Int32
-	client     *http.Client
-	reqProxy   string
-	responFile *os.File
-	responBuf  *bytes.Buffer
-	reqBody    io.Reader
-	allTO      *time.Timer
-	rwTO       *time.Timer
-	err        error
-	callTree   string
-	copyResBuf []byte
-	brR        *br.Reader
-	gzR        *gzip.Reader
-	l          sync.RWMutex
+	UsedTime           time.Duration
+	response           *http.Response
+	state              atomic.Int32
+	client             *http.Client
+	reqProxy           string
+	disableSystemProxy bool
+	responFile         *os.File
+	responBuf          *bytes.Buffer
+	reqBody            io.Reader
+	allTO              *time.Timer
+	rwTO               *time.Timer
+	err                error
+	callTree           string
+	copyResBuf         []byte
+	brR                *br.Reader
+	gzR                *gzip.Reader
+	l                  sync.RWMutex
 }
 
 func New() *Req {
@@ -437,6 +440,7 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		t.client = &http.Client{}
 	}
 
+	// 传输参数是否需要(重新)初始化
 	var initTransport bool
 	if t.client.Transport == nil {
 		initTransport = true
@@ -448,14 +452,19 @@ func (t *Req) prepare(val *Rval) (ctx1 context.Context, ctxf1 context.CancelCaus
 		initTransport = true
 	} else if t.reqProxy != val.Proxy {
 		initTransport = true
+	} else if t.disableSystemProxy != val.DisableSystemProxy {
+		initTransport = true
 	}
 	if initTransport {
 		t.client.Transport = http.DefaultTransport.(*http.Transport).Clone()
+		t.disableSystemProxy = val.DisableSystemProxy
 		if val.Proxy != "" {
 			t.reqProxy = val.Proxy
 			t.client.Transport.(*http.Transport).Proxy = func(_ *http.Request) (*url.URL, error) {
 				return url.Parse(val.Proxy)
 			}
+		} else if val.DisableSystemProxy {
+			t.client.Transport.(*http.Transport).Proxy = nil
 		}
 		if val.IdleConnTimeout > 0 {
 			t.client.Transport.(*http.Transport).IdleConnTimeout = time.Duration(val.IdleConnTimeout) * time.Millisecond
