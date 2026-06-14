@@ -31,8 +31,9 @@ type Client struct {
 	WTO time.Duration // default: 300s
 	CTO time.Duration // default: 5s
 	// BufSize int               // msg buf 1: always use single buf >1: use bufs cycle. default:10
-	Header map[string]string // default: map[string]string{}
-	Proxy  string
+	Header             map[string]string // default: map[string]string{}
+	Proxy              string
+	DisableSystemProxy bool
 
 	Ping      Ping // default: no ping
 	pingT     atomic.Pointer[time.Timer]
@@ -102,6 +103,7 @@ func NewClient(config *Client) (*Client, error) {
 	if v := config.Proxy; v != "" {
 		tmp.Proxy = v
 	}
+	tmp.DisableSystemProxy = config.DisableSystemProxy
 	// if config.Ping.Period != 0 {
 	// 	tmp.Ping = config.Ping
 	// }
@@ -156,6 +158,8 @@ func (o *Client) Handle() (*msgq.MsgType[*WsMsg], error) {
 			return url.Parse(o.Proxy)
 		}
 		dial.Proxy = proxy
+	} else if o.DisableSystemProxy {
+		dial.Proxy = nil
 	}
 	c, response, err := dial.Dial(o.Url, tmp_Header)
 	if err != nil {
