@@ -93,6 +93,11 @@ func (t *Buf[T]) ExpandCapTo(size int) {
 	}
 }
 
+// may alloc more mem
+func (t *Buf[T]) ExpandCap(size int) {
+	t.buf = append(t.buf[:cap(t.buf)], make([]T, size)...)
+}
+
 func (t *Buf[T]) Append(data []T) error {
 	if t.buf == nil {
 		t.buf = make([]T, len(data))
