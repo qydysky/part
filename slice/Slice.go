@@ -1,11 +1,14 @@
 package part
 
 import (
+	"context"
 	"errors"
 	"io"
 	"sync"
 	"time"
 	"unsafe"
+
+	pctx "github.com/qydysky/part/ctx"
 )
 
 type Buf[T any] struct {
@@ -211,16 +214,43 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	return
 }
 
-func (t *Buf[T]) Read(b []T) (n int, e error) {
-	for t.Size() == 0 {
-		time.Sleep(time.Millisecond * 100)
+func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
+	for !pctx.Done(ctx) {
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Millisecond * 100):
+		}
+		t.l.RLock()
+		if t.Size() > 0 {
+			n = copy(b, t.GetPureBuf())
+			e = t.RemoveFront(n)
+			t.l.RUnlock()
+			return
+		} else {
+			t.l.RUnlock()
+		}
 	}
-	n = copy(b, t.GetPureBuf())
-	e = t.RemoveFront(n)
 	return
 }
 
+func (t *Buf[T]) Read(b []T) (n int, e error) {
+	for {
+		time.Sleep(time.Millisecond * 100)
+		t.l.RLock()
+		if t.Size() > 0 {
+			n = copy(b, t.GetPureBuf())
+			e = t.RemoveFront(n)
+			t.l.RUnlock()
+			return
+		} else {
+			t.l.RUnlock()
+		}
+	}
+}
+
 func (t *Buf[T]) Write(b []T) (n int, e error) {
+	t.l.Lock()
+	defer t.l.Unlock()
 	return len(b), t.Append(b)
 }
 
@@ -228,7 +258,7 @@ type BufRLockMI[T any] interface {
 	IsEmpty() bool
 	Size() int
 	Cap() int
-	Read(b []T) (n int, e error)
+	// Read(b []T) (n int, e error)
 	RemoveFront(int) error
 	RemoveBack(int) error
 	AppendTo(to *Buf[T]) error
@@ -243,7 +273,7 @@ type BufLockMI[T any] interface {
 	Clear()
 	Reset()
 	ExpandCapTo(size int)
-	Write(b []T) (n int, e error)
+	// Write(b []T) (n int, e error)
 	ReadFrom(r interface {
 		Read(p []T) (n int, err error)
 	}) (int64, error)
