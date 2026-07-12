@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-
-	pctx "github.com/qydysky/part/ctx"
 )
 
 type Buf[T any] struct {
@@ -215,9 +213,11 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 }
 
 func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
-	for !pctx.Done(ctx) {
+	for {
 		select {
 		case <-ctx.Done():
+			e = context.Canceled
+			return
 		case <-time.After(time.Millisecond * 100):
 		}
 		t.l.RLock()
@@ -230,7 +230,6 @@ func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
 			t.l.RUnlock()
 		}
 	}
-	return
 }
 
 func (t *Buf[T]) Read(b []T) (n int, e error) {
