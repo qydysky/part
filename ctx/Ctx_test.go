@@ -269,6 +269,26 @@ func TestMain8(t *testing.T) {
 	<-ctx2.Done()
 }
 
+func TestMain18(t *testing.T) {
+	t.Parallel()
+
+	ctx1, cancle1 := context.WithCancel(t.Context())
+
+	ctx2, cancle2 := context.WithCancel(t.Context())
+	a := NewMergeCtx()
+
+	a.MergeCtx(ctx1, cancle1).MergeCtx(ctx2, cancle2)
+	go cancle1()
+	go cancle2()
+
+	// time.AfterFunc(time.Second, func() {
+	// 	go cancle1()
+	// 	go cancle2()
+	// })
+
+	<-a.LastCtx().Done()
+}
+
 func TestMain17(t *testing.T) {
 	t.Parallel()
 
