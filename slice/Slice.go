@@ -5,8 +5,11 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
+
+	pc "github.com/qydysky/part/ctx"
 )
 
 type Buf[T any] struct {
@@ -212,46 +215,96 @@ func (t *Buf[T]) GetCopyBuf() (buf []T) {
 	return
 }
 
-func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
+type BufIOM[T any] struct {
+	ctx    context.Context
+	closed atomic.Bool
+	t      *Buf[T]
+}
+
+func (t *Buf[T]) IO(ctx ...context.Context) *BufIOM[T] {
+	return &BufIOM[T]{ctx: append(ctx, context.Background())[0], t: t}
+}
+
+func (t *BufIOM[T]) Read(b []T) (n int, e error) {
 	for {
-		select {
-		case <-ctx.Done():
-			e = context.Canceled
-			return
-		case <-time.After(time.Millisecond * 100):
-		}
-		t.l.RLock()
-		if t.Size() > 0 {
-			n = copy(b, t.GetPureBuf())
-			e = t.RemoveFront(n)
-			t.l.RUnlock()
+		t.t.l.RLock()
+		if t.t.bufsize > 0 {
+			n = copy(b, t.t.GetPureBuf())
+			_ = t.t.RemoveFront(n)
+			if t.t.bufsize == 0 && t.closed.Load() {
+				e = io.EOF
+			}
+			t.t.l.RUnlock()
 			return
 		} else {
-			t.l.RUnlock()
+			t.t.l.RUnlock()
+			select {
+			case <-t.ctx.Done():
+				e = context.Canceled
+				return
+			case <-time.After(time.Millisecond * 100):
+			}
 		}
 	}
 }
 
-func (t *Buf[T]) Read(b []T) (n int, e error) {
-	for {
-		time.Sleep(time.Millisecond * 100)
-		t.l.RLock()
-		if t.Size() > 0 {
-			n = copy(b, t.GetPureBuf())
-			e = t.RemoveFront(n)
-			t.l.RUnlock()
-			return
-		} else {
-			t.l.RUnlock()
-		}
-	}
+func (t *BufIOM[T]) ReadFrom(r interface {
+	Read(p []T) (n int, err error)
+}) (total int64, e error) {
+	t.t.l.Lock()
+	defer t.t.l.Unlock()
+	return t.t.ReadFrom(r)
 }
 
-func (t *Buf[T]) Write(b []T) (n int, e error) {
-	t.l.Lock()
-	defer t.l.Unlock()
-	return len(b), t.Append(b)
+func (t *BufIOM[T]) WriteTo(w interface {
+	Write(p []T) (n int, err error)
+}) (total int64, e error) {
+	t.t.l.RLock()
+	defer t.t.l.RUnlock()
+	return t.t.WriteTo(w)
 }
+
+func (t *BufIOM[T]) Write(b []T) (n int, e error) {
+	if t.closed.Load() {
+		e = io.ErrClosedPipe
+		return
+	}
+	if pc.Done(t.ctx) {
+		e = context.Canceled
+		return
+	}
+	t.t.l.Lock()
+	defer t.t.l.Unlock()
+	return len(b), t.t.Append(b)
+}
+
+func (t *BufIOM[T]) Close() (e error) {
+	t.closed.Store(true)
+	return nil
+}
+
+var _ io.ReadWriteCloser = New[byte]().IO(context.Background())
+
+// func (t *Buf[T]) Read(b []T) (n int, e error) {
+// 	for {
+// 		time.Sleep(time.Millisecond * 100)
+// 		t.l.RLock()
+// 		if t.Size() > 0 {
+// 			n = copy(b, t.GetPureBuf())
+// 			e = t.RemoveFront(n)
+// 			t.l.RUnlock()
+// 			return
+// 		} else {
+// 			t.l.RUnlock()
+// 		}
+// 	}
+// }
+
+// func (t *Buf[T]) Write(b []T) (n int, e error) {
+// 	t.l.Lock()
+// 	defer t.l.Unlock()
+// 	return len(b), t.Append(b)
+// }
 
 type BufRLockMI[T any] interface {
 	IsEmpty() bool
@@ -386,5 +439,3 @@ func (t *Buf[T]) WriteTo(w interface {
 	}
 	return total, nil
 }
-
-var _ io.ReadWriter = New[byte]()
