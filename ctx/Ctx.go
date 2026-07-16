@@ -179,6 +179,7 @@ type Mctx struct {
 	child  *Mctx
 	ctx    context.Context
 	cancle context.CancelFunc
+	l      sync.RWMutex
 }
 
 // 新建ctx序列
@@ -192,28 +193,50 @@ func NewMergeCtx() *Mctx {
 // 将ctx连接到序列，当本cancle(或者Done)或上级cancle(或者Done)时，本ctx及后续的ctx将取消
 //
 // 若未传入cancle，则上级cancle()时，本ctx不会取消，后续的ctx将取消。当本ctx.Done时，后续的ctx将取消。
-func (t *Mctx) MergeCtx(ctx context.Context, cancle ...context.CancelFunc) *Mctx {
-	t.child = &Mctx{
+func (t *Mctx) MergeCtx(ctx context.Context, cancle ...context.CancelFunc) (childCtx *Mctx) {
+	childCtx = &Mctx{
 		ctx: ctx,
 	}
 	if len(cancle) > 0 {
-		t.child.cancle = cancle[0]
+		childCtx.cancle = cancle[0]
 	}
+	t.l.Lock()
+	t.child = childCtx
+	t.l.Unlock()
 	go func() {
 		select {
 		case <-t.ctx.Done():
 		case <-ctx.Done():
 		}
-		for tmp := t.child; true; {
-			if tmp.cancle != nil {
-				tmp.cancle()
+		for tmp := childCtx; true; {
+			tmp.l.RLock()
+			child := tmp.child
+			cancle := tmp.cancle
+			tmp.l.RUnlock()
+			if cancle != nil {
+				cancle()
 			}
-			if tmp.child != nil {
-				tmp = tmp.child
+			if child != nil {
+				tmp = child
 			} else {
 				break
 			}
 		}
 	}()
-	return t.child
+	return
+}
+
+func (t *Mctx) LastCtx() (ctx context.Context) {
+	for tmp := t; true; {
+		tmp.l.RLock()
+		child := tmp.child
+		ctx = tmp.ctx
+		tmp.l.RUnlock()
+		if child != nil {
+			tmp = child
+		} else {
+			break
+		}
+	}
+	return
 }

@@ -422,7 +422,7 @@ func Test5(t *testing.T) {
 }
 
 func Test10(t *testing.T) {
-	buf := New[byte]().IO(t.Context())
+	buf := New[byte]().IO().Ctx(t.Context())
 	if n, e := io.Copy(buf, pr.RandReader(pr.TypeHex, humanize.MByte)); e != nil {
 		t.Fatal(e)
 	} else if n != humanize.MByte {

@@ -221,8 +221,15 @@ type BufIOM[T any] struct {
 	t      *Buf[T]
 }
 
-func (t *Buf[T]) IO(ctx ...context.Context) *BufIOM[T] {
-	return &BufIOM[T]{ctx: append(ctx, context.Background())[0], t: t}
+func (t *Buf[T]) IO() *BufIOM[T] {
+	return &BufIOM[T]{ctx: context.Background(), t: t}
+}
+
+func (t *BufIOM[T]) Ctx(ctx context.Context) *BufIOM[T] {
+	t.t.l.Lock()
+	t.ctx = ctx
+	t.t.l.Unlock()
+	return t
 }
 
 func (t *BufIOM[T]) Read(b []T) (n int, e error) {
@@ -283,7 +290,23 @@ func (t *BufIOM[T]) Close() (e error) {
 	return nil
 }
 
-var _ io.ReadWriteCloser = New[byte]().IO(context.Background())
+func (t *BufIOM[T]) GetLock() (i interface {
+	Unlock()
+	BufLockMI[T]
+}) {
+	t.t.l.Lock()
+	return &BufLockM[T]{t.t}
+}
+
+func (t *BufIOM[T]) GetRLock() (i interface {
+	RUnlock()
+	BufRLockMI[T]
+}) {
+	t.t.l.RLock()
+	return &BufRLockM[T]{t.t}
+}
+
+var _ io.ReadWriteCloser = New[byte]().IO()
 
 // func (t *Buf[T]) Read(b []T) (n int, e error) {
 // 	for {
