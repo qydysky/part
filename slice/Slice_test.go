@@ -11,6 +11,7 @@ import (
 	"github.com/dustin/go-humanize"
 	pio "github.com/qydysky/part/io"
 	pr "github.com/qydysky/part/rand"
+	"golang.org/x/net/context"
 )
 
 func TestA(t *testing.T) {
@@ -79,7 +80,7 @@ func Test8(t *testing.T) {
 func Test6(t *testing.T) {
 	var b = strings.NewReader("1234567890")
 	buf := New[byte]()
-	if n, err := pio.WrapIoReadFrom(buf.IO()).ReadFrom(b); err != nil {
+	if n, err := pio.WrapIoReadFrom(buf).ReadFrom(b); err != nil {
 		t.Fatal(err)
 	} else if string(buf.GetPureBuf()) != "1234567890" || n != 10 {
 		t.Fatal(buf.GetPureBuf(), n, buf.bufsize)
@@ -90,7 +91,7 @@ func Test7(t *testing.T) {
 	buf := New[byte](8)
 	buf.Append([]byte("1234567890"))
 	b := bytes.NewBuffer([]byte{})
-	if n, e := pio.WrapIoWriteTo(buf.IO()).WriteTo(b); n != 10 || e != nil {
+	if n, e := pio.WrapIoWriteTo(buf).WriteTo(b); n != 10 || e != nil {
 		t.Fatal(n, e)
 	} else if b.String() != "1234567890" {
 		t.Fatal()
@@ -100,7 +101,7 @@ func Test7(t *testing.T) {
 func Benchmark4(b *testing.B) {
 	var data = strings.NewReader("1234567890")
 	buf := New[byte]()
-	rf := pio.WrapIoReadFrom(buf.IO())
+	rf := pio.WrapIoReadFrom(buf)
 	for b.Loop() {
 		if _, err := rf.ReadFrom(data); err != nil {
 			b.Fatal(err)
@@ -422,16 +423,35 @@ func Test5(t *testing.T) {
 }
 
 func Test10(t *testing.T) {
-	buf := New[byte]().IO().Ctx(t.Context())
-	if n, e := io.Copy(buf, pr.RandReader(pr.TypeHex, humanize.MByte)); e != nil {
+	buf := New[byte]()
+	sbuf := pr.Rand[[]byte](pr.TypeHex, humanize.MByte)
+	if n, e := io.Copy(buf, bytes.NewReader(sbuf)); e != nil {
 		t.Fatal(e)
 	} else if n != humanize.MByte {
 		t.Fatal()
+	} else if !bytes.Equal(sbuf, buf.buf) {
+		t.Fatal()
 	}
-	buf.Close()
-	if n, e := io.Copy(io.Discard, buf); e != nil {
-		t.Fatal(e)
-	} else if n != humanize.MByte {
+}
+
+func Test11(t *testing.T) {
+	var tmp1 []byte
+	buf := New[byte]()
+	sbuf := pr.Rand[[]byte](pr.TypeHex, humanize.MByte)
+	buf.ReadFrom(bytes.NewReader(sbuf))
+	tmp := make([]byte, humanize.MByte/2)
+
+	ctx, can := context.WithCancel(context.Background())
+	if n, _ := buf.ReadCtx(ctx, tmp); n > 0 {
+		tmp1 = append(tmp1, tmp...)
+		can()
+	}
+	ctx, can = context.WithCancel(context.Background())
+	if n, _ := buf.ReadCtx(ctx, tmp); n > 0 {
+		tmp1 = append(tmp1, tmp...)
+		can()
+	}
+	if !bytes.Equal(sbuf, tmp1) {
 		t.Fatal()
 	}
 }
