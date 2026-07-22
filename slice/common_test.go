@@ -14,6 +14,17 @@ func Test1(t *testing.T) {
 	SplitAfter(s, sep, func(v []byte) bool { t.Log(v); return true })
 }
 
+func Test12(t *testing.T) {
+	var (
+		s = []byte{}
+		p = byte('5')
+	)
+	LoopAddBack(&s, &p)
+	if !bytes.Equal(s, []byte{'5'}) {
+		t.Fatal(s)
+	}
+}
+
 // byte.Split Benchmark8-2    16173733                71.05 ns/op           80 B/op          1 allocs/op
 // bytes.SplitSeq Benchmark8-2     9234154               126.3 ns/op            96 B/op          4 allocs/op
 // SplitSeq Benchmark8-2    72654700                15.51 ns/op            0 B/op          0 allocs/op
