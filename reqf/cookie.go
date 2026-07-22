@@ -97,7 +97,9 @@ func Iter_2_Cookies_String(Cookies iter.Seq2[string, string]) (o string) {
 		o += k + `=` + v + `; `
 	}
 	t := []rune(o)
-	o = string(t[:len(t)-2])
+	if len(t) > 2 {
+		o = string(t[:len(t)-2])
+	}
 	return
 }
 
@@ -109,7 +111,9 @@ func Map_2_Cookies_String(Cookies map[string]string) (o string) {
 		o += k + `=` + v + `; `
 	}
 	t := []rune(o)
-	o = string(t[:len(t)-2])
+	if len(t) > 2 {
+		o = string(t[:len(t)-2])
+	}
 	return
 }
 
@@ -154,7 +158,9 @@ func Cookies_List_2_String(Cookies []*http.Cookie) (o string) {
 		o += v.Name + `=` + v.Value + `; `
 	}
 	t := []rune(o)
-	o = string(t[:len(t)-2])
+	if len(t) > 2 {
+		o = string(t[:len(t)-2])
+	}
 	return
 }
 
