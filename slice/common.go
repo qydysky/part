@@ -43,7 +43,7 @@ func SplitAfter[S ~[]T, T comparable](s S, sep S, callback func(s S) bool) {
 }
 
 func DelFront[S ~[]T, T any](s *S, beforeIndex int) {
-	*s = (*s)[:copy(*s, (*s)[beforeIndex:])]
+	*s = (*s)[:copy(*s, (*s)[min(len(*s), beforeIndex):])]
 }
 
 func AddFront[S ~[]T, T any](s *S, t *T) {
