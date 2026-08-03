@@ -190,11 +190,11 @@ func (PreFuncPanic[TargetInterface]) Init(s TargetInterface) TargetInterface {
 }
 
 func (PreFuncPanic[TargetInterface]) ErrNoFound(id string) error {
-	panic(pe.ErrorFormat(ActComp.ErrNoFound.Raw(id), pe.ErrActionInLineFunc))
+	panic(pe.ErrorFormat(ActComp.ErrNoFound.WithInfo(id), pe.ErrActionInLineFunc))
 }
 
 func (PreFuncPanic[TargetInterface]) ErrTypeAssertion(id string) error {
-	panic(pe.ErrorFormat(ActComp.ErrTypeAssertion.Raw(id), pe.ErrActionInLineFunc))
+	panic(pe.ErrorFormat(ActComp.ErrTypeAssertion.WithInfo(id), pe.ErrActionInLineFunc))
 }
 
 type PreFuncErr[TargetInterface any] struct{}
@@ -204,11 +204,11 @@ func (PreFuncErr[TargetInterface]) Init(s TargetInterface) TargetInterface {
 }
 
 func (PreFuncErr[TargetInterface]) ErrNoFound(id string) error {
-	return ActComp.ErrNoFound.Raw(id)
+	return ActComp.ErrNoFound.WithInfo(id)
 }
 
 func (PreFuncErr[TargetInterface]) ErrTypeAssertion(id string) error {
-	return ActComp.ErrTypeAssertion.Raw(id)
+	return ActComp.ErrTypeAssertion.WithInfo(id)
 }
 
 type PreFuncCu[TargetInterface any] struct {
@@ -228,7 +228,7 @@ func (t PreFuncCu[TargetInterface]) ErrNoFound(id string) error {
 	if t.ErrNoFoundf != nil {
 		return t.ErrNoFoundf(id)
 	} else {
-		return ActComp.ErrNoFound.Raw(id)
+		return ActComp.ErrNoFound.WithInfo(id)
 	}
 }
 
@@ -236,6 +236,6 @@ func (t PreFuncCu[TargetInterface]) ErrTypeAssertion(id string) error {
 	if t.ErrTypeAssertionf != nil {
 		return t.ErrTypeAssertionf(id)
 	} else {
-		return ActComp.ErrTypeAssertion.Raw(id)
+		return ActComp.ErrTypeAssertion.WithInfo(id)
 	}
 }

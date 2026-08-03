@@ -388,7 +388,7 @@ func TestMain9(t *testing.T) {
 	}).Reg(`id2`, func() bool {
 		return M.id2 != 0
 	}, func() (misskey string, err error) {
-		return "", ActKeyFunc.ErrNextMethod.Raw("1")
+		return "", ActKeyFunc.ErrNextMethod.WithInfo("1")
 	}, func() (misskey string, err error) {
 		return "", pe.Join(ActKeyFunc.ErrNextMethod, ccc)
 	})

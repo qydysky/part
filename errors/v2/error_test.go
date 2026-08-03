@@ -15,6 +15,7 @@ var bus = Action[struct {
 func Test1(t *testing.T) {
 	t.Log(bus.actM.Info())
 	t.Log(ErrorFormat(bus.A, ErrActionInLineFunc))
+	t.Log(ErrorFormat(bus.B, ErrActionInLineFunc))
 	if bus.A.Error() != `a` {
 		t.Fatal(bus.A.Error())
 	}
@@ -68,7 +69,7 @@ func Test3(t *testing.T) {
 		actM Method
 		B    Error
 	}](`bus`)
-	a := Join(bus.B.Raw("we"), io.EOF)
+	a := Join(bus.B.WithInfo("we"), io.EOF)
 	t.Log(ErrorFormat(a, ErrActionInLineFunc))
 	if !bus.actM.InAction(bus.B) {
 		t.Fatal()
@@ -108,7 +109,7 @@ func Benchmark2(b *testing.B) {
 	a := Action[struct {
 		A Error
 	}](``)
-	c := a.A.Raw(`123`)
+	c := a.A.WithInfo(`123`)
 	for b.Loop() {
 		c.Error()
 	}
@@ -132,8 +133,8 @@ func Test4(t *testing.T) {
 		actM Method
 		B    Error
 	}](`bus`)
-	b := bus.B.Raw("1")
-	_ = bus.B.Raw("2")
+	b := bus.B.WithInfo("1")
+	_ = bus.B.WithInfo("2")
 	if b.Error() != "B:1" {
 		t.Fatal(b)
 	}
@@ -142,7 +143,7 @@ func Test4(t *testing.T) {
 	}
 	var a = Error{
 		fieldName: bus.B.fieldName,
-		raw:       bus.B.raw,
+		info:      bus.B.info,
 		point:     bus.B.point,
 		actRaw:    bus.B.actRaw,
 		actPoint:  bus.B.actPoint,
@@ -151,6 +152,16 @@ func Test4(t *testing.T) {
 		t.Fatal()
 	}
 	if !errors.Is(a, bus.B) {
+		t.Fatal()
+	}
+}
+
+func Test6(t *testing.T) {
+	bus := Action[struct {
+		A Error `err:"a" info:"b"`
+	}](`bus`)
+
+	if bus.A.Error() != `a:b` {
 		t.Fatal()
 	}
 }
