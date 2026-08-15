@@ -51,6 +51,10 @@ func Test3(t *testing.T) {
 func Test2(t *testing.T) {
 	p := New(PoolFunc[int]{}, 1)
 	t.Log(p.pf.InUse == nil)
+	p.Put(p.Get())
+	if p.State().Inuse != 0 || p.State().Pooled != 1 {
+		t.Fatal()
+	}
 }
 
 func Test1(t *testing.T) {
