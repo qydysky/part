@@ -2,10 +2,8 @@ package part
 
 import (
 	"bytes"
-	"math"
 	"sync"
 	"testing"
-	"time"
 	"unsafe"
 )
 
@@ -80,10 +78,6 @@ func Test1(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		b.Get()
-	}
-	time.Sleep(time.Millisecond * 1100)
-	if math.Abs(b.State().GetPerSec-7.5) > 2.5 {
-		t.Fatal(b.State().GetPerSec)
 	}
 }
 

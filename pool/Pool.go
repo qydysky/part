@@ -6,14 +6,13 @@ import (
 )
 
 type Buf[T any] struct {
-	maxsize     int
-	allocs      int
-	pf          PoolFunc[T]
-	mbuf        map[*T]bool
-	getPerSec   float64
-	periodCount float64
-	periodTime  time.Time
-	l           sync.RWMutex
+	maxsize    int
+	allocs     int
+	pf         PoolFunc[T]
+	mbuf       map[*T]bool
+	getPerSec  float64
+	periodTime time.Time
+	l          sync.RWMutex
 }
 
 type PoolFunc[T any] struct {
@@ -90,9 +89,10 @@ func (t *Buf[T]) State() BufState {
 		}
 	}
 
-	getPerSec = t.periodCount / 10
-	if diff := time.Since(t.periodTime).Seconds(); diff > 1 {
-		getPerSec += t.getPerSec / diff
+	if diff := max(time.Since(t.periodTime).Seconds(), 1e-5); diff < 1 {
+		getPerSec = (1-diff)*t.getPerSec + 1
+	} else if diff < 10 {
+		getPerSec = 1 / diff
 	}
 
 	return BufState{pooled, nopooled, inuse, nouse, sum, allocs, getPerSec}
@@ -102,12 +102,12 @@ func (t *Buf[T]) Get() *T {
 	t.l.Lock()
 	defer t.l.Unlock()
 
-	t.getPerSec += 1
-	if diff := time.Since(t.periodTime).Seconds(); diff > 10 {
-		t.periodCount = t.getPerSec
-		t.getPerSec = 0
-		t.periodTime = time.Now()
+	if diff := max(time.Since(t.periodTime).Seconds(), 1e-5); diff < 1 {
+		t.getPerSec = (1-diff)*t.getPerSec + 1
+	} else {
+		t.getPerSec = 1
 	}
+	t.periodTime = time.Now()
 
 	for k, v := range t.mbuf {
 		if v && (t.pf.InUse == nil || !t.pf.InUse(k)) {
