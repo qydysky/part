@@ -83,9 +83,9 @@ func (t *Buf[T]) State() BufState {
 			}
 		} else {
 			if v {
-				inuse++
-			} else {
 				nouse++
+			} else {
+				inuse++
 			}
 		}
 	}
