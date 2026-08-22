@@ -10,7 +10,17 @@ import (
 
 	"github.com/dustin/go-humanize"
 	prand "github.com/qydysky/part/rand"
+	pu "github.com/qydysky/part/unsafe"
 )
+
+func Test2(t *testing.T) {
+	data := []byte("123\n456\n789\n")
+	buf := make([]byte, 8)
+	for line := range ReadLine(bytes.NewReader(data), &buf) {
+		t.Log(pu.B2S(line))
+	}
+
+}
 
 func Test1(t *testing.T) {
 	sBuf := prand.Rand[[]byte](prand.TypeNum|prand.TypeLow|prand.TypeUpp, humanize.MByte)
