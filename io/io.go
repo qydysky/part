@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -780,4 +781,42 @@ func (t *ioReadFrom) ReadFrom(r io.Reader) (n int64, err error) {
 
 func (t *ioReadFrom) Write(p []byte) (n int, err error) {
 	return t.raw.Write(p)
+}
+
+// tmpbuf will be reused in iter, so no modify. if you need line buf out of iter, you should copy it
+//
+// tmpbuf will be return for other call
+func ReadLine(r io.Reader, tmpbuf *[]byte) iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		*tmpbuf = (*tmpbuf)[:0]
+		if r == nil {
+			return
+		}
+		cuL := len(*tmpbuf)
+		for {
+			*tmpbuf = (*tmpbuf)[:cap(*tmpbuf)]
+			n, err := r.Read((*tmpbuf)[cuL:])
+			*tmpbuf = (*tmpbuf)[:cuL+n]
+			for cu := cuL; cu < len(*tmpbuf); cu++ {
+				if (*tmpbuf)[cu] == '\n' {
+					if !yield((*tmpbuf)[:cu]) {
+						return
+					}
+					*tmpbuf = (*tmpbuf)[:copy(*tmpbuf, (*tmpbuf)[cu+1:])]
+					cu = 0
+				}
+			}
+			if err != nil {
+				if len(*tmpbuf) > 0 && !yield(*tmpbuf) {
+					return
+				}
+				if err == io.EOF {
+					return
+				}
+			} else if cuL == cap(*tmpbuf) {
+				// Add more capacity (let append pick how much).
+				*tmpbuf = append(*tmpbuf, 0)
+			}
+		}
+	}
 }
