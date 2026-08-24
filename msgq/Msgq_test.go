@@ -158,6 +158,7 @@ func Test2(t *testing.T) {
 	}
 }
 
+// 775.9 ns/op            72 B/op          2 allocs/op
 func BenchmarkXxx(b *testing.B) {
 	mq := New()
 	mq.Pull_tag(map[string]func(int) bool{
@@ -323,6 +324,20 @@ func Test_RemoveInPush(t *testing.T) {
 	mq.PushLock_tag(`r1`, any(nil))
 	if mq.funcs.Len() != 0 {
 		t.Fatal()
+	}
+}
+
+func Test_7(t *testing.T) {
+	t.Parallel()
+	r := 0
+	mq := New()
+	mq.Pull_tag_only(`test`, func(a Nil) (disable bool) {
+		r = 1
+		return false
+	})
+	mq.Push_tag(`test`, Nilv)
+	if r != 1 {
+		t.Fatal(r)
 	}
 }
 

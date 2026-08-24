@@ -15,6 +15,10 @@ import (
 	psync "github.com/qydysky/part/sync"
 )
 
+type Nil struct{}
+
+var Nilv = Nil{}
+
 var ErrRunTO = errors.New(`ErrRunTO`)
 
 type Msgq struct {
