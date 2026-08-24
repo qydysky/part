@@ -27,9 +27,9 @@ type Msgq struct {
 	PanicFunc      func(any)
 }
 
-type msgqItem struct {
+type msgqItem[T any] struct {
 	disable atomic.Bool
-	f       *func(any) (disable bool)
+	f       *func(T) (disable bool)
 }
 
 type FuncMap map[string]func(any) (disable bool)
@@ -51,33 +51,34 @@ func (m *Msgq) TOPanicFunc(f func(any)) {
 	m.lock.PanicFunc = f
 }
 
-func (m *Msgq) register(mp *msgqItem, f func(v any) *list.Element) (cancel func()) {
+func (m *Msgq) register[T any](mp *msgqItem[T], f func(v any) *list.Element) (cancel func()) {
 	defer m.lock.Lock()()
 
 	if m.allNeedRemove.Load() {
-		m.removeDisable(m.someNeedRemove.CompareAndSwap(false, true), true)
+		m.removeDisable[T](m.someNeedRemove.CompareAndSwap(false, true), true)
 	}
 
 	f(mp)
 	return func() {
 		mp.disable.Store(true)
-		m.removeDisable(m.someNeedRemove.CompareAndSwap(false, true), false)
+		m.removeDisable[T](m.someNeedRemove.CompareAndSwap(false, true), false)
 	}
 }
 
-func (m *Msgq) Register(f func(any) (disable bool)) (cancel func()) {
-	return m.register(&msgqItem{
+func (m *Msgq) Register[T any](f func(T) (disable bool)) (cancel func()) {
+	return m.register(&msgqItem[T]{
 		f: &f,
 	}, m.funcs.PushBack)
 }
 
-func (m *Msgq) RegisterFront(f func(any) (disable bool)) (cancel func()) {
-	return m.register(&msgqItem{
+func (m *Msgq) RegisterFront[T any](f func(T) (disable bool)) (cancel func()) {
+	return m.register(&msgqItem[T]{
 		f: &f,
 	}, m.funcs.PushFront)
 }
 
-func (m *Msgq) push(msg any, isLock bool) {
+// if push[T]'s generic is not the same as register[T]'s generic, register f with be skip
+func (m *Msgq) push[T any](msg T, isLock bool) {
 	if isLock {
 		defer m.lock.Lock()()
 	} else {
@@ -85,27 +86,27 @@ func (m *Msgq) push(msg any, isLock bool) {
 	}
 
 	if m.allNeedRemove.Load() {
-		m.removeDisable(true, isLock)
+		m.removeDisable[T](true, isLock)
 		if !isLock {
 			return
 		}
 	}
 
 	for el := m.funcs.Front(); el != nil; el = el.Next() {
-		if mi := el.Value.(*msgqItem); !mi.disable.Load() && (*mi.f)(msg) {
+		if mi, ok := el.Value.(*msgqItem[T]); ok && !mi.disable.Load() && (*mi.f)(msg) {
 			mi.disable.Store(true)
-			m.removeDisable(m.someNeedRemove.CompareAndSwap(false, true), isLock)
+			m.removeDisable[T](m.someNeedRemove.CompareAndSwap(false, true), isLock)
 		}
 	}
 }
 
 // 不能在由PushLock*调用的Pull中以同步方式使用
-func (m *Msgq) Push(msg any) {
+func (m *Msgq) Push[T any](msg T) {
 	m.push(msg, false)
 }
 
 // 不能在由Push*调用的Pull中以同步方式使用
-func (m *Msgq) PushLock(msg any) {
+func (m *Msgq) PushLock[T any](msg T) {
 	m.push(msg, true)
 }
 
@@ -113,7 +114,7 @@ func (m *Msgq) ClearAll() {
 	m.allNeedRemove.Store(true)
 }
 
-func (m *Msgq) removeDisable(sig bool, isLock bool) {
+func (m *Msgq) removeDisable[T any](sig bool, isLock bool) {
 	if sig {
 		f := func() {
 			if !isLock {
@@ -121,7 +122,7 @@ func (m *Msgq) removeDisable(sig bool, isLock bool) {
 			}
 			all := m.allNeedRemove.Swap(false)
 			for el := m.funcs.Front(); el != nil; el = el.Next() {
-				mi := el.Value.(*msgqItem)
+				mi := el.Value.(*msgqItem[T])
 				if all || mi.disable.Load() {
 					m.funcs.Remove(el)
 				}
@@ -156,15 +157,15 @@ func (m *Msgq) PushingTO(info string, callTree *string) (fin func()) {
 	return func() {}
 }
 
-type Msgq_tag_data struct {
+type Msgq_tag_data[T any] struct {
 	Tag  string
-	Data any
+	Data T
 }
 
 // 不能在由PushLock*调用的Pull中以同步方式使用
-func (m *Msgq) Push_tag(Tag string, Data any) {
+func (m *Msgq) Push_tag[T any](Tag string, Data T) {
 	defer m.PushingTO(lmt.Sprintf("\nPush_tag(`%v`)", Tag), getCall(1))()
-	m.Push(&Msgq_tag_data{
+	m.Push(&Msgq_tag_data[T]{
 		Tag:  Tag,
 		Data: Data,
 	})
@@ -173,19 +174,19 @@ func (m *Msgq) Push_tag(Tag string, Data any) {
 // 不能在由Push*调用的Pull中以同步方式使用
 //
 // async类的Pull将会创建协程处理并退出，可能不会按预期工作
-func (m *Msgq) PushLock_tag(Tag string, Data any) {
+func (m *Msgq) PushLock_tag[T any](Tag string, Data T) {
 	defer m.PushingTO(lmt.Sprintf("\nPushLock_tag(`%v`)", Tag), getCall(1))()
-	m.PushLock(&Msgq_tag_data{
+	m.PushLock(&Msgq_tag_data[T]{
 		Tag:  Tag,
 		Data: Data,
 	})
 }
 
-func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan any) {
-	c := make(chan any, size)
+func (m *Msgq) Pull_tag_chan[T any](key string, size int, ctx context.Context) (cancel func(), ch <-chan T) {
+	c := make(chan T, size)
 	ctx, cancelC := context.WithCancel(ctx)
-	unreg := m.Register(func(data any) bool {
-		if d, ok := data.(*Msgq_tag_data); ok && d.Tag == key {
+	unreg := m.Register(func(data *Msgq_tag_data[T]) bool {
+		if data.Tag == key {
 			select {
 			case <-ctx.Done():
 				close(c)
@@ -196,7 +197,7 @@ func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel 
 					select {
 					case <-c:
 					default:
-						c <- d.Data
+						c <- data.Data
 						empty = true
 					}
 				}
@@ -215,47 +216,43 @@ func (m *Msgq) Pull_tag_chan(key string, size int, ctx context.Context) (cancel 
 	}, c
 }
 
-func (m *Msgq) Pull_tag_only(key string, f func(any) (disable bool)) (cancel func()) {
-	return m.Register(func(data any) (disable bool) {
-		if d, ok := data.(*Msgq_tag_data); ok && d.Tag == key {
-			return f(d.Data)
+func (m *Msgq) Pull_tag_only[T any](key string, f func(T) (disable bool)) (cancel func()) {
+	return m.Register(func(data *Msgq_tag_data[T]) (disable bool) {
+		if data.Tag == key {
+			return f(data.Data)
 		}
 		return false
 	})
 }
 
-func (m *Msgq) Pull_tag(func_map map[string]func(any) (disable bool)) (cancel func()) {
-	return m.Register(func(data any) (disable bool) {
-		if d, ok := data.(*Msgq_tag_data); ok {
-			if f, ok := func_map[d.Tag]; ok {
-				return f(d.Data)
-			}
+func (m *Msgq) Pull_tag[T any](func_map map[string]func(T) (disable bool)) (cancel func()) {
+	return m.Register(func(data *Msgq_tag_data[T]) (disable bool) {
+		if f, ok := func_map[data.Tag]; ok {
+			return f(data.Data)
 		}
 		return false
 	})
 }
 
-func (m *Msgq) Pull_tag_async_only(key string, f func(any) (disable bool)) (cancel func()) {
+func (m *Msgq) Pull_tag_async_only[T any](key string, f func(any) (disable bool)) (cancel func()) {
 	var disable bool
-	return m.RegisterFront(func(data any) bool {
-		if d, ok := data.(*Msgq_tag_data); !disable && ok && d.Tag == key {
+	return m.RegisterFront(func(data *Msgq_tag_data[T]) bool {
+		if !disable && data.Tag == key {
 			go func() {
-				disable = f(d.Data)
+				disable = f(data.Data)
 			}()
 		}
 		return disable
 	})
 }
 
-func (m *Msgq) Pull_tag_async(func_map map[string]func(any) (disable bool)) (cancel func()) {
+func (m *Msgq) Pull_tag_async[T any](func_map map[string]func(any) (disable bool)) (cancel func()) {
 	var disable bool
-	return m.RegisterFront(func(data any) bool {
-		if d, ok := data.(*Msgq_tag_data); ok {
-			if f, ok := func_map[d.Tag]; ok {
-				go func() {
-					disable = f(d.Data)
-				}()
-			}
+	return m.RegisterFront(func(data *Msgq_tag_data[T]) bool {
+		if f, ok := func_map[data.Tag]; ok {
+			go func() {
+				disable = f(data.Data)
+			}()
 		}
 		return disable
 	})
@@ -300,22 +297,20 @@ func (m *MsgType[T]) PushLock_tag(Tag string, Data T) {
 func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (cancel func(), ch <-chan T) {
 	c := make(chan T, size)
 	ctx, cancelC := context.WithCancel(ctx)
-	unreg := m.m.Register(func(data any) bool {
-		if data1, ok := data.(*MsgType_tag_data[T]); ok {
-			if data1.Tag == key {
-				select {
-				case <-ctx.Done():
-					close(c)
-					return true
-				default:
-					empty := false
-					for !empty {
-						select {
-						case <-c:
-						default:
-							c <- *data1.Data
-							empty = true
-						}
+	unreg := m.m.Register(func(data *MsgType_tag_data[T]) bool {
+		if data.Tag == key {
+			select {
+			case <-ctx.Done():
+				close(c)
+				return true
+			default:
+				empty := false
+				for !empty {
+					select {
+					case <-c:
+					default:
+						c <- *data.Data
+						empty = true
 					}
 				}
 			}
@@ -334,20 +329,18 @@ func (m *MsgType[T]) Pull_tag_chan(key string, size int, ctx context.Context) (c
 }
 
 func (m *MsgType[T]) Pull_tag_only(key string, f func(T) (disable bool)) (cancel func()) {
-	return m.m.Register(func(data any) (disable bool) {
-		if data1, ok := data.(*MsgType_tag_data[T]); ok && data1.Tag == key {
-			return f(*data1.Data)
+	return m.m.Register(func(data *MsgType_tag_data[T]) (disable bool) {
+		if data.Tag == key {
+			return f(*data.Data)
 		}
 		return false
 	})
 }
 
 func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) (cancel func()) {
-	return m.m.Register(func(data any) (disable bool) {
-		if data1, ok := data.(*MsgType_tag_data[T]); ok {
-			if f, ok := func_map[data1.Tag]; ok {
-				return f(*data1.Data)
-			}
+	return m.m.Register(func(data *MsgType_tag_data[T]) (disable bool) {
+		if f, ok := func_map[data.Tag]; ok {
+			return f(*data.Data)
 		}
 		return false
 	})
@@ -355,12 +348,10 @@ func (m *MsgType[T]) Pull_tag(func_map map[string]func(T) (disable bool)) (cance
 
 // func return disable will compareAndDelete this func, not remove func_map from msg
 func (m *MsgType[T]) Pull_tag_syncmap(func_map psync.MapFunc[string, *func(T) (disable bool)]) (cancel func()) {
-	return m.m.Register(func(data any) (disable bool) {
-		if data1, ok := data.(*MsgType_tag_data[T]); ok {
-			if f, ok := func_map.Load(data1.Tag); ok {
-				if disable := (*f)(*data1.Data); disable {
-					func_map.CompareAndDelete(data1.Tag, f)
-				}
+	return m.m.Register(func(data *MsgType_tag_data[T]) (disable bool) {
+		if f, ok := func_map.Load(data.Tag); ok {
+			if disable := (*f)(*data.Data); disable {
+				func_map.CompareAndDelete(data.Tag, f)
 			}
 		}
 		return false
@@ -369,11 +360,11 @@ func (m *MsgType[T]) Pull_tag_syncmap(func_map psync.MapFunc[string, *func(T) (d
 
 func (m *MsgType[T]) Pull_tag_async_only(key string, f func(T) (disable bool)) (cancel func()) {
 	var disabled atomic.Bool
-	return m.m.RegisterFront(func(data any) bool {
-		if d, ok := data.(*MsgType_tag_data[T]); !disabled.Load() && ok && d.Tag == key {
+	return m.m.RegisterFront(func(data *MsgType_tag_data[T]) bool {
+		if !disabled.Load() && data.Tag == key {
 			go func() {
 				if !disabled.Load() {
-					disabled.Store(f(*d.Data))
+					disabled.Store(f(*data.Data))
 				}
 			}()
 		}
@@ -383,12 +374,12 @@ func (m *MsgType[T]) Pull_tag_async_only(key string, f func(T) (disable bool)) (
 
 func (m *MsgType[T]) Pull_tag_async(func_map map[string]func(T) (disable bool)) (cancel func()) {
 	var disabled atomic.Bool
-	return m.m.RegisterFront(func(data any) bool {
-		if d, ok := data.(*MsgType_tag_data[T]); !disabled.Load() && ok {
-			if f, ok := func_map[d.Tag]; ok {
+	return m.m.RegisterFront(func(data *MsgType_tag_data[T]) bool {
+		if !disabled.Load() {
+			if f, ok := func_map[data.Tag]; ok {
 				go func() {
 					if !disabled.Load() {
-						disabled.Store(f(*d.Data))
+						disabled.Store(f(*data.Data))
 					}
 				}()
 			}
