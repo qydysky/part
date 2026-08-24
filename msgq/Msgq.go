@@ -146,15 +146,15 @@ func (m *Msgq) panicFunc(s any) {
 }
 
 func (m *Msgq) PushingTO(info string, callTree *string) (fin func()) {
-	if len(m.to) > 1 {
-		to := time.AfterFunc(m.to[1], func() {
-			m.panicFunc(errors.Join(ErrRunTO, lmt.Errorf("%v:%v", info, *callTree)))
-		})
-		return func() {
-			to.Stop()
-		}
+	// if len(m.to) > 1 {
+	to := time.AfterFunc(m.to[1], func() {
+		m.panicFunc(errors.Join(ErrRunTO, lmt.Errorf("%v:%v", info, *callTree)))
+	})
+	return func() {
+		to.Stop()
 	}
-	return func() {}
+	// }
+	// return func() {}
 }
 
 type Msgq_tag_data[T any] struct {
@@ -164,7 +164,9 @@ type Msgq_tag_data[T any] struct {
 
 // 不能在由PushLock*调用的Pull中以同步方式使用
 func (m *Msgq) Push_tag[T any](Tag string, Data T) {
-	defer m.PushingTO(lmt.Sprintf("\nPush_tag(`%v`)", Tag), getCall(1))()
+	if len(m.to) > 1 {
+		defer m.PushingTO(lmt.Sprintf("\nPush_tag(`%v`)", Tag), getCall(1))()
+	}
 	m.Push(&Msgq_tag_data[T]{
 		Tag:  Tag,
 		Data: Data,
@@ -175,7 +177,9 @@ func (m *Msgq) Push_tag[T any](Tag string, Data T) {
 //
 // async类的Pull将会创建协程处理并退出，可能不会按预期工作
 func (m *Msgq) PushLock_tag[T any](Tag string, Data T) {
-	defer m.PushingTO(lmt.Sprintf("\nPushLock_tag(`%v`)", Tag), getCall(1))()
+	if len(m.to) > 1 {
+		defer m.PushingTO(lmt.Sprintf("\nPushLock_tag(`%v`)", Tag), getCall(1))()
+	}
 	m.PushLock(&Msgq_tag_data[T]{
 		Tag:  Tag,
 		Data: Data,
