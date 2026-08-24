@@ -160,21 +160,21 @@ func Test2(t *testing.T) {
 
 func BenchmarkXxx(b *testing.B) {
 	mq := New()
-	mq.Pull_tag(map[string]func(any) bool{
-		`1`: func(_ any) bool {
+	mq.Pull_tag(map[string]func(int) bool{
+		`1`: func(_ int) bool {
 			return false
 		},
 	})
-	mq.Pull_tag(map[string]func(any) bool{
-		`2`: func(_ any) bool {
+	mq.Pull_tag(map[string]func(int) bool{
+		`2`: func(_ int) bool {
 			return false
 		},
 	})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mq.Push_tag(`1`, nil)
+		mq.Push_tag(`1`, 1)
 		if i == b.N/2 {
-			mq.Push_tag(`2`, nil)
+			mq.Push_tag(`2`, 1)
 		}
 	}
 }
@@ -186,11 +186,11 @@ func TestTORun(t *testing.T) {
 	mq.TOPanicFunc(func(a any) {
 		panicC <- a
 	})
-	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+	mq.Pull_tag_only(`test`, func(a int) (disable bool) {
 		time.Sleep(time.Second * 10)
 		return false
 	})
-	go mq.Push_tag(`test`, nil)
+	go mq.Push_tag(`test`, 0)
 	e := <-panicC
 	if !errors.Is(e.(error), ErrRunTO) {
 		t.Fatal(e)
@@ -205,10 +205,10 @@ func TestPushLock(t *testing.T) {
 		panicC <- a
 	})
 	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
-		mq.PushLock_tag(`lock`, nil)
+		mq.PushLock_tag[any](`lock`, 0)
 		return false
 	})
-	go mq.Push_tag(`test`, nil)
+	go mq.Push_tag[any](`test`, 0)
 	e := <-panicC
 	if !errors.Is(e.(error), psync.ErrTimeoutToLock) {
 		t.Fatal(e)
@@ -217,11 +217,11 @@ func TestPushLock(t *testing.T) {
 
 func Benchmark_1(b *testing.B) {
 	mq := New()
-	mq.Pull_tag_only(`test`, func(a any) (disable bool) {
+	mq.Pull_tag_only(`test`, func(a int) (disable bool) {
 		return false
 	})
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		mq.Push_tag(`test`, i)
 	}
 }
@@ -235,7 +235,7 @@ func Test_4(t *testing.T) {
 		},
 	})
 	time.Sleep(time.Millisecond * 500)
-	mq.PushLock_tag(`del`, nil)
+	mq.PushLock_tag(`del`, 0)
 	cancel()
 }
 
@@ -250,7 +250,7 @@ func Test_2(t *testing.T) {
 	})
 	time.Sleep(time.Millisecond * 500)
 	cancel()
-	mq.PushLock_tag(`del`, nil)
+	mq.PushLock_tag(`del`, 0)
 }
 
 func Test_5(t *testing.T) {
@@ -259,7 +259,7 @@ func Test_5(t *testing.T) {
 	mq.Pull_tag(FuncMap{
 		`del`: func(a any) (disable bool) {
 			t.Log(1)
-			mq.Push_tag(`del1`, nil)
+			mq.Push_tag(`del1`, 0)
 			t.Log(3)
 			return false
 		},
@@ -272,13 +272,33 @@ func Test_5(t *testing.T) {
 	mq.Push_tag(`del1`, 1)
 }
 
+func Test_6(t *testing.T) {
+	t.Parallel()
+	r1 := 0
+	r2 := ""
+	mq := New()
+	mq.Pull_tag_only(`1`, func(i int) (disable bool) {
+		r1 = i
+		return false
+	})
+	mq.Pull_tag_only(`1`, func(i string) (disable bool) {
+		r2 = i
+		return false
+	})
+	mq.Push_tag(`1`, 1)
+	mq.Push_tag(`1`, `1`)
+	if r1 != 1 || r2 != "1" {
+		t.Fatal()
+	}
+}
+
 func Test_1(t *testing.T) {
 	t.Parallel()
 	mq := New(time.Millisecond*5, time.Millisecond*10)
-	go mq.Push_tag(`del`, nil)
+	go mq.Push_tag(`del`, 0)
 	mq.Pull_tag(FuncMap{
 		`del`: func(a any) (disable bool) {
-			mq.Push_tag(`del1`, nil)
+			mq.Push_tag(`del1`, 0)
 			return false
 		},
 		`del1`: func(a any) (disable bool) {
@@ -300,7 +320,7 @@ func Test_RemoveInPush(t *testing.T) {
 			return true
 		},
 	})
-	mq.PushLock_tag(`r1`, nil)
+	mq.PushLock_tag(`r1`, any(nil))
 	if mq.funcs.Len() != 0 {
 		t.Fatal()
 	}
@@ -309,7 +329,7 @@ func Test_RemoveInPush(t *testing.T) {
 func Test_3(t *testing.T) {
 	t.Parallel()
 	mq := New(time.Millisecond*5, time.Millisecond*10)
-	go mq.Push_tag(`sss`, nil)
+	go mq.Push_tag(`sss`, 0)
 	mq.Pull_tag(FuncMap{
 		`test`: func(a any) (disable bool) {
 			return false
@@ -322,7 +342,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 	t.Parallel()
 	mq := New()
 	ctx, cf := context.WithCancel(context.Background())
-	_, ch := mq.Pull_tag_chan(`a`, 2, ctx)
+	_, ch := mq.Pull_tag_chan[int](`a`, 2, ctx)
 	for i := 0; i < 5; i++ {
 		mq.Push_tag(`a`, i)
 	}
@@ -333,7 +353,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 	for s := true; s; {
 		select {
 		case i := <-ch:
-			o += i.(int)
+			o += i
 		default:
 			s = false
 		}
@@ -350,7 +370,7 @@ func Test_Pull_tag_chan(t *testing.T) {
 	mq.Push_tag(`a`, 1)
 	select {
 	case i := <-ch:
-		if i != nil {
+		if i != 0 {
 			t.Fatal()
 		}
 	default:
@@ -362,10 +382,10 @@ func Test_Pull_tag_chan2(t *testing.T) {
 	t.Parallel()
 	mq := New()
 
-	mq.Pull_tag_chan(`a`, 1, context.Background())
+	mq.Pull_tag_chan[any](`a`, 1, context.Background())
 	go func() {
-		mq.PushLock_tag(`a`, nil)
-		mq.PushLock_tag(`a`, nil)
+		mq.PushLock_tag(`a`, 0)
+		mq.PushLock_tag(`a`, 0)
 	}()
 }
 
@@ -387,12 +407,12 @@ func Test_msgq1(t *testing.T) {
 		var w sync.WaitGroup
 		w.Add(2)
 		go func() {
-			mq.Push_tag(`A1`, time.Now())
+			mq.Push_tag[any](`A1`, time.Now())
 			w.Done()
 		}()
 		go func() {
 			time.Sleep(time.Millisecond * 100)
-			mq.Push_tag(`A1`, time.Now())
+			mq.Push_tag[any](`A1`, time.Now())
 			w.Done()
 		}()
 		w.Wait()
@@ -408,12 +428,12 @@ func Test_msgq1(t *testing.T) {
 		var w sync.WaitGroup
 		w.Add(2)
 		go func() {
-			mq.PushLock_tag(`A1`, time.Now())
+			mq.PushLock_tag[any](`A1`, time.Now())
 			w.Done()
 		}()
 		go func() {
 			time.Sleep(time.Millisecond * 100)
-			mq.PushLock_tag(`A1`, time.Now())
+			mq.PushLock_tag[any](`A1`, time.Now())
 			w.Done()
 		}()
 		w.Wait()
@@ -525,7 +545,7 @@ func Test_msgq3(t *testing.T) {
 	time.Sleep(time.Second)
 	for fin_turn := 0; fin_turn < 1000000; fin_turn += 1 {
 		// fmt.Printf("\r%d", fin_turn)
-		mq.Push_tag(`A1`, fin_turn)
+		mq.Push_tag[any](`A1`, fin_turn)
 		if fin_turn != <-mun_c {
 			t.Fatal(fin_turn)
 		}
@@ -638,8 +658,8 @@ func Test_msgq5(t *testing.T) {
 	var fin_turn = 0
 	time.Sleep(time.Second)
 	for fin_turn < 10 {
-		mq.Push_tag(`A1`, `a11`)
-		mq.Push_tag(`A2`, `a11`)
+		mq.Push_tag[any](`A1`, `a11`)
+		mq.Push_tag[any](`A2`, `a11`)
 		<-mun_c1
 		<-mun_c2
 		fin_turn += 1
