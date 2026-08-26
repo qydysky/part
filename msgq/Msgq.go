@@ -15,10 +15,6 @@ import (
 	psync "github.com/qydysky/part/sync"
 )
 
-type Nil struct{}
-
-var Nilv = Nil{}
-
 var ErrRunTO = errors.New(`ErrRunTO`)
 
 type Msgq struct {
@@ -247,13 +243,13 @@ type Register struct {
 	cancel atomic.Pointer[func()]
 }
 
-func (m *Register) Pull_tags[T any](key string, f func(T) (disable bool)) *Register {
+func (m *Register) Tag[T any](key string, f func(T) (disable bool)) {
 	cancel := m.mq.Register(func(data *Msgq_tag_data[T]) (disable bool) {
 		if data.Tag == key {
 			disable = f(data.Data)
 		}
 		if disable {
-			m.Fin()()
+			(*m.cancel.Load())()
 		}
 		return
 	})
@@ -267,15 +263,12 @@ func (m *Register) Pull_tags[T any](key string, f func(T) (disable bool)) *Regis
 		}
 		pre = m.cancel.Swap(&cur)
 	}
-	return m
 }
 
-func (m *Register) Fin() (cancle func()) {
-	return *m.cancel.Load()
-}
-
-func (m *Msgq) Pull_tags[T any](key string, f func(T) (disable bool)) (r *Register) {
-	return (&Register{mq: m}).Pull_tags(key, f)
+func (m *Msgq) Pull_tags(batchTag func(fc *Register)) (cancel func()) {
+	reg := &Register{mq: m}
+	batchTag(reg)
+	return *reg.cancel.Load()
 }
 
 func (m *Msgq) Pull_tag_async_only[T any](key string, f func(T) (disable bool)) (cancel func()) {
