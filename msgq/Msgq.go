@@ -15,10 +15,6 @@ import (
 	psync "github.com/qydysky/part/sync"
 )
 
-type Nil struct{}
-
-var Nilv = Nil{}
-
 var ErrRunTO = errors.New(`ErrRunTO`)
 
 type Msgq struct {
@@ -242,28 +238,94 @@ func (m *Msgq) Pull_tag[T any](func_map map[string]func(T) (disable bool)) (canc
 	})
 }
 
-func (m *Msgq) Pull_tag_async_only[T any](key string, f func(any) (disable bool)) (cancel func()) {
-	var disable bool
+type Register struct {
+	mq     *Msgq
+	cancel atomic.Pointer[func()]
+}
+
+func (m *Register) Tag[T any](key string, f func(T) (disable bool)) {
+	cancel := m.mq.Register(func(data *Msgq_tag_data[T]) (disable bool) {
+		if data.Tag == key {
+			disable = f(data.Data)
+		}
+		if disable {
+			(*m.cancel.Load())()
+		}
+		return
+	})
+	{
+		var pre *func()
+		var cur = func() {
+			if pre != nil {
+				(*pre)()
+			}
+			cancel()
+		}
+		pre = m.cancel.Swap(&cur)
+	}
+}
+
+func (m *Msgq) Pull_tags(batchTag func(fc *Register)) (cancel func()) {
+	reg := &Register{mq: m}
+	batchTag(reg)
+	return *reg.cancel.Load()
+}
+
+func (m *Msgq) Pull_tag_async_only[T any](key string, f func(T) (disable bool)) (cancel func()) {
+	var disable atomic.Bool
 	return m.RegisterFront(func(data *Msgq_tag_data[T]) bool {
-		if !disable && data.Tag == key {
+		if !disable.Load() && data.Tag == key {
 			go func() {
-				disable = f(data.Data)
+				disable.Store(f(data.Data))
 			}()
 		}
-		return disable
+		return disable.Load()
 	})
 }
 
 func (m *Msgq) Pull_tag_async[T any](func_map map[string]func(any) (disable bool)) (cancel func()) {
-	var disable bool
+	var disable atomic.Bool
 	return m.RegisterFront(func(data *Msgq_tag_data[T]) bool {
-		if f, ok := func_map[data.Tag]; ok {
+		if f, ok := func_map[data.Tag]; !disable.Load() && ok {
 			go func() {
-				disable = f(data.Data)
+				disable.Store(f(data.Data))
 			}()
 		}
-		return disable
+		return disable.Load()
 	})
+}
+
+type RegisterAsync struct {
+	mq      *Msgq
+	disable atomic.Bool
+	cancels []func()
+}
+
+func (m *RegisterAsync) Pull_tag_asyncs[T any](key string, f func(T) (disable bool)) *RegisterAsync {
+	m.cancels = append(m.cancels, m.mq.Register(func(data *Msgq_tag_data[T]) (disable bool) {
+		if data.Tag == key {
+			go func() {
+				m.disable.Store(f(data.Data))
+			}()
+		}
+		if m.disable.Load() {
+			m.Fin()()
+		}
+		return
+	}))
+	return m
+}
+
+func (m *RegisterAsync) Fin() (cancle func()) {
+	return func() {
+		for _, v := range m.cancels {
+			v()
+		}
+	}
+}
+
+func (m *Msgq) Pull_tag_asyncs[T any](key string, f func(T) (disable bool)) *RegisterAsync {
+	return (&RegisterAsync{mq: m}).Pull_tag_asyncs(key, f)
 }
 
 type MsgType[T any] struct {

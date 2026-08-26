@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	_ "net/http/pprof"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -161,21 +162,23 @@ func Test2(t *testing.T) {
 // 775.9 ns/op            72 B/op          2 allocs/op
 func BenchmarkXxx(b *testing.B) {
 	mq := New()
-	mq.Pull_tag(map[string]func(int) bool{
-		`1`: func(_ int) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`1`: func(_ any) bool {
 			return false
 		},
 	})
-	mq.Pull_tag(map[string]func(int) bool{
-		`2`: func(_ int) bool {
+	mq.Pull_tag(map[string]func(any) bool{
+		`2`: func(_ any) bool {
 			return false
 		},
 	})
+	var a = `1`
+	var b1 = `2`
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mq.Push_tag(`1`, 1)
+		mq.Push_tag[any](a, nil)
 		if i == b.N/2 {
-			mq.Push_tag(`2`, 1)
+			mq.Push_tag[any](b1, nil)
 		}
 	}
 }
@@ -273,6 +276,86 @@ func Test_5(t *testing.T) {
 	mq.Push_tag(`del1`, 1)
 }
 
+func Test_8(t *testing.T) {
+	t.Parallel()
+	r1 := 0
+	mq := New()
+	mq.Pull_tag_only(`1`, func(i struct{ a int }) (disable bool) {
+		r1 = i.a
+		return false
+	})
+	mq.Push_tag(`1`, struct{ a int }{1})
+	type a struct{ a int }
+	mq.Push_tag(`1`, a{2})
+	if r1 != 1 {
+		t.Fatal()
+	}
+}
+
+func Test_9(t *testing.T) {
+	t.Parallel()
+	mq := New()
+	ru := ""
+	mq.Pull_tags(func(fc *Register) {
+		fc.Tag(`1`, func(a int) (disable bool) {
+			ru += strconv.Itoa(a)
+			return false
+		})
+		fc.Tag(`2`, func(a string) (disable bool) {
+			ru += a
+			return false
+		})
+		fc.Tag(`3`, func(a any) (disable bool) {
+			return true
+		})
+	})
+	mq.Push_tag(`1`, 1)
+	mq.Push_tag(`2`, `s`)
+	mq.Push_tag[any](`3`, nil)
+	mq.Push_tag(`2`, `s`)
+	if ru != "1s" {
+		t.Fatal()
+	}
+}
+
+func Test_a(t *testing.T) {
+	t.Parallel()
+	mq := New()
+	go mq.Pull_tag_async_only(`1`, func(a int) (disable bool) {
+		return false
+	})
+	mq.Pull_tag_async_only(`1`, func(a int) (disable bool) {
+		return true
+	})
+	mq.Push_tag(`1`, 1)
+}
+
+func Test_a1(t *testing.T) {
+	t.Parallel()
+	var a atomic.Pointer[func()]
+	{
+		var pre *func()
+		var cur = func() {
+			if pre != nil {
+				(*pre)()
+			}
+			t.Log(1)
+		}
+		pre = a.Swap(&cur)
+	}
+	{
+		var pre *func()
+		var cur = func() {
+			if pre != nil {
+				(*pre)()
+			}
+			t.Log(2)
+		}
+		pre = a.Swap(&cur)
+	}
+	(*a.Load())()
+}
+
 func Test_6(t *testing.T) {
 	t.Parallel()
 	r1 := 0
@@ -331,11 +414,11 @@ func Test_7(t *testing.T) {
 	t.Parallel()
 	r := 0
 	mq := New()
-	mq.Pull_tag_only(`test`, func(a Nil) (disable bool) {
+	mq.Pull_tag_only(`test`, func(_ any) (disable bool) {
 		r = 1
 		return false
 	})
-	mq.Push_tag(`test`, Nilv)
+	mq.Push_tag[any](`test`, nil)
 	if r != 1 {
 		t.Fatal(r)
 	}
