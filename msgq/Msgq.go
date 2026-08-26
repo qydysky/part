@@ -122,8 +122,7 @@ func (m *Msgq) removeDisable[T any](sig bool, isLock bool) {
 			}
 			all := m.allNeedRemove.Swap(false)
 			for el := m.funcs.Front(); el != nil; el = el.Next() {
-				mi := el.Value.(*msgqItem[T])
-				if all || mi.disable.Load() {
+				if mi, ok := el.Value.(*msgqItem[T]); all || (ok && mi.disable.Load()) {
 					m.funcs.Remove(el)
 				}
 			}
