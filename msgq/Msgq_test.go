@@ -714,7 +714,7 @@ func Test_msgq5(t *testing.T) {
 	mun_c2 := make(chan bool, 100)
 	go mq.Pull_tag(map[string]func(any) bool{
 		`A1`: func(_ any) bool {
-			time.Sleep(time.Second) //will block
+			time.Sleep(time.Millisecond * 500) //will block
 			return false
 		},
 		`A2`: func(data any) bool {
@@ -761,6 +761,27 @@ func Test_msgq5(t *testing.T) {
 		<-mun_c1
 		<-mun_c2
 		fin_turn += 1
+	}
+}
+
+func Test_msgqa1(t *testing.T) {
+	t.Parallel()
+	msg := New()
+	msg.PullSignOnly(`1`, func(_ struct{}) (disable bool) {
+		t.Log(1)
+		return
+	})
+	msg.PushSign(`1`)
+}
+
+func Benchmark_a(b *testing.B) {
+	msg := New()
+	msg.PullSignOnly(`1`, func(_ struct{}) (disable bool) {
+		return
+	})
+
+	for b.Loop() {
+		msg.PushSign(`1`)
 	}
 }
 
@@ -955,6 +976,27 @@ func Test_msgq8(t *testing.T) {
 		time.Sleep(time.Millisecond * 20)
 	}
 	time.Sleep(time.Second)
+}
+
+func Test_msgqa(t *testing.T) {
+	t.Parallel()
+	var to = make(chan int, 3)
+	msg := NewType[int](time.Second*10, time.Second)
+	msg.TOPanicFunc(func(a any) {
+		to <- 1
+		msg.ClearAll()
+	})
+	msg.Pull_tags(func(fc *RegisterT[int]) {
+		fc.Tag(`1`, func(i int) (disable bool) {
+			time.Sleep(time.Second * 2)
+			to <- 2
+			return false
+		})
+	})
+	msg.Push_tag(`1`, 1)
+	if o := <-to; o != 1 {
+		t.Fatal(o)
+	}
 }
 
 // func Test_msgq6(t *testing.T) {
