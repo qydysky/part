@@ -6,8 +6,25 @@ import (
 	pool "github.com/qydysky/part/pool"
 )
 
+type txFunc struct {
+	doFunc func() (errTx error)
+}
+
+func (t *txFunc) do() error {
+	return t.doFunc()
+}
+
+func (t *txFunc) commitOrRollback(errTx error) error {
+	return errTx
+}
+
+type Tx interface {
+	do() (errTx error)
+	commitOrRollback(errTx error) error
+}
+
 type SqlTxs struct {
-	txs []*SqlTx
+	txs []Tx
 }
 
 var txsPool = pool.NewPoolBlock[SqlTxs]()
@@ -21,8 +38,13 @@ func (t *SqlTxs) clear() *SqlTxs {
 	return t
 }
 
-func (t *SqlTxs) AddTx(tx *SqlTx) *SqlTxs {
+func (t *SqlTxs) AddTx(tx Tx) *SqlTxs {
 	t.txs = append(t.txs, tx)
+	return t
+}
+
+func (t *SqlTxs) AddTxFunc(f func() error) *SqlTxs {
+	t.txs = append(t.txs, &txFunc{f})
 	return t
 }
 
