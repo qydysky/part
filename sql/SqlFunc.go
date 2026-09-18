@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-type BeforeF func(sqlf *SqlFunc) error
-type AfterEF func(result sql.Result) error
-type AfterQF func(rows *sql.Rows) error
+type BeforeF func(sqlf *SqlFunc) (e error)
+type AfterEF func(result sql.Result) (e error)
+type AfterQF func(rows *sql.Rows) (e error)
 
 type SqlFunc struct {
 	Ty      Type            // 	Execf or Queryf, default: auto detection

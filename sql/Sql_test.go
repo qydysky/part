@@ -15,6 +15,151 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestMain_a1(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:?_journal=ON")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	if e := BeginTx(db, ctx).
+		SimpleDo("create table log (id INTEGER)").
+		SimpleDo("insert into log (id) values (0)").
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	conn, _ := db.Conn(ctx)
+	defer conn.Close()
+
+	var nextid = func() (nid int64, err error) {
+		err = BeginTx(conn, ctx).
+			SimpleDo("update log set id=id+1").
+			SimpleDo("select ID from log").
+			AfterQF(func(rows *sql.Rows) (e error) {
+				if id, ok := DealRowMap(rows).Raw["id"].(int64); ok {
+					nid = id
+				}
+				return
+			}).
+			Run()
+		return
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(50)
+	for range 50 {
+		go func() {
+			defer wg.Done()
+			t.Log(nextid())
+		}()
+	}
+	wg.Wait()
+}
+
+func TestMain_b(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	if e := BeginTx(db, ctx).
+		SimpleDo("create table log (msg text)").
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	te := errors.New("业务错误")
+	txs := NewSqlTxs()
+
+	BeginTx(db, ctx).SimpleDo("insert into log (msg) values (?)", "1").AddToTxs(txs)
+
+	txs.AddTxFunc(func() error {
+		time.Sleep(time.Second)
+		return te
+	})
+
+	if i, e := txs.Run(); i != 1 || !errors.Is(e, te) {
+		t.Fatal(i, e)
+	}
+
+	if e := BeginTx(db, ctx).
+		SimpleDo("select count(1) C from log").
+		AfterQF(func(rows *sql.Rows) (e error) {
+			if c, ok := DealRowMap(rows).Raw["C"]; ok && c.(int64) == 1 {
+				return errors.New("业务错误")
+			}
+			return
+		}).
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestMain_a(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	db2, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+
+	ctx := context.Background()
+
+	if e := BeginTx(db, ctx).
+		SimpleDo("create table log (msg text)").
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	if e := BeginTx(db2, ctx).
+		SimpleDo("create table log (msg text)").
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	te := errors.New("业务错误")
+	txs := NewSqlTxs()
+
+	BeginTx(db, ctx).SimpleDo("insert into log (msg) values (?)", "1").AddToTxs(txs)
+
+	BeginTx(db2, ctx).SimpleDo("select count(1) C from log").AfterQF(func(rows *sql.Rows) (e error) {
+		if c, ok := DealRowMap(rows).Raw["C"]; ok && c.(int64) == 0 {
+			return te
+		}
+		return
+	}).AddToTxs(txs)
+
+	if i, e := txs.Run(); i != 1 || !errors.Is(e, te) {
+		t.Fatal(i, e)
+	}
+
+	if e := BeginTx(db, ctx).
+		SimpleDo("select count(1) C from log").
+		AfterQF(func(rows *sql.Rows) (e error) {
+			if c, ok := DealRowMap(rows).Raw["C"]; ok && c.(int64) == 1 {
+				return errors.New("业务错误")
+			}
+			return
+		}).
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestMain8(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", "./a")
