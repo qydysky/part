@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/klauspost/compress v1.18.2
+	github.com/klauspost/compress v1.18.7
 	github.com/miekg/dns v1.1.68
 	github.com/qydysky/brotli v0.0.0-20250531004300-54adcf96cc4a
 	github.com/shirou/gopsutil v3.21.11+incompatible
