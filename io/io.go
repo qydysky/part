@@ -525,10 +525,15 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 				}
 			}
 
+			var wT time.Time
 			maxByte := c.MaxByte
+			if maxByte == 0 {
+				maxByte = uint64(len(p)) + 10
+			}
 
 			if c.BytePerSec != 0 {
 				for uint64(len(p)) > c.BytePerSec {
+					wT = time.Now()
 					tmp, err := w.Write(p[:min(uint64(len(p)), c.BytePerSec, maxByte)])
 					p = p[tmp:]
 					n += tmp
@@ -538,9 +543,10 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 					} else if c.MaxByte > 0 && maxByte == 0 {
 						return n, ErrLoopMax
 					}
-					time.Sleep(time.Millisecond * time.Duration(1000/c.BytePerSec*uint64(tmp)))
+					time.Sleep(time.Millisecond*time.Duration(1000/c.BytePerSec*uint64(tmp)) - time.Since(wT))
 				}
 				if len(p) > 0 {
+					wT = time.Now()
 					tmp, err := w.Write(p[:min(uint64(len(p)), maxByte)])
 					n += tmp
 					maxByte -= uint64(tmp)
@@ -549,7 +555,7 @@ func WriterWithConfig(w io.Writer, c CopyConfig) (wc io.Writer) {
 					} else if c.MaxByte > 0 && maxByte == 0 {
 						return n, ErrLoopMax
 					}
-					time.Sleep(time.Millisecond * time.Duration(1000/c.BytePerSec*uint64(tmp)))
+					time.Sleep(time.Millisecond*time.Duration(1000/c.BytePerSec*uint64(tmp)) - time.Since(wT))
 				}
 			} else {
 				n, e = w.Write(p[:min(uint64(len(p)), maxByte)])
