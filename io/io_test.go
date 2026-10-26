@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"testing"
 	"time"
 
@@ -127,6 +128,17 @@ func Benchmark_readall1(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		io.ReadAll(r)
 		r.Reset(data)
+	}
+}
+
+func Test_WriterWithConfig(t *testing.T) {
+	now := time.Now()
+	var buf bytes.Buffer
+	var s = prand.Rand[[]byte](prand.TypeHex, humanize.KByte*3)
+	w := WriterWithConfig(&buf, CopyConfig{BytePerSec: humanize.KByte})
+	io.Copy(w, bytes.NewReader(s))
+	if !bytes.Equal(buf.Bytes(), s) && math.Abs(time.Since(now).Seconds()-3) > 0.1 {
+		t.Fatal()
 	}
 }
 
