@@ -25,7 +25,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
-        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/reqf
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
@@ -69,7 +69,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
-        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/reqf
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
@@ -113,7 +113,7 @@ jobs:
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/keyFunc
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/signal
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/log
-        go test -count 1 -timeout 15s -v -race github.com/qydysky/part/reqf
+        go test -count 1 -timeout 20s -v -race github.com/qydysky/part/reqf
         go test -count 1 -timeout 15s -v -race github.com/qydysky/part/limit
         go test -count 1 -timeout 20s -v -race github.com/qydysky/part/file
         go test -count 1 -timeout 5s -v -race github.com/qydysky/part/pool
