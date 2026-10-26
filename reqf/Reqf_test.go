@@ -279,6 +279,7 @@ func Test15(t *testing.T) {
 }
 
 func Test14(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	i, o := io.Pipe()
@@ -324,6 +325,7 @@ func Test14(t *testing.T) {
 }
 
 func Test_req13(t *testing.T) {
+	t.Parallel()
 	r := New()
 	e := r.Reqf(Rval{
 		Url:     "http://" + addr + "/code?code=403",
@@ -336,6 +338,7 @@ func Test_req13(t *testing.T) {
 }
 
 func Test_req7(t *testing.T) {
+	t.Parallel()
 	ctx, ctxc := context.WithCancel(context.Background())
 	r := New()
 	r.Reqf(Rval{
@@ -374,6 +377,7 @@ func Benchmark_req10(b *testing.B) {
 }
 
 func Test_req(t *testing.T) {
+	t.Parallel()
 	reuse.Reqf(Rval{
 		Url: "http://" + addr + "/br",
 	})
@@ -408,6 +412,7 @@ type J struct {
 }
 
 func Test_req12(t *testing.T) {
+	t.Parallel()
 	reuse.Reqf(Rval{
 		Url:     "http://" + addr + "/json",
 		Timeout: 10 * 1000,
@@ -423,6 +428,7 @@ func Test_req12(t *testing.T) {
 }
 
 func Test_req2(t *testing.T) {
+	t.Parallel()
 	r := New()
 	{
 		e := r.Reqf(Rval{
@@ -436,6 +442,7 @@ func Test_req2(t *testing.T) {
 }
 
 func Test_req4(t *testing.T) {
+	t.Parallel()
 	r := New()
 	{
 		r.Reqf(Rval{
