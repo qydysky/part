@@ -34,6 +34,20 @@ func Benchmark1(b *testing.B) {
 	}
 }
 
+func Test4(t *testing.T) {
+	p := New(PoolFunc[[]byte]{}, -1)
+	a := p.Get()
+	t.Logf("%p", a)
+	*a = append(*a, []byte{'1', '2', '3', '4'}...)
+	t.Logf("%p", a)
+	data := (*a)[:1]
+	t.Log(data)
+	(*a)[0] = '0'
+	t.Log(data)
+	p.Put(a)
+	t.Log(p.State().Nouse)
+}
+
 func Test3(t *testing.T) {
 	p := New(PoolFunc[int]{
 		New: func() *int {

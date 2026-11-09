@@ -160,6 +160,52 @@ func TestMain_a(t *testing.T) {
 	}
 }
 
+func TestMain10(t *testing.T) {
+	// connect
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if e := BeginTx(db, t.Context()).
+		SimpleDo("create table log (msg INT)").
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+	BeginTx(db, t.Context()).SimpleDo("insert into log (msg) values (?)", 1).Run()
+	BeginTx(db, t.Context()).SimpleDo("insert into log (msg) values (?)", 2).Run()
+
+	// BeginTx(db, t.Context()).Do(&SqlFunc{Sql: "select count(1) A from log", AfterQF: func(rows *sql.Rows) (e error) {
+	// 	t.Log(DealRow[struct{ A int64 }](rows).Raw.A)
+	// 	return nil
+	// }}).Run()
+
+	if e := BeginTx(db, t.Context()).
+		SimplePlaceHolderA("select count(1) A from log where msg in ({A})", &struct{ A []int }{[]int{1, 2}}).
+		AfterQF(func(rows *sql.Rows) (e error) {
+			if DealRow[struct{ A int64 }](rows).Raw.A != 2 {
+				t.Fatal()
+			}
+			return nil
+		}).
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+
+	if e := BeginTx(db, t.Context()).
+		SimplePlaceHolderA("select count(1) A from log where msg in ({A})", &struct{ A []any }{[]any{`1`}}).
+		AfterQF(func(rows *sql.Rows) (e error) {
+			if DealRow[struct{ A int64 }](rows).Raw.A != 1 {
+				t.Fatal()
+			}
+			return nil
+		}).
+		Run(); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestMain8(t *testing.T) {
 	// connect
 	db, err := sql.Open("sqlite", "./a")

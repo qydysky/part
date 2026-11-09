@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+func WithGzip(w io.Writer, level int) (io.WriteCloser, error) {
+	return gzip.NewWriterLevel(w, level)
+}
+
 func InGzip(byteS []byte, level int) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	Write, err := gzip.NewWriterLevel(buf, level)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"iter"
 	"reflect"
 	"slices"
 	"strings"
@@ -102,9 +103,10 @@ var (
 )
 
 type paraSort struct {
-	key   string
-	val   any
-	index int
+	key    string
+	val    any
+	index  int
+	valLen int
 }
 
 var queryPool = pool.NewPoolBlocks[paraSort]()
@@ -130,6 +132,11 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 				t := ps.Append(indexM)
 				t.key = replaceS
 				t.val = it.Value().Interface()
+				switch it.Value().Kind() {
+				case reflect.Slice, reflect.Array:
+					t.valLen = it.Value().Len()
+				default:
+				}
 				t.index = i
 			}
 		}
@@ -142,6 +149,11 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 					t := ps.Append(indexM)
 					t.key = replaceS
 					t.val = field.Interface()
+					switch field.Kind() {
+					case reflect.Slice, reflect.Array:
+						t.valLen = field.Len()
+					default:
+					}
 					t.index = i
 				}
 			}
@@ -154,8 +166,25 @@ func (t *SqlTx) DoPlaceHolder(sqlf *SqlFunc, queryPtr any, replaceF ReplaceF) *S
 	}
 	sqlf.Args = sqlf.Args[:0]
 	for k, v := range ps.Range(*indexM) {
-		sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
-		sqlf.Args = append(sqlf.Args, v.val)
+		if v.valLen > 0 {
+			var (
+				replaceS string
+				item     = replaceF(k, v.key)
+			)
+			for i := 0; i < v.valLen; i++ {
+				replaceS += item
+				if i < v.valLen-1 {
+					replaceS += `,`
+				}
+			}
+			sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceS)
+			for i := range toAnySlice(v.val) {
+				sqlf.Args = append(sqlf.Args, i)
+			}
+		} else {
+			sqlf.Sql = strings.ReplaceAll(sqlf.Sql, v.key, replaceF(k, v.key))
+			sqlf.Args = append(sqlf.Args, v.val)
+		}
 	}
 	return t
 }
@@ -276,4 +305,43 @@ func (t *SqlTx) commitOrRollback(errTx error) error {
 		t.finFunc()
 	}
 	return errTx
+}
+
+func toAnySlice(t any) iter.Seq[any] {
+	return func(yield func(any) bool) {
+		switch a := t.(type) {
+		case []string:
+			rangeV(a, yield)
+		case []uint:
+			rangeV(a, yield)
+		case []uint32:
+			rangeV(a, yield)
+		case []uint64:
+			rangeV(a, yield)
+		case []int:
+			rangeV(a, yield)
+		case []int32:
+			rangeV(a, yield)
+		case []int64:
+			rangeV(a, yield)
+		case []float32:
+			rangeV(a, yield)
+		case []float64:
+			rangeV(a, yield)
+		case []any:
+			rangeV(a, yield)
+		default:
+			if !yield(a) {
+				return
+			}
+		}
+	}
+}
+
+func rangeV[T any](a []T, yield func(any) bool) {
+	for i := range a {
+		if !yield(a[i]) {
+			return
+		}
+	}
 }

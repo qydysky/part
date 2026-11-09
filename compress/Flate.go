@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+func WithFlate(w io.Writer, level int) (io.WriteCloser, error) {
+	return flate.NewWriter(w, level)
+}
+
 func InFlate(byteS []byte, level int) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 

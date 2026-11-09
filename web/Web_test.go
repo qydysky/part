@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"net/http/httptrace"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +52,160 @@ func Test2(t *testing.T) {
 	if buf.header.Get("Allow") != "OPTIONS, GET" {
 		t.Fatal()
 	}
+}
+
+func Test_WriteTimeout(t *testing.T) {
+	var path WebPath
+	s := NewSyncMap(&http.Server{
+		Addr:         "0.0.0.0:13000",
+		WriteTimeout: time.Millisecond * 200,
+	}, &path)
+	defer s.Shutdown()
+
+	var keepWrite bool
+
+	path.Store(`/`, func(w http.ResponseWriter, r *http.Request) {
+		if keepWrite {
+			path.GetConn(r).SetWriteDeadline(time.Time{})
+		}
+		w = WithFlush(w)
+		w.Write([]byte("1"))
+		time.Sleep(time.Millisecond * 500)
+		w.Write([]byte("2"))
+	})
+
+	time.Sleep(time.Second)
+
+	reuses := []bool{}
+
+	clientTrace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			reuses = append(reuses, info.Reused)
+			log.Printf("conn was reused: %t", info.Reused)
+		},
+	}
+	traceCtx := httptrace.WithClientTrace(context.Background(), clientTrace)
+
+	r := reqf.New()
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+	r.Respon(func(b []byte) error {
+		if string(b) != "1" {
+			t.Fatal()
+		}
+		return nil
+	})
+	keepWrite = true
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+	r.Respon(func(b []byte) error {
+		if string(b) != "12" {
+			t.Fatal()
+		}
+		return nil
+	})
+	keepWrite = false
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+	r.Respon(func(b []byte) error {
+		if string(b) != "1" {
+			t.Fatal()
+		}
+		return nil
+	})
+
+	if !slices.Equal(reuses, []bool{false, false, true}) {
+		t.Fatal()
+	}
+}
+
+func Test_IdleTimeout(t *testing.T) {
+	var path WebPath
+	s := NewSyncMap(&http.Server{
+		Addr:         "0.0.0.0:13000",
+		WriteTimeout: time.Millisecond * 500,
+		IdleTimeout:  time.Millisecond * 500,
+	}, &path)
+	defer s.Shutdown()
+
+	path.Store(`/`, func(w http.ResponseWriter, r *http.Request) {
+		conn := path.GetConn(r)
+		conn.SetDeadline(time.Time{})
+		// defer conn.SetDeadline(time.Time{})
+
+		w = WithFlush(w)
+		w.Write([]byte(""))
+	})
+
+	time.Sleep(time.Second)
+
+	reuses := []bool{}
+
+	clientTrace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			reuses = append(reuses, info.Reused)
+			log.Printf("conn was reused: %t", info.Reused)
+		},
+	}
+	traceCtx := httptrace.WithClientTrace(context.Background(), clientTrace)
+
+	r := reqf.New()
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+	time.Sleep(time.Second)
+	r.Reqf(reqf.Rval{
+		Ctx: traceCtx,
+		Url: "http://127.0.0.1:13000/",
+	})
+
+	if !slices.Equal(reuses, []bool{false, true, false}) {
+		t.Fatal()
+	}
+}
+
+func Test_Timeout(t *testing.T) {
+	var path WebPath
+	s := NewSyncMap(&http.Server{
+		Addr:         "0.0.0.0:13000",
+		WriteTimeout: time.Millisecond * 500,
+	}, &path)
+	defer s.Shutdown()
+
+	path.Store(`/`, func(w http.ResponseWriter, r *http.Request) {
+		w = WithFlush(w)
+		w.Write([]byte("1"))
+		time.Sleep(time.Millisecond * 300)
+		w.Write([]byte("2"))
+		time.Sleep(time.Millisecond * 300)
+		w.Write([]byte("3"))
+		time.Sleep(time.Second)
+		w.Write([]byte("4"))
+	})
+
+	time.Sleep(time.Second)
+
+	r := reqf.New()
+	r.Reqf(reqf.Rval{
+		Url: "http://127.0.0.1:13000/",
+	})
+	r.Respon(func(rRespon []byte) error {
+		if string(rRespon) != "12" {
+			t.Fatal()
+		}
+		return nil
+	})
 }
 
 func TestMain(t *testing.T) {

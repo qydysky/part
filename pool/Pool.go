@@ -46,14 +46,6 @@ func New[T any](poolFunc PoolFunc[T], maxsize int) *Buf[T] {
 	return t
 }
 
-// states[] 0:pooled, 1:nopooled, 2:inuse, 3:nouse, 4:sum, 5:getPerSec
-//
-// Deprecated: s
-func (t *Buf[T]) PoolState() (states []any) {
-	state := t.State()
-	return []any{state.Pooled, state.Nopooled, state.Inuse, state.Nouse, state.Sum, state.GetPerSec}
-}
-
 type BufState struct {
 	Pooled, Nopooled, Inuse, Nouse, Sum, Allos int
 	GetPerSec                                  float64
