@@ -143,8 +143,7 @@ func (t *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type WebPath struct {
-	Path string `json:"path"`
-	// current net.Conn: conn, ok := r.Context().Value(&WebPath).(net.Conn)
+	Path    string `json:"path"`
 	f       func(w http.ResponseWriter, r *http.Request)
 	PerSame *WebPath `json:"-"`
 	Per     *WebPath `json:"-"`

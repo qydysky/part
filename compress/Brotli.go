@@ -7,6 +7,11 @@ import (
 	br "github.com/qydysky/brotli"
 )
 
+func WithBr(w io.Writer, level int) (wc io.WriteCloser, e error) {
+	wc = br.NewWriterLevel(w, level)
+	return
+}
+
 func InBr(byteS []byte, level int) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
 	Write := br.NewWriterLevel(buf, level)

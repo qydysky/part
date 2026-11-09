@@ -1,6 +1,7 @@
 package unsafe
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -38,6 +39,18 @@ func Test4(t *testing.T) {
 	b := S2B(s)
 	b[0] = '0'
 	data[0] = '1'
+}
+
+func Benchmark_1(b *testing.B) {
+	type A struct {
+		data []byte
+	}
+	var a A
+	data := []byte(`{"data":"123"}`)
+	json.Unmarshal(data, &a)
+	for b.Loop() {
+		json.Unmarshal(data, &a)
+	}
 }
 
 func Benchmark1(b *testing.B) {

@@ -115,6 +115,7 @@ func (t *Map) CopyP() (m *Map) {
 	return
 }
 
+// Deprecated: use maps.Clone
 func Copy[T comparable, S any](s map[T]S) map[T]S {
 	t := make(map[T]S)
 	for k, v := range s {
