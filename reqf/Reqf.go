@@ -124,8 +124,7 @@ func (t *Req) Reqf(val Rval) error {
 	} else if !val.Async {
 		// 同步
 		t.reqfM(ctx, cancel, val)
-		e = t.err
-		return e
+		return t.Wait()
 	} else {
 		//异步
 		go t.reqfM(ctx, cancel, val)

@@ -236,7 +236,7 @@ func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
 			t.l.Lock()
 			n = copy(b, t.GetPureBuf())
 			_ = t.RemoveFront(n)
-			if t.bufsize == 0 {
+			if t.bufsize == 0 && pc.Done(ctx) {
 				e = io.EOF
 			}
 			t.l.Unlock()
