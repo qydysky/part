@@ -229,22 +229,25 @@ func (t *Buf[T]) Read(b []T) (n int, e error) {
 func (t *Buf[T]) ReadCtx(ctx context.Context, b []T) (n int, e error) {
 	for {
 		t.l.RLock()
-		if t.bufsize > 0 {
+		haveBuf := t.bufsize > 0
+		t.l.RUnlock()
+
+		if haveBuf && !pc.Done(ctx) {
+			t.l.Lock()
 			n = copy(b, t.GetPureBuf())
 			_ = t.RemoveFront(n)
-			if t.bufsize == 0 && pc.Done(ctx) {
+			if t.bufsize == 0 {
 				e = io.EOF
 			}
-			t.l.RUnlock()
+			t.l.Unlock()
 			return
-		} else {
-			t.l.RUnlock()
-			select {
-			case <-ctx.Done():
-				e = context.Canceled
-				return
-			case <-time.After(time.Millisecond * 100):
-			}
+		}
+
+		select {
+		case <-ctx.Done():
+			e = context.Canceled
+			return
+		case <-time.After(time.Millisecond * 100):
 		}
 	}
 }
